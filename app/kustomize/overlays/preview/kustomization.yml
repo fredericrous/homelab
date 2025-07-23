@@ -1,0 +1,7 @@
+resources:
+  - ../../base
+
+labels:
+  - includeSelectors: true
+    pairs:
+      preview: ${PR_NUMBER}

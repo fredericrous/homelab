@@ -1,0 +1,5 @@
+cluster:
+  kubelet:
+    extraArgs:
+      "node.kubernetes.io/type": "worker"
+      "hardware.nvidia.com/gpu": "false"

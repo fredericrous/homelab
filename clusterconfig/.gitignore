@@ -1,0 +1,7 @@
+my-cluster-controlplane.yaml
+my-cluster-worker-1-gpu.yaml
+my-cluster-worker-2.yaml
+talosconfig
+homelab-controlplane.yaml
+homelab-worker-1-gpu.yaml
+homelab-worker-2.yaml

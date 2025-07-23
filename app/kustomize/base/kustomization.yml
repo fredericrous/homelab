@@ -1,0 +1,20 @@
+resources:
+  - serviceaccount.yml
+  - service.yml
+  - deployment.yml
+
+images:
+  - name: ghcr.io/developer-friendly/fluxy-dummy
+
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app.kubernetes.io/component: fluxy-dummy
+      app.kubernetes.io/instance: fluxy-dummy
+      app.kubernetes.io/managed-by: Kustomize
+      app.kubernetes.io/name: fluxy-dummy
+      app.kubernetes.io/part-of: fluxy-dummy
+      app.kubernetes.io/version: v1.0.0
+
+namespace: default

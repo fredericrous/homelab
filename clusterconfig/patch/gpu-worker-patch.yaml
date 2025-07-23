@@ -1,0 +1,27 @@
+machine:
+  install:
+    image: factory.talos.dev/nocloud-installer/a5ce1cbe595e5d591428776691466c07b2b681eabb65fbb7ff943621689937de:v1.10.5
+    # extraKernelArgs:
+    #   - amd_pstate=active
+    #   - init_on_alloc=0
+    #   - init_on_free=0
+    #   - apparmor=0
+    #   - talos.auditd.disabled=1
+    # extensions:
+    #   - name: siderolabs/amd-ucode
+    #   - name: siderolabs/nonfree-kmod-nvidia-production
+    #   - name: siderolabs/nvidia-container-toolkit-production
+  kernel:
+    modules:
+      - name: nvidia
+      - name: nvidia_uvm
+      - name: nvidia_drm
+      - name: nvidia_modeset
+  sysctls:
+    net.core.bpf_jit_harden: 1
+  udev:
+    rules:
+      - # Allow access to NVIDIA GPU render nodes
+        SUBSYSTEM=="char", KERNEL=="nvidia*", GROUP="44", MODE="0660"
+      - # Also include renderD* if using NVIDIA container runtime with `/dev/dri`
+        SUBSYSTEM=="drm", KERNEL=="renderD*", GROUP="44", MODE="0660"

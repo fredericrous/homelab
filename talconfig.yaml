@@ -1,0 +1,16 @@
+---
+clusterName: homelab
+endpoint: https://192.168.1.67:6443
+nodes:
+  - hostname: controlplane
+    controlPlane: true
+    ipAddress: 192.168.1.67
+    installDisk: /dev/sda
+  - hostname: worker-1-gpu
+    controlPlane: false
+    ipAddress: 192.168.1.68
+    installDisk: /dev/sda
+  - hostname: worker-2
+    controlPlane: false
+    ipAddress: 192.168.1.69
+    installDisk: /dev/sda

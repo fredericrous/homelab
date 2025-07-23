@@ -1,0 +1,17 @@
+machine:
+  network:
+    interfaces:
+      - interface: ens18
+        addresses:
+        # - 192.168.1.67/24 # controlplane
+        # - 192.168.1.68/24 # worker-1-gpu
+        # - 192.168.1.69/24 # worker-2
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+        dhcp: false
+        mtu: 1500
+    nameservers:
+      - 8.8.8.8
+      - 1.1.1.1
+      - 192.168.1.1
