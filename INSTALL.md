@@ -115,3 +115,5 @@ run
 
 talosctl --talosconfig talosconfig patch mc --patch @gpu-worker-patch.yaml --nodes 192.168.1.68 -e 192.168.1.67:6443
 
+
+* to automate all this, a path to explore is terraform, like there https://github.com/zimmertr/TJs-Kubernetes-Service/
