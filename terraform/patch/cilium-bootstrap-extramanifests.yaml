@@ -1,4 +1,4 @@
 # Ask Talos to fetch & apply a pinned Cilium quick-install one time at bootstrap
 cluster:
   extraManifests:
-    - https://raw.githubusercontent.com/cilium/cilium/v1.15.6/install/kubernetes/quick-install.yaml
+    - https://raw.githubusercontent.com/fredericrous/homelab/main/manifests/core/cilium/bootstrap/install.yaml

@@ -59,8 +59,11 @@ terraform apply -auto-approve -parallelism=10 \
     -target=talos_cluster_kubeconfig.this \
     -target=local_file.kubeconfig
 
-# Stage 3: Verify cluster
-echo "✅ Stage 3: Verifying cluster..."
+# Stage 3: Wait for Cilium and verify cluster
+echo "⏳ Stage 3: Waiting for Cilium CNI..."
+terraform apply -auto-approve -target=null_resource.wait_for_cilium
+
+echo "✅ Stage 4: Verifying cluster..."
 export KUBECONFIG=../kubeconfig
 kubectl get nodes
 
