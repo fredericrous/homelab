@@ -1,0 +1,5 @@
+name: authelia
+project: apps
+namespace: authelia
+path: manifests/apps/authelia
+syncWave: "20"

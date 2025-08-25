@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: authelia
+  namespace: authelia
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    haproxy.org/ssl-redirect: "true"
+    haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+    haproxy.org/auth-tls-verify-client: "required"
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - auth.daddyshome.fr
+    secretName: authelia-tls
+  rules:
+  - host: auth.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authelia
+            port:
+              number: 80

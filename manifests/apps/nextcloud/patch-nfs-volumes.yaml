@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+spec:
+  template:
+    spec:
+      containers:
+      - name: nextcloud
+        volumeMounts:
+        - mountPath: /var/www/html/data/media
+          name: nfs-media
+        - mountPath: /var/www/html/data/vms
+          name: nfs-vms
+      - name: nextcloud-cron
+        volumeMounts:
+        - mountPath: /var/www/html/data/media
+          name: nfs-media
+        - mountPath: /var/www/html/data/vms
+          name: nfs-vms
+      volumes:
+      - name: nfs-media
+        persistentVolumeClaim:
+          claimName: nextcloud-nfs-media
+      - name: nfs-vms
+        persistentVolumeClaim:
+          claimName: nextcloud-nfs-vms

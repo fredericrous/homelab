@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-configure-operator
+  namespace: vault
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: vault-config
+        image: hashicorp/vault:1.14.0
+        env:
+        - name: VAULT_ADDR
+          value: "http://vault.vault.svc.cluster.local:8200"
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-init-token
+              key: token
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Create policy for vault-secrets-operator
+          cat <<EOF | vault policy write vault-secrets-operator-policy -
+          path "secret/data/*" {
+            capabilities = ["read"]
+          }
+          path "auth/kubernetes/login" {
+            capabilities = ["create", "update"]
+          }
+          EOF
+          
+          # Create role for vault-secrets-operator
+          vault write auth/kubernetes/role/vault-secrets-operator \
+            bound_service_account_names="*" \
+            bound_service_account_namespaces="*" \
+            policies=vault-secrets-operator-policy \
+            ttl=24h
+          
+          echo "Vault operator configuration completed"

@@ -1,0 +1,5 @@
+name: cert-manager
+project: core
+namespace: cert-manager
+path: manifests/core/cert-manager
+syncWave: "-25"

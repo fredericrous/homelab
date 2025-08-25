@@ -1,0 +1,5 @@
+name: redis
+project: core
+namespace: redis
+path: manifests/core/redis
+syncWave: "-12"

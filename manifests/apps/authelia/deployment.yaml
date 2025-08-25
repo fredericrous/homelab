@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authelia
+  namespace: authelia
+  labels:
+    app: authelia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authelia
+  template:
+    metadata:
+      labels:
+        app: authelia
+    spec:
+      serviceAccountName: authelia
+      containers:
+      - name: authelia
+        image: authelia/authelia:4.38
+        command: ["authelia"]
+        args: ["--config=/config/configuration.yml"]
+        ports:
+        - containerPort: 9091
+        env:
+        - name: AUTHELIA_JWT_SECRET_FILE
+          value: /secrets/JWT_SECRET
+        - name: AUTHELIA_SESSION_SECRET_FILE
+          value: /secrets/SESSION_SECRET
+        - name: AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE
+          value: /secrets/STORAGE_PASSWORD
+        - name: AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE
+          value: /secrets/STORAGE_ENCRYPTION_KEY
+        - name: AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE
+          value: /secrets/AUTHENTICATION_BACKEND_LDAP_PASSWORD
+        - name: SSL_CERT_FILE
+          value: /custom-ca/ca-bundle.crt
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: secrets
+          mountPath: /secrets
+          readOnly: true
+        - name: ca-certificates
+          mountPath: /custom-ca
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 9091
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 9091
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: authelia-config
+      - name: secrets
+        secret:
+          secretName: authelia-secrets
+          items:
+          - key: JWT_SECRET
+            path: JWT_SECRET
+          - key: SESSION_SECRET
+            path: SESSION_SECRET
+          - key: STORAGE_PASSWORD
+            path: STORAGE_PASSWORD
+          - key: STORAGE_ENCRYPTION_KEY
+            path: STORAGE_ENCRYPTION_KEY
+          - key: AUTHENTICATION_BACKEND_LDAP_PASSWORD
+            path: AUTHENTICATION_BACKEND_LDAP_PASSWORD
+      - name: ca-certificates
+        secret:
+          secretName: ca-certificates

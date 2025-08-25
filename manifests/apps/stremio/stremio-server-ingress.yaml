@@ -1,0 +1,47 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stremio-server
+  namespace: stremio
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    haproxy.org/ssl-redirect: "true"
+    haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+    haproxy.org/auth-tls-verify-client: "optional"
+    # WebSocket support for streaming
+    haproxy.org/timeout-client: "3600s"
+    haproxy.org/timeout-server: "3600s"
+    haproxy.org/timeout-tunnel: "3600s"
+    # Handle OPTIONS preflight requests
+    haproxy.org/backend-config-snippet: |
+      http-request return status 200 content-type "text/plain" string "OK" if METH_OPTIONS
+      timeout tunnel 1h
+      # Forward client certificate information to backend
+      http-request set-header X-SSL-Client-Cert %[ssl_c_der,base64]
+      http-request set-header X-SSL-Client-DN %[ssl_c_s_dn]
+      http-request set-header X-SSL-Client-CN %[ssl_c_s_dn(cn)]
+      http-request set-header X-SSL-Client-Verify %[ssl_c_verify]
+    # CORS configuration
+    haproxy.org/cors-enable: "true"
+    haproxy.org/cors-allow-origin: "https://stremio.daddyshome.fr"
+    haproxy.org/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS, HEAD"
+    haproxy.org/cors-allow-headers: "*"
+    haproxy.org/cors-allow-credentials: "true"
+    haproxy.org/cors-max-age: "86400"
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - stremio-server.daddyshome.fr
+    secretName: stremio-server-tls
+  rules:
+  - host: stremio-server.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 11470

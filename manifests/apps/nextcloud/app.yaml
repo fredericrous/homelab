@@ -1,0 +1,5 @@
+name: nextcloud
+project: apps
+namespace: nextcloud
+path: manifests/apps/nextcloud
+syncWave: "30"

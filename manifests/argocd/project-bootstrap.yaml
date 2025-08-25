@@ -1,0 +1,45 @@
+# AppProject for bootstrap - minimal permissions for root app
+# Only allows creating the resources needed to bootstrap Argo CD
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: bootstrap
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"  # Create projects first
+spec:
+  description: Bootstrap project for root application
+  
+  # Only allow Applications created in the argocd namespace
+  sourceNamespaces:
+  - argocd
+  
+  # Allow both HTTPS and SSH forms of the repo
+  sourceRepos:
+  - https://github.com/fredericrous/homelab.git
+  - ssh://git@github.com/fredericrous/homelab.git
+  
+  # Can only deploy to argocd namespace
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: argocd
+  
+  # No cluster resources needed - AppProject/ApplicationSet are namespaced
+  clusterResourceWhitelist: []
+  
+  # Allow Argo CD resources in namespace
+  namespaceResourceWhitelist:
+  - group: 'argoproj.io'
+    kind: Application
+  - group: 'argoproj.io'
+    kind: ApplicationSet
+  - group: 'argoproj.io'
+    kind: AppProject
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: Secret
+  
+  # No orphaned resources expected in bootstrap
+  orphanedResources:
+    warn: false

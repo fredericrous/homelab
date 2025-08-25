@@ -1,0 +1,12 @@
+# Argo CD namespace
+# This must be applied first during bootstrap
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    name: argocd
+    # Pod security standards - Argo CD needs some privileges
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

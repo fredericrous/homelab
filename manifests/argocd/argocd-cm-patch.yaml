@@ -1,0 +1,117 @@
+# Patch for argocd-cm ConfigMap
+# Adds health checks for custom resources
+# Applied via Kustomize patch to avoid overwriting existing keys
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  # Health checks for custom resources
+  resource.customizations.health.cert-manager.io_Certificate: |
+    hs = {}
+    if obj.status ~= nil then
+      if obj.status.conditions ~= nil then
+        for i, condition in ipairs(obj.status.conditions) do
+          if condition.type == "Ready" and condition.status == "True" then
+            hs.status = "Healthy"
+            hs.message = "Certificate is ready"
+            return hs
+          end
+        end
+      end
+    end
+    hs.status = "Progressing"
+    hs.message = "Waiting for certificate"
+    return hs
+
+  resource.customizations.health.velero.io_Backup: |
+    hs = {}
+    if obj.status ~= nil then
+      if obj.status.phase == "Completed" then
+        hs.status = "Healthy"
+        hs.message = "Backup completed"
+      elseif obj.status.phase == "Failed" or obj.status.phase == "PartiallyFailed" then
+        hs.status = "Degraded"
+        hs.message = "Backup failed/partial"
+      else
+        hs.status = "Progressing"
+        hs.message = "Backup in progress"
+      end
+    else
+      hs.status = "Progressing"
+      hs.message = "Waiting for backup to start"
+    end
+    return hs
+
+  resource.customizations.health.secrets.hashicorp.com_VaultStaticSecret: |
+    hs = {}
+    if obj.status ~= nil then
+      if obj.status.secretMAC ~= nil and obj.status.secretMAC ~= "" then
+        hs.status = "Healthy"
+        hs.message = "Secret synced"
+      else
+        hs.status = "Progressing"
+        hs.message = "Syncing secret from Vault"
+      end
+    else
+      hs.status = "Progressing"
+      hs.message = "Waiting for VSO controller"
+    end
+    return hs
+
+  resource.customizations.health.postgresql.cnpg.io_Cluster: |
+    hs = {}
+    if obj.status ~= nil then
+      if obj.status.phase == "Healthy" then
+        hs.status = "Healthy"
+        hs.message = "Cluster phase Healthy"
+      elseif obj.status.readyInstances ~= nil and obj.status.instances ~= nil then
+        if obj.status.readyInstances == obj.status.instances then
+          hs.status = "Healthy"
+          hs.message = string.format("%d/%d instances ready", obj.status.readyInstances, obj.status.instances)
+        else
+          hs.status = "Progressing"
+          hs.message = string.format("%d/%d instances ready", obj.status.readyInstances or 0, obj.status.instances)
+        end
+      else
+        hs.status = "Progressing"
+        hs.message = "Waiting for instances"
+      end
+    else
+      hs.status = "Progressing"
+      hs.message = "Cluster is starting"
+    end
+    return hs
+
+  resource.customizations.health.ceph.rook.io_CephCluster: |
+    hs = {}
+    if obj.status ~= nil then
+      if obj.status.ceph ~= nil and obj.status.ceph.health == "HEALTH_OK" then
+        hs.status = "Healthy"
+        hs.message = "Ceph cluster is healthy"
+      elseif obj.status.ceph ~= nil and obj.status.ceph.health == "HEALTH_WARN" then
+        hs.status = "Degraded"
+        hs.message = "Ceph cluster has warnings"
+      elseif obj.status.ceph ~= nil then
+        hs.status = "Degraded"
+        hs.message = obj.status.ceph.health or "Unknown health status"
+      else
+        hs.status = "Progressing"
+        hs.message = "Ceph cluster is initializing"
+      end
+    else
+      hs.status = "Progressing"
+      hs.message = "Waiting for Ceph status"
+    end
+    return hs
+
+  # Global ignore for Cilium identities (they're dynamically managed)
+  resource.customizations.ignoreDifferences.cilium.io_CiliumIdentity: |
+    jsonPointers:
+    - /status
+
+  # URL for Argo CD UI
+  url: https://argocd.daddyshome.fr
+
+  kustomize.buildOptions: --enable-helm

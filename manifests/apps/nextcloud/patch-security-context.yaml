@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+spec:
+  template:
+    spec:
+      securityContext:
+        fsGroup: 33  # www-data group for file permissions
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: wait-for-postgres
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      - name: wait-for-redis
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      containers:
+      - name: nextcloud
+        securityContext:
+          allowPrivilegeEscalation: true  # Required for initial setup
+          runAsNonRoot: false  # Apache needs to start as root then drop privileges
+          runAsUser: 0  # Start as root, Apache will switch to www-data
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - CHOWN
+            - DAC_OVERRIDE
+            - SETGID
+            - SETUID
+            - NET_BIND_SERVICE
+      - name: nextcloud-cron
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 33
+          capabilities:
+            drop:
+            - ALL

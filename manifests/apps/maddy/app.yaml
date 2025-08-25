@@ -1,0 +1,5 @@
+name: maddy
+project: apps
+namespace: maddy
+path: manifests/apps/maddy
+syncWave: "22"

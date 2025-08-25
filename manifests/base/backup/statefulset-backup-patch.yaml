@@ -1,0 +1,11 @@
+# Strategic merge patch for StatefulSets
+# Apps need to set backup.velero.io/backup-volumes annotation value
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: not-used
+spec:
+  template:
+    metadata:
+      annotations:
+        backup.velero.io/backup-volumes: PLACEHOLDER

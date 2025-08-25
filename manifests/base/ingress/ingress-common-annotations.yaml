@@ -1,0 +1,15 @@
+# Common annotations for all ingresses
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: not-used
+  annotations:
+    # HAProxy annotations
+    haproxy.org/ssl-redirect: "true"
+    haproxy.org/backend-config-snippet: |
+      http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains" if { ssl_fc }
+      http-response set-header X-Content-Type-Options "nosniff"
+      http-response set-header X-Frame-Options "SAMEORIGIN"
+      http-response set-header X-XSS-Protection "1; mode=block"
+    # cert-manager
+    cert-manager.io/cluster-issuer: letsencrypt-ovh-webhook

@@ -1,0 +1,96 @@
+# ApplicationSet for core platform components
+# Auto-discovers app.yaml files under manifests/core/
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: core
+  namespace: argocd
+spec:
+  # Enable Go templating for advanced features like defaults
+  goTemplate: true
+  goTemplateOptions:
+  - missingkey=default
+  
+  generators:
+  # Git file generator - discovers app.yaml files
+  - git:
+      repoURL: https://github.com/fredericrous/homelab.git
+      revision: main
+      files:
+      - path: "manifests/core/**/app.yaml"
+  
+  template:
+    metadata:
+      name: '{{ .name }}'
+      namespace: argocd
+      {{- if .syncWave }}
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{ .syncWave }}"
+      {{- end }}
+      finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: '{{ .project }}'
+      source:
+        repoURL: https://github.com/fredericrous/homelab.git
+        targetRevision: main
+        path: '{{ .path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        {{- if and (ne .autoSync "false") (ne (default "true" .autoSync) "false") }}
+        automated:
+          prune: {{ ne (default "true" .prune) "false" }}
+          selfHeal: true
+        {{- end }}
+        syncOptions:
+        - CreateNamespace={{ default "true" .createNamespace }}
+        {{- if eq .serverSideApply "true" }}
+        - ServerSideApply=true
+        {{- end }}
+        - PrunePropagationPolicy=foreground
+        - ApplyOutOfSyncOnly=true
+        {{- if or (eq .hasCRDs "true") (contains "cert-manager" .name) (contains "operator" .name) }}
+        - SkipDryRunOnMissingResource=true
+        {{- end }}
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+      revisionHistoryLimit: 3
+      
+      {{- if .ignoreDifferences }}
+      ignoreDifferences:
+{{ toYaml .ignoreDifferences | indent 6 }}
+      {{- else }}
+      # Default ignore differences
+      ignoreDifferences:
+      # CloudNativePG
+      - group: postgresql.cnpg.io
+        kind: Cluster
+        jsonPointers:
+        - /spec/instances
+        - /status
+      # Cert-manager
+      - group: cert-manager.io
+        kind: Certificate
+        jsonPointers:
+        - /status
+      # Vault Secrets Operator
+      - group: secrets.hashicorp.com
+        kind: VaultStaticSecret
+        jsonPointers:
+        - /status
+      # Rook-Ceph
+      - group: ceph.rook.io
+        kind: CephCluster
+        jsonPointers:
+        - /status
+      - group: ceph.rook.io
+        kind: CephBlockPool
+        jsonPointers:
+        - /status
+      {{- end }}

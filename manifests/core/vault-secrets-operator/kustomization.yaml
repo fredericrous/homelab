@@ -1,0 +1,85 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Include shared vault auth base (for vault-config service account)
+  - ../../base/vault-auth
+  # Include job templates
+  - ../../base/job-templates
+  # App-specific resources
+  # - job-vault-configure-vso.yaml  # Replaced by job template
+  - vault-secret-sync.yaml
+  - vault-auth-global.yaml
+
+# Install Vault Secrets Operator via Helm
+helmCharts:
+- name: vault-secrets-operator
+  repo: https://helm.releases.hashicorp.com
+  version: 0.10.0
+  namespace: vault-secrets-operator-system
+  releaseName: vault-secrets-operator
+
+patches:
+  # Customize the vault auth from base
+  - target:
+      kind: VaultAuth
+      name: vault-auth
+    patch: |-
+      apiVersion: secrets.hashicorp.com/v1beta1
+      kind: VaultAuth
+      metadata:
+        name: vault-auth
+        namespace: vault-secrets-operator-system
+      spec:
+        kubernetes:
+          role: vault-secrets-operator
+          serviceAccount: vault-secrets-operator
+  
+  # Customize the RBAC for vault token reader
+  - target:
+      kind: RoleBinding
+      name: PLACEHOLDER-vault-admin-token-reader
+      namespace: vault
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: vso-vault-admin-token-reader
+        namespace: vault
+      subjects:
+      - kind: ServiceAccount
+        name: vault-config
+        namespace: vault-secrets-operator-system
+  
+  # Patch vault configure job template
+  - target:
+      kind: Job
+      name: vault-configure
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-configure-vso
+        namespace: vault-secrets-operator-system
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-configure
+              env:
+              - name: VAULT_POLICY_NAME
+                value: "vso"
+              - name: VAULT_POLICY_CONTENT
+                value: |
+                  path "auth/kubernetes/role/*" {
+                    capabilities = ["read", "list"]
+                  }
+                  path "sys/auth" {
+                    capabilities = ["read"]
+                  }
+              - name: VAULT_ROLE_NAME
+                value: "vault-secrets-operator"
+              - name: VAULT_ROLE_SERVICE_ACCOUNTS
+                value: "vault-secrets-operator"
+              - name: VAULT_ROLE_NAMESPACES
+                value: "vault-secrets-operator-system"

@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nextcloud-mobile
+  namespace: nextcloud
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-ovh-webhook-final
+    haproxy.org/ssl-redirect: "true"
+    # No client certificate verification for mobile access
+    haproxy.org/client-ca-file: ""
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - drive-mobile.daddyshome.fr
+    secretName: nextcloud-mobile-tls
+  rules:
+  - host: drive-mobile.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nextcloud
+            port:
+              number: 80

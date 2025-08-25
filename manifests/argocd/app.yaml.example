@@ -1,0 +1,33 @@
+# Example app.yaml file for ApplicationSet discovery
+# Place one of these in each application directory
+
+# For core services (manifests/core/*/app.yaml):
+name: vault                      # Application name in Argo CD
+project: core                    # Must be 'core' for core services
+namespace: vault                 # Target namespace (can differ from directory name)
+path: manifests/core/vault       # Path to kustomization.yaml
+syncWave: "-9"                   # Optional: defaults to -10 for core
+# createNamespace: "true"        # Optional: defaults to true for core
+# extraSyncOptions:              # Optional: additional sync options
+#   - RespectIgnoreDifferences=true
+#   - Prune=false
+# namespacePodSecurity:          # Optional: core often needs privileged
+#   enforce: privileged          # Default: privileged for core
+#   audit: restricted
+#   warn: restricted
+
+# For user applications (manifests/apps/*/app.yaml):
+name: nextcloud                  # Application name in Argo CD
+project: apps                    # Must be 'apps' for user applications
+namespace: nextcloud             # Target namespace (will be created automatically)
+path: manifests/apps/nextcloud   # Path to kustomization.yaml
+# syncWave: "12"                 # Optional: defaults to 10 for apps
+# extraSyncOptions:              # Optional: additional sync options
+#   - RespectIgnoreDifferences=true
+# namespacePodSecurity:          # Optional: customize pod security standards
+#   enforce: baseline            # Default: restricted
+#   audit: restricted
+#   warn: restricted
+# namespaceExtraLabels:          # Optional: additional namespace labels
+#   team: storage
+#   environment: production

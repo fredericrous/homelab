@@ -1,0 +1,5 @@
+name: client-ca
+project: core
+namespace: haproxy-controller
+path: manifests/core/client-ca
+syncWave: "-25"  # Deploy early for mTLS

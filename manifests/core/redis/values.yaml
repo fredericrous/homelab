@@ -1,0 +1,41 @@
+# Redis standalone configuration
+redisStandalone:
+  name: redis
+  replicas: 1
+  image: quay.io/opstree/redis:v7.0.12
+  imagePullPolicy: IfNotPresent
+  
+  # Storage configuration
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: rook-ceph-block
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+  
+  # Resource limits
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Security context
+  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+    runAsNonRoot: true
+  
+  # Redis config
+  redisConfig:
+    maxmemory: "400mb"
+    maxmemory-policy: "allkeys-lru"
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 6379

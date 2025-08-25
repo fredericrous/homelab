@@ -1,0 +1,151 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: authelia
+
+resources:
+  # Include shared vault auth base
+  - ../../base/vault-auth
+  # Include job templates
+  - ../../base/job-templates
+  # App-specific resources
+  - namespace.yaml
+  # - job-vault-configure-authelia.yaml  # Now using job-templates base
+  # - vault-auth.yaml  # Now provided by base/vault-auth
+  # - vault-auth-namespace.yaml  # Now provided by base/vault-auth
+  # - vault-connection.yaml  # Now provided by base/vault-auth
+  # - secrets.yaml  # Replaced by VaultStaticSecret in vault-secret-sync.yaml
+  - vault-secret-sync.yaml
+  - postgres-superuser-secret.yaml
+  - configmap.yaml
+  - ca-configmap.yaml
+  - ca-certificates-secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - postgres-setup.yaml
+  - vault-secrets-init.yaml
+  # - vault-populate-secrets-job.yaml  # Now using job-templates base
+
+patches:
+  # Customize the vault auth from base
+  - target:
+      kind: VaultAuth
+      name: vault-auth
+    patch: |-
+      apiVersion: secrets.hashicorp.com/v1beta1
+      kind: VaultAuth
+      metadata:
+        name: authelia-auth
+        namespace: authelia
+      spec:
+        kubernetes:
+          role: authelia
+          serviceAccount: authelia
+  
+  # Customize the RBAC for vault token reader
+  - target:
+      kind: RoleBinding
+      name: PLACEHOLDER-vault-admin-token-reader
+      namespace: vault
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: authelia-vault-admin-token-reader
+        namespace: vault
+      subjects:
+      - kind: ServiceAccount
+        name: vault-config
+        namespace: authelia
+  
+  # Add backup annotations for persistent volumes
+  - target:
+      kind: Deployment
+      name: authelia
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: authelia
+      spec:
+        template:
+          metadata:
+            annotations:
+              backup.velero.io/backup-volumes: authelia-data
+  
+  # Customize the vault configure job from template
+  - target:
+      kind: Job
+      name: vault-configure
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-configure-authelia
+        namespace: authelia
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-configure
+              env:
+              - name: SERVICE_NAME
+                value: authelia
+              - name: POLICY_NAME
+                value: authelia-policy
+              - name: ROLE_NAME
+                value: authelia
+              - name: SERVICE_ACCOUNT
+                value: authelia
+              - name: NAMESPACE
+                value: authelia
+              - name: POLICY_CONTENT
+                value: |
+                  path "secret/data/authelia" {
+                    capabilities = ["read"]
+                  }
+                  path "secret/data/postgres/superuser" {
+                    capabilities = ["read"]
+                  }
+  
+  # Customize the vault populate job from template
+  - target:
+      kind: Job
+      name: vault-populate
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-populate-authelia
+        namespace: authelia
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-populate
+              env:
+              - name: SERVICE_NAME
+                value: authelia
+              - name: POPULATE_SCRIPT
+                value: |
+                  # Check if secrets already exist
+                  if vault kv get secret/authelia 2>/dev/null; then
+                    echo "Authelia secrets already exist in Vault. Skipping population."
+                    exit 0
+                  fi
+                  
+                  # Generate random secrets
+                  JWT_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '\n' | cut -c1-32)
+                  SESSION_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '\n' | cut -c1-32)
+                  STORAGE_ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64 | tr -d '\n' | cut -c1-32)
+                  
+                  # Write secrets to Vault
+                  vault kv put secret/authelia \
+                    jwt-secret="$JWT_SECRET" \
+                    session-secret="$SESSION_SECRET" \
+                    storage-encryption-key="$STORAGE_ENCRYPTION_KEY" \
+                    storage-password="authelia-db-password" \
+                    ldap-password="lldap-password"
+                  
+                  echo "Authelia secrets successfully populated in Vault"

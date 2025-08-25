@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rook-ceph-tools
+  namespace: rook-ceph
+  labels:
+    app: rook-ceph-tools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rook-ceph-tools
+  template:
+    metadata:
+      labels:
+        app: rook-ceph-tools
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: rook-ceph-tools
+        image: quay.io/ceph/ceph:v18.2.4
+        command:
+          - /bin/bash
+          - -c
+          - |
+            # Copy the ceph config
+            cp /etc/rook/ceph.conf /etc/ceph/ceph.conf
+            # Copy the keyring
+            cp /etc/rook/keyring /etc/ceph/keyring
+            # Stay alive for debugging
+            exec sleep infinity
+        args: []
+        env:
+          - name: ROOK_CEPH_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: rook-ceph-mon
+                key: ceph-username
+                optional: false
+          - name: ROOK_CEPH_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: rook-ceph-mon
+                key: ceph-secret
+                optional: false
+        volumeMounts:
+          - mountPath: /etc/rook
+            name: ceph-config
+        ports: []
+      volumes:
+        - name: ceph-config
+          configMap:
+            name: rook-ceph-config
+      tolerations:
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 5

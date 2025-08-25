@@ -1,0 +1,89 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: build-stremio-web
+  namespace: stremio
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: git-clone
+        image: alpine/git:latest
+        command:
+        - sh
+        - -c
+        - |
+          cd /workspace
+          rm -rf ..?* .[!.]* *
+          git clone https://github.com/Stremio/stremio-web.git .
+          git checkout development
+          ls -la
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+      containers:
+      - name: buildctl
+        image: moby/buildkit:latest
+        command:
+        - sh
+        - -c
+        - |
+          # First test authentication with curl
+          echo "Testing Harbor authentication..."
+          apk add --no-cache curl jq
+          
+          # Test if we can get a token from Harbor
+          echo "Getting Harbor token..."
+          TOKEN=$(curl -s -k -u harbor_registry_user:33V4wUaUxgEC2cFEqENfkv \
+            "https://harbor-core.harbor.svc.cluster.local/service/token?service=harbor-registry&scope=repository:library/stremio-web:pull,push" | \
+            jq -r .token)
+          
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Failed to get authentication token! Response:"
+            curl -v -k -u harbor_registry_user:33V4wUaUxgEC2cFEqENfkv \
+              "https://harbor-core.harbor.svc.cluster.local/service/token?service=harbor-registry&scope=repository:library/stremio-web:pull,push"
+            exit 1
+          else
+            echo "Authentication successful! Token length: ${#TOKEN}"
+          fi
+          
+          # Create docker config with basic auth for buildctl
+          mkdir -p ~/.docker
+          cat > ~/.docker/config.json <<EOF
+          {
+            "auths": {
+              "harbor-registry.harbor.svc.cluster.local:5443": {
+                "username": "harbor_registry_user",
+                "password": "33V4wUaUxgEC2cFEqENfkv",
+                "auth": "$(echo -n harbor_registry_user:33V4wUaUxgEC2cFEqENfkv | base64)"
+              }
+            }
+          }
+          EOF
+          
+          # Check if image already exists
+          echo "Checking if image already exists in Harbor..."
+          if curl -f -s -k -u harbor_registry_user:33V4wUaUxgEC2cFEqENfkv \
+            "https://harbor-registry.harbor.svc.cluster.local:5443/v2/library/stremio-web/manifests/latest" >/dev/null; then
+            echo "Image already exists in Harbor. Skipping build."
+            exit 0
+          fi
+          
+          # Build and push directly to registry endpoint with token
+          echo "Image not found. Starting build..."
+          buildctl --addr tcp://buildkitd:1234 build \
+            --frontend dockerfile.v0 \
+            --local context=/workspace \
+            --local dockerfile=/workspace \
+            --output type=image,name=harbor-registry.harbor.svc.cluster.local:5443/library/stremio-web:latest,push=true
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        env:
+        - name: DOCKER_CONFIG
+          value: /root/.docker
+      volumes:
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: build-workspace
+      restartPolicy: Never

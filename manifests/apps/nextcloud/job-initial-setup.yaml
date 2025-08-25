@@ -1,0 +1,131 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-initial-setup
+  namespace: nextcloud
+spec:
+  template:
+    metadata:
+      labels:
+        app: nextcloud-setup
+    spec:
+      serviceAccountName: nextcloud
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-nextcloud
+        image: busybox:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Nextcloud to be ready..."
+          until nc -z nextcloud.nextcloud.svc.cluster.local 80; do
+            echo "Nextcloud is not ready yet..."
+            sleep 10
+          done
+          echo "Nextcloud is ready!"
+      - name: wait-for-database
+        image: busybox:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for PostgreSQL to be ready..."
+          until nc -z postgres-apps-1.postgres.svc.cluster.local 5432; do
+            echo "PostgreSQL is not ready yet..."
+            sleep 10
+          done
+          echo "PostgreSQL is ready!"
+      containers:
+      - name: setup
+        image: nextcloud:28
+        command:
+        - sh
+        - -c
+        - |
+          echo "🛠️ Checking Nextcloud installation status..."
+          
+          # Check if Nextcloud is installed
+          INSTALLED=$(php occ status --output=json 2>/dev/null | jq -r '.installed' || echo "false")
+          
+          if [ "$INSTALLED" = "false" ]; then
+            echo "📦 Installing Nextcloud..."
+            
+            # Run installation
+            su -s /bin/sh www-data -c "php occ maintenance:install \
+              --database 'pgsql' \
+              --database-host '${POSTGRES_HOST}' \
+              --database-name '${POSTGRES_DB}' \
+              --database-user '${POSTGRES_USER}' \
+              --database-pass '${POSTGRES_PASSWORD}' \
+              --admin-user '${NEXTCLOUD_ADMIN_USER}' \
+              --admin-pass '${NEXTCLOUD_ADMIN_PASSWORD}' \
+              --data-dir '/var/www/html/data'"
+            
+            echo "✅ Nextcloud installed successfully"
+          else
+            echo "✅ Nextcloud is already installed"
+          fi
+          
+          # Configure trusted domains
+          echo "🌐 Configuring trusted domains..."
+          su -s /bin/sh www-data -c "php occ config:system:set trusted_domains 0 --value='drive.daddyshome.fr'"
+          su -s /bin/sh www-data -c "php occ config:system:set trusted_domains 1 --value='nextcloud.nextcloud.svc.cluster.local'"
+          
+          # Configure Redis
+          echo "📊 Configuring Redis cache..."
+          su -s /bin/sh www-data -c "php occ config:system:set redis host --value='${REDIS_HOST}'"
+          su -s /bin/sh www-data -c "php occ config:system:set redis port --value='${REDIS_PORT}'"
+          su -s /bin/sh www-data -c "php occ config:system:set redis dbindex --value='0'"
+          su -s /bin/sh www-data -c "php occ config:system:set memcache.distributed --value='\\OC\\Memcache\\Redis'"
+          su -s /bin/sh www-data -c "php occ config:system:set memcache.locking --value='\\OC\\Memcache\\Redis'"
+          
+          echo "✅ Initial setup complete"
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: database-host
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: database-name
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: database-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: database-password
+        - name: NEXTCLOUD_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: admin-username
+        - name: NEXTCLOUD_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: admin-password
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: redis-host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: redis-port
+        volumeMounts:
+        - name: nextcloud-data
+          mountPath: /var/www/html
+      volumes:
+      - name: nextcloud-data
+        persistentVolumeClaim:
+          claimName: nextcloud-data

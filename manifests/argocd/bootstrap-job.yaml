@@ -1,0 +1,139 @@
+# Bootstrap Job for Argo CD
+# Runs once to complete the GitOps handover after Argo CD is installed
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: argocd-bootstrap
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"  # Run after Argo CD installation
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      name: argocd-bootstrap
+    spec:
+      serviceAccountName: argocd-bootstrap
+      restartPolicy: OnFailure
+      containers:
+      - name: bootstrap
+        image: bitnami/kubectl:1.29
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        env:
+        - name: PRINT_INITIAL_PASSWORD
+          value: "false"  # Set to "true" only if you need to see the password
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+          
+          echo "🚀 Starting Argo CD bootstrap process..."
+          
+          # Wait for Argo CD server to be ready
+          echo "⏳ Waiting for Argo CD server deployment..."
+          kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+          
+          # Wait for Argo CD CRDs to be registered
+          echo "⏳ Waiting for argoproj.io API group..."
+          until kubectl api-resources --api-group=argoproj.io | grep -q '^applications'; do
+            echo "  Waiting for Application CRD..."
+            sleep 3
+          done
+          
+          # Check for initial password (only if explicitly enabled)
+          if [ "${PRINT_INITIAL_PASSWORD}" = "true" ] && \
+             kubectl -n argocd get secret argocd-initial-admin-secret >/dev/null 2>&1; then
+            echo "📝 Initial admin password:"
+            kubectl -n argocd get secret argocd-initial-admin-secret \
+              -o jsonpath='{.data.password}' | base64 -d || true
+            echo
+          else
+            echo "ℹ️  Initial password logging disabled (set PRINT_INITIAL_PASSWORD=true to enable)"
+          fi
+          
+          # Create root application if it doesn't exist
+          if ! kubectl -n argocd get application root >/dev/null 2>&1; then
+            echo "📦 Creating root Application to hand over to GitOps..."
+            kubectl apply -f /bootstrap/app-of-apps.yaml
+          else
+            echo "✅ Root application already exists, skipping creation"
+          fi
+          
+          # Verify the application was created
+          echo "🔍 Verifying root application..."
+          kubectl get application root -n argocd
+          
+          echo ""
+          echo "✅ Argo CD bootstrap complete!"
+          echo ""
+          echo "📋 What happens next:"
+          echo "- The root Application will discover and create all other applications"
+          echo "- Core services will deploy first (negative sync waves)"
+          echo "- User applications will deploy after core services"
+          echo ""
+          echo "🌐 Access Argo CD at: https://argocd.daddyshome.fr"
+          echo "👤 Username: admin"
+        volumeMounts:
+        - name: root-app
+          mountPath: /bootstrap
+      volumes:
+      - name: root-app
+        configMap:
+          name: argocd-bootstrap-root-app
+---
+# ServiceAccount for the bootstrap job
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-bootstrap
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Role with minimal permissions needed for bootstrap
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-bootstrap
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+- apiGroups: ["argoproj.io"]
+  resources: ["applications"]
+  verbs: ["get", "list", "create", "patch"]
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-bootstrap
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-bootstrap
+subjects:
+- kind: ServiceAccount
+  name: argocd-bootstrap
+  namespace: argocd

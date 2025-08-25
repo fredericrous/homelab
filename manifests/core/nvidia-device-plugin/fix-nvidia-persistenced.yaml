@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nvidia-config
+  namespace: kube-system
+data:
+  disable-persistence.sh: |
+    #!/bin/sh
+    # Disable nvidia-persistenced to prevent boot loops on Talos
+    if [ -f /etc/systemd/system/nvidia-persistenced.service ]; then
+      systemctl disable nvidia-persistenced || true
+      systemctl stop nvidia-persistenced || true
+    fi
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-persistence-fix
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-persistence-fix
+  template:
+    metadata:
+      labels:
+        name: nvidia-persistence-fix
+    spec:
+      hostPID: true
+      hostNetwork: true
+      containers:
+      - name: persistence-fix
+        image: busybox:1.36
+        command: ["sleep", "infinity"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+          mountPropagation: Bidirectional
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
+      nodeSelector:
+        extensions.talos.dev/nvidia-container-toolkit-production: "565.77.0-v1.17.3"

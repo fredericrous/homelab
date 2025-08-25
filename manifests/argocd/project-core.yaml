@@ -1,0 +1,80 @@
+# AppProject for core platform components
+# Follows principle of least privilege - only allows what core components actually need
+# NOTE: AppProject controls which repos and clusters can be used, not paths within repos
+#       Path restrictions are enforced by the ApplicationSets that reference this project
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: core
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"  # Create projects first
+spec:
+  description: Core platform infrastructure components
+  
+  # Only allow Applications created in the argocd namespace to use this project
+  sourceNamespaces:
+  - argocd
+  
+  # Allow deployments from our repo (path filtering happens in ApplicationSet)
+  sourceRepos:
+  - https://github.com/fredericrous/homelab.git
+  # - ssh://git@github.com/fredericrous/homelab.git  # Uncomment if using SSH in Argo
+  
+  # Allow deployment to any namespace in the local cluster
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: '*'
+  
+  # Warn about resources that exist in cluster but not in Git
+  orphanedResources:
+    warn: true
+  
+  # Cluster-scoped resources that core components actually need
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: 'rbac.authorization.k8s.io'
+    kind: ClusterRole
+  - group: 'rbac.authorization.k8s.io'
+    kind: ClusterRoleBinding
+  - group: 'apiextensions.k8s.io'
+    kind: CustomResourceDefinition
+  - group: 'apiregistration.k8s.io'
+    kind: APIService  # For metrics-server, custom API services
+  - group: 'admissionregistration.k8s.io'
+    kind: ValidatingWebhookConfiguration
+  - group: 'admissionregistration.k8s.io'
+    kind: MutatingWebhookConfiguration
+  - group: 'storage.k8s.io'
+    kind: CSIDriver  # For Rook-Ceph, SMB CSI
+  - group: 'storage.k8s.io'
+    kind: StorageClass
+  - group: 'snapshot.storage.k8s.io'
+    kind: '*'  # For Velero volume snapshots
+  - group: 'networking.k8s.io'
+    kind: IngressClass  # For HAProxy ingress controllers
+  - group: 'gateway.networking.k8s.io'
+    kind: GatewayClass  # If using Gateway API with Cilium/HAProxy
+  - group: 'node.k8s.io'
+    kind: RuntimeClass  # For nvidia-runtime-class
+  - group: 'cert-manager.io'
+    kind: ClusterIssuer
+  - group: 'cilium.io'
+    kind: '*'  # Cilium CNI resources
+  - group: 'metallb.io'
+    kind: '*'  # MetalLB resources
+  - group: 'ceph.rook.io'
+    kind: '*'  # Rook-Ceph storage
+  - group: 'postgresql.cnpg.io'
+    kind: '*'  # CloudNativePG
+  - group: 'secrets.hashicorp.com'
+    kind: '*'  # Vault Secrets Operator CRDs
+  
+  # Allow all namespaced resources
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  
+  # No resource deny list for core
+  namespaceResourceBlacklist: []

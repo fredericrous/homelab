@@ -1,0 +1,223 @@
+image:
+  repository: velero/velero
+  tag: v1.16.2
+  pullPolicy: IfNotPresent
+
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.9.0
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+configuration:
+  backupStorageLocation:
+    - name: aws-glacier
+      provider: aws
+      bucket: homelab-backups
+      config:
+        region: eu-west-1
+        s3ForcePathStyle: "false"
+        s3Url: https://s3.eu-west-1.amazonaws.com
+      credential:
+        name: velero-credentials
+        key: cloud
+    - name: smb-local
+      provider: file
+      bucket: rook_backup
+      config:
+        path: /backup
+  volumeSnapshotLocation:
+    - name: rook-ceph
+      provider: csi
+      config: {}
+
+snapshotsEnabled: true
+features: EnableCSI
+
+schedules:
+  # SMB backups - every 2 days, keep 15
+  harbor-smb-backup:
+    schedule: "0 2 */2 * *"  # Every 2 days at 2 AM
+    template:
+      ttl: 87600h  # 10 years (effectively forever)
+      includedNamespaces:
+        - harbor
+      storageLocation: smb-local
+      volumeSnapshotLocations:
+        - rook-ceph
+  nextcloud-smb-backup:
+    schedule: "0 2 */2 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - nextcloud
+      storageLocation: smb-local
+      volumeSnapshotLocations:
+        - rook-ceph
+  ot-operators-smb-backup:
+    schedule: "0 2 */2 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - ot-operators
+      storageLocation: smb-local
+      volumeSnapshotLocations:
+        - rook-ceph
+  plex-smb-backup:
+    schedule: "0 2 */2 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - plex
+      storageLocation: smb-local
+      volumeSnapshotLocations:
+        - rook-ceph
+  postgres-smb-backup:
+    schedule: "0 2 */2 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - postgres
+      storageLocation: smb-local
+      volumeSnapshotLocations:
+        - rook-ceph
+  stremio-smb-backup:
+    schedule: "0 2 */2 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - stremio
+      storageLocation: smb-local
+      volumeSnapshotLocations:
+        - rook-ceph
+  vault-smb-backup:
+    schedule: "0 2 */2 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - vault
+      storageLocation: smb-local
+      volumeSnapshotLocations:
+        - rook-ceph
+  # AWS Glacier backups - every 25 days, keep 8
+  harbor-aws-backup:
+    schedule: "0 3 */25 * *"  # Every 25 days at 3 AM
+    template:
+      ttl: 87600h  # 10 years (effectively forever)
+      includedNamespaces:
+        - harbor
+      storageLocation: aws-glacier
+      volumeSnapshotLocations:
+        - rook-ceph
+  nextcloud-aws-backup:
+    schedule: "0 3 */25 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - nextcloud
+      storageLocation: aws-glacier
+      volumeSnapshotLocations:
+        - rook-ceph
+  ot-operators-aws-backup:
+    schedule: "0 3 */25 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - ot-operators
+      storageLocation: aws-glacier
+      volumeSnapshotLocations:
+        - rook-ceph
+  plex-aws-backup:
+    schedule: "0 3 */25 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - plex
+      storageLocation: aws-glacier
+      volumeSnapshotLocations:
+        - rook-ceph
+  postgres-aws-backup:
+    schedule: "0 3 */25 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - postgres
+      storageLocation: aws-glacier
+      volumeSnapshotLocations:
+        - rook-ceph
+  stremio-aws-backup:
+    schedule: "0 3 */25 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - stremio
+      storageLocation: aws-glacier
+      volumeSnapshotLocations:
+        - rook-ceph
+  vault-aws-backup:
+    schedule: "0 3 */25 * *"
+    template:
+      ttl: 87600h
+      includedNamespaces:
+        - vault
+      storageLocation: aws-glacier
+      volumeSnapshotLocations:
+        - rook-ceph
+
+credentials:
+  existingSecret: velero-credentials
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+serviceAccount:
+  server:
+    create: true
+    name: velero
+
+deployNodeAgent: true
+
+nodeAgent:
+  podVolumePath: /var/lib/kubelet/pods
+  privileged: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+
+backupsEnabled: true
+restoreOnlyMode: false
+
+logLevel: info
+logFormat: text
+
+defaultBackupTTL: 720h
+defaultItemOperationTimeout: 4h
+
+# Add volume mount for SMB
+extraVolumes:
+  - name: smb-backup
+    persistentVolumeClaim:
+      claimName: velero-smb-backups
+
+extraVolumeMounts:
+  - name: smb-backup
+    mountPath: /backup

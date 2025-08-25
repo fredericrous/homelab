@@ -1,0 +1,7 @@
+name: haproxy-ingress
+project: core
+namespace: haproxy-ingress
+path: manifests/core/haproxy-ingress
+autoSync: "false"  # Ingress controller changes can lock out access
+prune: "false"     # Keep ingress resources safe
+syncWave: "-8"

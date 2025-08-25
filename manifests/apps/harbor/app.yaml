@@ -1,0 +1,5 @@
+name: harbor
+project: apps
+namespace: harbor
+path: manifests/apps/harbor
+syncWave: "25"

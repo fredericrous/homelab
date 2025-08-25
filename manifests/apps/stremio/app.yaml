@@ -1,0 +1,5 @@
+name: stremio
+project: apps
+namespace: stremio
+path: manifests/apps/stremio
+syncWave: "30"

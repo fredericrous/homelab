@@ -1,0 +1,107 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kube-system
+
+resources:
+  # Include shared vault auth base (will be deployed to default namespace)
+  - ../../base/vault-auth
+  # Include job templates
+  - ../../base/job-templates
+  # App-specific resources
+  - nfs-vault-secret.yaml
+  - storageclass-media.yaml
+  - storageclass-vms.yaml
+
+patches:
+  # Customize the vault auth for default namespace
+  - target:
+      kind: VaultAuth
+      name: vault-auth
+    patch: |-
+      apiVersion: secrets.hashicorp.com/v1beta1
+      kind: VaultAuth
+      metadata:
+        name: vault-auth
+        namespace: default
+      spec:
+        kubernetes:
+          role: default
+          serviceAccount: default
+  
+  # Customize the RBAC for vault token reader
+  - target:
+      kind: RoleBinding
+      name: PLACEHOLDER-vault-admin-token-reader
+      namespace: vault
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: default-vault-admin-token-reader
+        namespace: vault
+      subjects:
+      - kind: ServiceAccount
+        name: vault-config
+        namespace: default
+  
+  # Patch vault configure job template
+  - target:
+      kind: Job
+      name: vault-configure
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-configure-nfs
+        namespace: default
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-configure
+              env:
+              - name: VAULT_POLICY_NAME
+                value: "nfs-policy"
+              - name: VAULT_POLICY_CONTENT
+                value: |
+                  path "secret/data/nfs" {
+                    capabilities = ["read"]
+                  }
+              - name: VAULT_ROLE_NAME
+                value: "nfs"
+              - name: VAULT_ROLE_SERVICE_ACCOUNTS
+                value: "default"
+              - name: VAULT_ROLE_NAMESPACES
+                value: "default"
+  
+  # Patch vault populate secrets job template
+  - target:
+      kind: Job
+      name: vault-populate
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-populate-nfs-secrets
+        namespace: default
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-populate
+              env:
+              - name: VAULT_SECRET_PATH
+                value: "secret/nfs"
+              - name: VAULT_SECRET_DATA
+                value: |
+                  username="timelord"
+                  password="Good men don't need rules. 42"
+
+helmCharts:
+- name: csi-driver-nfs
+  repo: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+  version: v4.11.0
+  releaseName: csi-driver-nfs
+  namespace: kube-system
+  valuesFile: values.yaml

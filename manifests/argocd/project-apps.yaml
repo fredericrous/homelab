@@ -1,0 +1,44 @@
+# AppProject for application workloads
+# Uses dynamic namespace assignment - no need to maintain namespace lists
+# Namespaces are created centrally via the core project for better control
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"  # Create projects first
+spec:
+  description: Application workloads
+  
+  # Only allow Applications created in the argocd namespace to use this project
+  sourceNamespaces:
+  - argocd
+  
+  # Allow deployments from our repo (path filtering happens in ApplicationSet)
+  sourceRepos:
+  - https://github.com/fredericrous/homelab.git
+  # - ssh://git@github.com/fredericrous/homelab.git  # Uncomment if using SSH in Argo
+  
+  # Apps can deploy to any namespace - ApplicationSet controls the mapping
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: '*'
+  
+  # Warn about orphaned resources
+  orphanedResources:
+    warn: true
+  
+  # Apps CAN create namespaces via the namespace helm chart
+  # This enables fully dynamic namespace creation with proper labels
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  
+  # Allow all namespaced resources
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  
+  # No blacklist - let apps manage their own resources responsibly
+  namespaceResourceBlacklist: []

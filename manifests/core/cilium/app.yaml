@@ -1,0 +1,9 @@
+name: cilium
+project: core
+namespace: kube-system
+path: manifests/core/cilium
+autoSync: "true"
+prune: "true"
+syncWave: "-30"
+createNamespace: "false"  # kube-system already exists
+serverSideApply: "true"  # Required for Talos Linux

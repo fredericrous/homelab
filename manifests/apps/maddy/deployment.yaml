@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maddy
+  namespace: maddy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: maddy
+  template:
+    metadata:
+      labels:
+        app: maddy
+    spec:
+      containers:
+      - name: maddy
+        image: foxcpp/maddy:latest
+        ports:
+        - containerPort: 25
+          name: smtp
+        - containerPort: 143
+          name: imap
+        - containerPort: 587
+          name: submission
+        volumeMounts:
+        - name: config
+          mountPath: /etc/maddy
+        - name: data
+          mountPath: /var/lib/maddy
+        - name: tls
+          mountPath: /etc/maddy/tls
+          readOnly: true
+        env:
+        - name: MADDY_CONFIG
+          value: /etc/maddy/maddy.conf
+        command: ["/bin/maddy", "-config", "/etc/maddy/maddy.conf", "run"]
+      initContainers:
+      - name: setup
+        image: foxcpp/maddy:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Create directories
+          mkdir -p /var/lib/maddy
+          
+          # Initialize Maddy
+          maddy -config /etc/maddy/maddy.conf dbinit
+          
+          # Create a user for Authelia (no-reply user)
+          echo "maddy-password-123" | maddy -config /etc/maddy/maddy.conf creds create noreply@daddyshome.fr
+          
+          # Create users from LDAP if needed
+          echo "Maddy setup complete"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/maddy
+        - name: data
+          mountPath: /var/lib/maddy
+        - name: tls
+          mountPath: /etc/maddy/tls
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: maddy-config
+      - name: data
+        emptyDir: {}
+      - name: tls
+        secret:
+          secretName: maddy-tls

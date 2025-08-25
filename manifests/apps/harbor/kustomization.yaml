@@ -1,0 +1,108 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: harbor
+
+resources:
+  # Include shared vault auth base
+  - ../../base/vault-auth
+  # Include job templates
+  - ../../base/job-templates
+  # App-specific resources
+  - namespace.yaml
+  - harbor-serviceaccount.yaml
+  # - job-vault-configure-harbor.yaml  # Replaced by job template
+  # - harbor-vault-auth.yaml  # Now provided by base/vault-auth
+  # - vault-connection.yaml  # Now provided by base/vault-auth
+  - harbor-vault-secret.yaml
+  - harbor-database-secret.yaml
+  - harbor-registry-secret.yaml
+  - harbor-registry-vault-secret.yaml
+  - harbor-vault-populate-job.yaml
+  - harbor-registry-config-job.yaml
+  - harbor-ingress.yaml
+  - harbor-ip-pool.yaml
+  - harbor-registry-lb.yaml
+
+# Patches to customize the shared bases
+patches:
+  # Customize the vault auth from base
+  - target:
+      kind: VaultAuth
+      name: vault-auth
+    patch: |-
+      apiVersion: secrets.hashicorp.com/v1beta1
+      kind: VaultAuth
+      metadata:
+        name: harbor-auth
+        namespace: harbor
+      spec:
+        kubernetes:
+          role: harbor
+          serviceAccount: harbor
+  
+  # Customize the RBAC for vault token reader
+  - target:
+      kind: RoleBinding
+      name: PLACEHOLDER-vault-admin-token-reader
+      namespace: vault
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: harbor-vault-admin-token-reader
+        namespace: vault
+      subjects:
+      - kind: ServiceAccount
+        name: vault-config
+        namespace: harbor
+  
+  # Patch vault configure job template
+  - target:
+      kind: Job
+      name: vault-configure
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-configure-harbor
+        namespace: harbor
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-configure
+              env:
+              - name: VAULT_POLICY_NAME
+                value: "harbor-policy"
+              - name: VAULT_POLICY_CONTENT
+                value: |
+                  path "secret/data/harbor/*" {
+                    capabilities = ["read"]
+                  }
+                  path "secret/data/harbor/admin" {
+                    capabilities = ["read"]
+                  }
+                  path "secret/data/harbor/database" {
+                    capabilities = ["read"]
+                  }
+                  path "secret/data/harbor/registry" {
+                    capabilities = ["read"]
+                  }
+                  path "secret/data/postgres/superuser" {
+                    capabilities = ["read"]
+                  }
+              - name: VAULT_ROLE_NAME
+                value: "harbor"
+              - name: VAULT_ROLE_SERVICE_ACCOUNTS
+                value: "harbor"
+              - name: VAULT_ROLE_NAMESPACES
+                value: "harbor"
+
+helmCharts:
+- name: harbor
+  repo: https://charts.bitnami.com/bitnami
+  version: 26.8.0
+  releaseName: harbor
+  namespace: harbor
+  valuesFile: values-bitnami-tls.yaml

@@ -1,0 +1,41 @@
+# Example: Create database for Nextcloud
+# Apply after cluster is ready: kubectl apply -f create-app-db.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-nextcloud-db
+  namespace: postgres
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: create-db
+        image: postgres:16
+        env:
+        - name: PGHOST
+          value: postgres-apps-rw
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-apps-superuser
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-apps-superuser
+              key: password
+        command:
+        - sh
+        - -c
+        - |
+          psql <<EOF
+          -- Create database
+          CREATE DATABASE nextcloud;
+          
+          -- Grant permissions to app user
+          \c nextcloud
+          GRANT ALL ON SCHEMA public TO appuser;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO appuser;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO appuser;
+          EOF

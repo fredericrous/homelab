@@ -1,0 +1,5 @@
+name: backup
+project: core
+namespace: velero
+path: manifests/core/backup
+syncWave: "-4"

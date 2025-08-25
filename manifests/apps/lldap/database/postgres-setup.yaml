@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-lldap-database
+  namespace: postgres
+spec:
+  template:
+    metadata:
+      name: create-lldap-database
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: create-db
+        image: postgres:15-alpine
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser-secret
+              key: password
+        command:
+        - sh
+        - -c
+        - |
+          echo "Creating LLDAP database and user..."
+          export PGUSER=postgres
+          psql -h postgres-apps-rw <<EOF
+          -- Create database if not exists
+          SELECT 'CREATE DATABASE lldap'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'lldap')\gexec
+          
+          -- Create user if not exists
+          DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'lldap') THEN
+              CREATE USER lldap WITH PASSWORD 'lldap-db-password';
+            END IF;
+          END
+          \$\$;
+          
+          -- Grant privileges
+          GRANT ALL PRIVILEGES ON DATABASE lldap TO lldap;
+          
+          -- Connect to lldap database and grant schema permissions
+          \c lldap
+          GRANT ALL ON SCHEMA public TO lldap;
+          EOF
+          
+          echo "LLDAP database setup completed!"

@@ -1,0 +1,11 @@
+# Example for services that deploy to existing namespaces like kube-system
+# For example, if Cilium is deployed to kube-system:
+
+name: cilium
+project: core
+namespace: kube-system
+path: manifests/core/cilium
+syncWave: "-11"  # Very early, it's the CNI
+createNamespace: "false"  # kube-system already exists!
+
+# This prevents the namespace chart from trying to create kube-system

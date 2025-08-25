@@ -1,0 +1,6 @@
+kubeconfig
+talosconfig
+env.sh
+charts/
+.claude/
+CLAUDE.local.md

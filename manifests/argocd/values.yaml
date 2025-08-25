@@ -1,0 +1,309 @@
+# Argo CD Helm chart values
+# Production-ready configuration for homelab
+
+# Argo CD Server
+server:
+  # Run HTTP internally (HAProxy handles TLS)
+  extraArgs:
+    - --insecure
+
+  # Enable gRPC-Web for CLI access through ingress
+  grpcWeb: true
+
+  # Resource limits for homelab
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Enable ingress via HAProxy
+  ingress:
+    enabled: true
+    hosts:
+      - argocd.daddyshome.fr
+    annotations:
+      kubernetes.io/ingress.class: haproxy
+      haproxy.org/grpc-web: "true"
+      # Add mTLS annotations if needed
+      # haproxy.org/client-certificate-auth: "optional"
+
+  # Metrics
+  metrics:
+    enabled: true
+
+# Controller configuration
+controller:
+  # Resource limits
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  # Single replica for homelab
+  replicas: 1
+
+  # Metrics
+  metrics:
+    enabled: true
+
+# Dex for LDAP authentication
+dex:
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# Redis configuration - use built-in Redis with optimized settings
+redis:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: "rook-cephfs"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+redis-ha:
+  enabled: false
+
+# External Redis configuration (disabled due to Talos connectivity issues)
+# externalRedis:
+#   host: redis-standalone.ot-operators.svc.cluster.local
+#   port: 6379
+#   username: ""
+#   password: ""
+
+# Repo server configuration
+repoServer:
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  # Single replica (can increase to 2 for better performance)
+  replicas: 1
+
+  # Metrics
+  metrics:
+    enabled: true
+
+# ApplicationSet controller
+applicationSet:
+  enabled: true
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+  replicas: 1
+
+# Notifications controller (optional, disable for now)
+notifications:
+  enabled: false
+
+# Configuration
+configs:
+  # General parameters
+  params:
+    # Keep admin user enabled until SSO is configured
+    admin.enabled: "true"
+    # Disable self-service user registration
+    users.anonymous.enabled: "false"
+    # Enable Helm for Kustomize
+    kustomize.buildOptions: "--enable-helm"
+
+  # Main configuration
+  cm:
+    # URL configuration
+    url: https://argocd.daddyshome.fr
+
+    # Kustomize build options (required for Helm charts in Kustomize)
+    kustomize.buildOptions: "--enable-helm"
+
+    # Resource exclusions for Cilium
+    resource.exclusions: |
+      - apiGroups:
+          - cilium.io
+        kinds:
+          - CiliumIdentity
+        clusters:
+          - "*"
+
+    # Health checks for custom resources
+    resource.customizations.health.cert-manager.io_Certificate: |
+      hs = {}
+      if obj.status ~= nil then
+        if obj.status.conditions ~= nil then
+          for i, condition in ipairs(obj.status.conditions) do
+            if condition.type == "Ready" and condition.status == "True" then
+              hs.status = "Healthy"
+              hs.message = "Certificate is ready"
+              return hs
+            end
+          end
+        end
+      end
+      hs.status = "Progressing"
+      hs.message = "Waiting for certificate"
+      return hs
+
+    resource.customizations.health.velero.io_Backup: |
+      hs = {}
+      if obj.status ~= nil then
+        if obj.status.phase == "Completed" then
+          hs.status = "Healthy"
+          hs.message = "Backup completed"
+        elseif obj.status.phase == "Failed" or obj.status.phase == "PartiallyFailed" then
+          hs.status = "Degraded"
+          hs.message = "Backup failed/partial"
+        else
+          hs.status = "Progressing"
+          hs.message = "Backup in progress"
+        end
+      else
+        hs.status = "Progressing"
+        hs.message = "Waiting for backup to start"
+      end
+      return hs
+
+    resource.customizations.health.secrets.hashicorp.com_VaultStaticSecret: |
+      hs = {}
+      if obj.status ~= nil then
+        if obj.status.secretMAC ~= nil and obj.status.secretMAC ~= "" then
+          hs.status = "Healthy"
+          hs.message = "Secret synced"
+        else
+          hs.status = "Progressing"
+          hs.message = "Syncing secret from Vault"
+        end
+      else
+        hs.status = "Progressing"
+        hs.message = "Waiting for VSO controller"
+      end
+      return hs
+
+    resource.customizations.health.postgresql.cnpg.io_Cluster: |
+      hs = {}
+      if obj.status ~= nil then
+        if obj.status.phase == "Healthy" then
+          hs.status = "Healthy"
+          hs.message = "Cluster phase Healthy"
+        elseif obj.status.readyInstances ~= nil and obj.status.instances ~= nil then
+          if obj.status.readyInstances == obj.status.instances then
+            hs.status = "Healthy"
+            hs.message = string.format("%d/%d instances ready", obj.status.readyInstances, obj.status.instances)
+          else
+            hs.status = "Progressing"
+            hs.message = string.format("%d/%d instances ready", obj.status.readyInstances or 0, obj.status.instances)
+          end
+        else
+          hs.status = "Progressing"
+          hs.message = "Waiting for instances"
+        end
+      else
+        hs.status = "Progressing"
+        hs.message = "Cluster is starting"
+      end
+      return hs
+
+    resource.customizations.health.ceph.rook.io_CephCluster: |
+      hs = {}
+      if obj.status ~= nil then
+        if obj.status.ceph ~= nil and obj.status.ceph.health == "HEALTH_OK" then
+          hs.status = "Healthy"
+          hs.message = "Ceph cluster is healthy"
+        elseif obj.status.ceph ~= nil and obj.status.ceph.health == "HEALTH_WARN" then
+          hs.status = "Degraded"
+          hs.message = "Ceph cluster has warnings"
+        elseif obj.status.ceph ~= nil then
+          hs.status = "Degraded"
+          hs.message = obj.status.ceph.health or "Unknown health status"
+        else
+          hs.status = "Progressing"
+          hs.message = "Ceph cluster is initializing"
+        end
+      else
+        hs.status = "Progressing"
+        hs.message = "Waiting for Ceph status"
+      end
+      return hs
+
+    # Global ignore for Cilium identities
+    resource.customizations.ignoreDifferences.cilium.io_CiliumIdentity: |
+      jsonPointers:
+      - /status
+
+    # LDAP configuration for LLDAP via Dex
+    dex.config: |
+      issuer: https://argocd.daddyshome.fr/api/dex
+      
+      connectors:
+      - type: ldap
+        id: ldap
+        name: LLDAP
+        config:
+          host: lldap.lldap.svc.cluster.local:3890
+          insecureNoSSL: true
+          insecureSkipVerify: true
+          bindDN: uid=admin,ou=people,dc=daddyshome,dc=fr
+          bindPW: $dex.ldap.bindPW
+          usernamePrompt: Username
+          userSearch:
+            baseDN: ou=people,dc=daddyshome,dc=fr
+            filter: "(objectClass=person)"
+            username: uid
+            idAttr: uid
+            emailAttr: mail
+            nameAttr: cn
+          groupSearch:
+            baseDN: ou=groups,dc=daddyshome,dc=fr
+            filter: "(objectClass=groupOfNames)"
+            userMatchers:
+            - userAttr: DN
+              groupAttr: member
+            nameAttr: cn
+
+  # RBAC configuration
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:admin, applications, *, */*, allow
+      p, role:admin, clusters, *, *, allow
+      p, role:admin, repositories, *, *, allow
+      p, role:admin, certificates, *, *, allow
+      p, role:admin, projects, *, *, allow
+      g, argocd-admins, role:admin
+      # Map LLDAP groups to Argo CD roles
+      g, lldap_admin, role:admin
+      g, lldap_user, role:readonly
+
+  # Repository credentials (future use)
+  # repositories: |
+  #   - url: ssh://git@github.com/fredericrous/homelab.git
+  #     name: homelab
+  #     type: git
+
+# Create namespace is handled separately
+createNamespace: false

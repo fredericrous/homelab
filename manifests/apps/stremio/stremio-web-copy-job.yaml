@@ -1,0 +1,89 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stremio-web-copy
+  namespace: stremio
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+      - name: extract-from-harbor
+        image: alpine:latest
+        command:
+        - sh
+        - -c
+        - |
+          # Install required tools
+          apk add --no-cache curl tar gzip jq
+          
+          # Get auth token from Harbor
+          echo "Getting Harbor auth token..."
+          TOKEN=$(curl -s -u harbor_registry_user:33V4wUaUxgEC2cFEqENfkv \
+            "http://harbor-core.harbor.svc.cluster.local/service/token?service=harbor-registry&scope=repository:library/stremio-web:pull" | \
+            jq -r .token)
+          
+          # Get manifest
+          echo "Getting image manifest..."
+          MANIFEST=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "http://harbor-registry.harbor.svc.cluster.local:5000/v2/library/stremio-web/manifests/latest" | \
+            jq -r '.fsLayers[0].blobSum')
+          
+          if [ -z "$MANIFEST" ] || [ "$MANIFEST" = "null" ]; then
+            echo "Failed to get manifest, trying direct approach..."
+            # Alternative: direct download from buildkitd
+            exit 1
+          fi
+          
+          # Download and extract the layer
+          echo "Downloading layer: $MANIFEST"
+          curl -s -H "Authorization: Bearer $TOKEN" \
+            "http://harbor-registry.harbor.svc.cluster.local:5000/v2/library/stremio-web/blobs/$MANIFEST" | \
+            tar -xz -C /output || echo "Failed to extract as tar.gz, trying plain tar..."
+          
+          echo "Extracted content:"
+          ls -la /output/
+          find /output -name "build" -type d
+        volumeMounts:
+        - name: output
+          mountPath: /output
+      containers:
+      - name: copy-build
+        image: stremio/server:latest  # Use the same base image that contains the build
+        command:
+        - sh
+        - -c
+        - |
+          # Since the build job already built and pushed the image, 
+          # let's rebuild it locally and extract the files
+          echo "Cloning stremio-web repository..."
+          apk add --no-cache git nodejs npm
+          
+          cd /tmp
+          git clone https://github.com/Stremio/stremio-web.git
+          cd stremio-web
+          git checkout development
+          
+          echo "Installing dependencies..."
+          npm ci
+          
+          echo "Building stremio-web..."
+          npm run build
+          
+          echo "Copying build to PVC..."
+          cp -r build/* /stremio-web-data/build/ || cp -r build /stremio-web-data/
+          
+          echo "Build copied successfully!"
+          ls -la /stremio-web-data/
+          ls -la /stremio-web-data/build/ || true
+        volumeMounts:
+        - name: stremio-web-data
+          mountPath: /stremio-web-data
+        - name: output
+          mountPath: /output
+      volumes:
+      - name: stremio-web-data
+        persistentVolumeClaim:
+          claimName: stremio-web-data
+      - name: output
+        emptyDir: {}

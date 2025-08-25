@@ -1,0 +1,7 @@
+name: cloudnative-pg
+project: core
+namespace: cloudnative-pg
+path: manifests/core/cloudnative-pg
+autoSync: "true"   # Operator can auto-sync
+prune: "true"      # Operator resources can be pruned
+syncWave: "-12"

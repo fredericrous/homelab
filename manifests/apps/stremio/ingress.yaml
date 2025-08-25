@@ -1,0 +1,90 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stremio
+  namespace: stremio
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    haproxy.org/ssl-redirect: "true"
+    haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+    haproxy.org/auth-tls-verify-client: "required"
+    # Authelia authentication
+    haproxy.org/auth-url: "http://authelia.authelia.svc.cluster.local/api/verify"
+    haproxy.org/auth-method: "HEAD"
+    haproxy.org/auth-signin: "https://auth.daddyshome.fr"
+    haproxy.org/auth-headers-request: "*"
+    haproxy.org/auth-headers-succeed: "remote-user,remote-groups,remote-name,remote-email"
+    haproxy.org/auth-headers-fail: "-"
+    haproxy.org/headers: |
+      X-Forwarded-Method %[method]
+      X-Forwarded-Proto  %[var(txn.scheme)]
+      X-Forwarded-Host   %[req.hdr(Host)]
+      X-Forwarded-URI    %[path]
+      X-Original-Host %[var(req.host)]
+      X-Original-Method %[capture.req.method]
+      X-Auth-Request-Redirect %[capture.req.uri]
+    # WebSocket support for streaming
+    haproxy.org/timeout-client: "3600s"
+    haproxy.org/timeout-server: "3600s"
+    haproxy.org/backend-config-snippet: |
+      timeout tunnel 1h
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - stremio.daddyshome.fr
+    secretName: stremio-tls
+  rules:
+  - host: stremio.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-web
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 11470
+      - path: /streaming
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 11470
+      # Add more stremio-server paths
+      - path: /stremioget
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 11470
+      - path: /subtitles
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 11470
+      - path: /opensubtitles
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 11470
+      - path: /manifest.json
+        pathType: Exact
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 11470

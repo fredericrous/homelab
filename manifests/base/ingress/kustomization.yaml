@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Common ingress configurations
+# Apps can use this as a base and override specific values
+
+patches:
+  - path: ingress-common-annotations.yaml
+    target:
+      kind: Ingress

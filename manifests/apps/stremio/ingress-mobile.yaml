@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stremio-mobile
+  namespace: stremio
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    haproxy.org/ssl-redirect: "true"
+    # WebSocket support for streaming
+    haproxy.org/timeout-client: "3600s"
+    haproxy.org/timeout-server: "3600s"
+    haproxy.org/backend-config-snippet: |
+      timeout tunnel 1h
+spec:
+  ingressClassName: haproxy-mobile
+  tls:
+  - hosts:
+    - stremio.daddyshome.fr
+    secretName: stremio-tls
+  rules:
+  - host: stremio.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-web
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 8080
+      - path: /streaming
+        pathType: Prefix
+        backend:
+          service:
+            name: stremio-server
+            port:
+              number: 8080

@@ -1,0 +1,45 @@
+# Argo CD installation and bootstrap
+# This gets applied manually to bootstrap the GitOps flow
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd
+
+resources:
+# Namespace with proper labels
+- namespace.yaml
+
+# AppProjects (created before Applications)
+- project-bootstrap.yaml
+- project-core.yaml
+- project-apps.yaml
+
+# Root Application (App of Apps) - not applied directly, used by bootstrap job
+# - app-of-apps.yaml  # Commented out - bootstrap job will apply this
+
+# Bootstrap job to complete the handover to GitOps
+- bootstrap-job.yaml
+
+# Vault integration
+- vault-auth.yaml
+- vault-configure-job.yaml
+- argocd-ldap-secret.yaml
+
+# Helm chart for Argo CD
+helmCharts:
+- name: argo-cd
+  repo: https://argoproj.github.io/argo-helm
+  version: 7.7.14  # Check for latest stable version
+  releaseName: argocd
+  namespace: argocd
+  valuesFile: values.yaml
+
+# ConfigMap generator for the bootstrap job
+configMapGenerator:
+- name: argocd-bootstrap-root-app
+  namespace: argocd
+  files:
+  - app-of-apps.yaml
+
+# Order matters - namespace and Argo CD install first
+# Then projects, then the bootstrap job applies the root app

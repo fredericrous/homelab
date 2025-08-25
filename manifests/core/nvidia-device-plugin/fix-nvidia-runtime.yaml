@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nvidia-containerd-config
+  namespace: kube-system
+data:
+  config.toml.patch: |
+    [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+      runtime_type = "io.containerd.runc.v2"
+      runtime_engine = ""
+      runtime_root = ""
+      privileged_without_host_devices = false
+      base_runtime_spec = ""
+      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
+        SystemdCgroup = true
+        BinaryName = "/usr/bin/nvidia-container-runtime"
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-runtime-installer
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-runtime-installer
+  template:
+    metadata:
+      labels:
+        name: nvidia-runtime-installer
+    spec:
+      hostPID: true
+      hostNetwork: true
+      containers:
+      - name: installer
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          echo "Checking for nvidia-container-runtime..."
+          if [ -f /host/usr/bin/nvidia-container-runtime ]; then
+            echo "nvidia-container-runtime found at /host/usr/bin/nvidia-container-runtime"
+          else
+            echo "ERROR: nvidia-container-runtime not found!"
+          fi
+          
+          echo "Checking containerd config..."
+          if grep -q "nvidia" /host/etc/containerd/config.toml; then
+            echo "nvidia runtime already configured in containerd"
+          else
+            echo "WARNING: nvidia runtime not found in containerd config"
+          fi
+          
+          # Keep container running
+          sleep infinity
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+          readOnly: true
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
+      nodeSelector:
+        extensions.talos.dev/nvidia-container-toolkit-production: "565.77.0-v1.17.3"
+      tolerations:
+      - operator: Exists

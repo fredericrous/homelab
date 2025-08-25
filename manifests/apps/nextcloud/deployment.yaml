@@ -1,0 +1,207 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nextcloud
+  template:
+    metadata:
+      labels:
+        app: nextcloud
+    spec:
+      serviceAccountName: nextcloud
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z postgres-apps-rw.postgres.svc.cluster.local 5432; do echo waiting for postgres; sleep 2; done']
+      - name: wait-for-redis
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z redis-standalone.ot-operators.svc.cluster.local 6379; do echo waiting for redis; sleep 2; done']
+      containers:
+      - name: nextcloud
+        image: nextcloud:29-apache
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          # Fix config ownership and permissions
+          if [ -f /var/www/html/config/config.php ]; then
+            chown www-data:www-data /var/www/html/config/config.php
+            chmod 640 /var/www/html/config/config.php
+          fi
+          # Ensure config directory is writable
+          chown www-data:www-data /var/www/html/config
+          chmod 750 /var/www/html/config
+          # Start the original entrypoint
+          exec /entrypoint.sh apache2-foreground
+        ports:
+        - containerPort: 80
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-host
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-name
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-password
+        - name: NEXTCLOUD_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: admin-username
+        - name: NEXTCLOUD_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: admin-password
+        - name: NEXTCLOUD_TRUSTED_DOMAINS
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: trusted-domains
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: redis-host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: redis-port
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: redis-password
+        - name: NEXTCLOUD_UPDATE
+          value: "1"
+        - name: PHP_MEMORY_LIMIT
+          value: "512M"
+        - name: PHP_UPLOAD_LIMIT
+          value: "10G"
+        volumeMounts:
+        - name: nextcloud-data
+          mountPath: /var/www/html
+        # - name: smb-storage
+        #   mountPath: /mnt/smb  # TODO: Fix SMB mount issue
+        - name: php-config
+          mountPath: /usr/local/etc/php/conf.d/custom.ini
+          subPath: php.ini
+        - name: apache-config
+          mountPath: /etc/apache2/conf-enabled/pretty-urls.conf
+          subPath: apache-pretty-urls.conf
+        - name: nextcloud-config
+          mountPath: /var/www/html/config/custom.config.php
+          subPath: custom.config.php
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        # livenessProbe:
+        #   httpGet:
+        #     path: /status.php
+        #     port: 80
+        #     httpHeaders:
+        #     - name: Host
+        #       value: drive.daddyshome.fr
+        #   initialDelaySeconds: 120
+        #   periodSeconds: 30
+        # readinessProbe:
+        #   httpGet:
+        #     path: /status.php
+        #     port: 80
+        #     httpHeaders:
+        #     - name: Host
+        #       value: drive.daddyshome.fr
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+      - name: nextcloud-cron
+        image: nextcloud:29-apache
+        command: ["/cron.sh"]
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-host
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-name
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-password
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: redis-host
+        - name: REDIS_PORT
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: redis-port
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: redis-password
+        volumeMounts:
+        - name: nextcloud-data
+          mountPath: /var/www/html
+        # - name: smb-storage
+        #   mountPath: /mnt/smb  # TODO: Fix SMB mount issue
+        - name: nextcloud-config
+          mountPath: /var/www/html/config/custom.config.php
+          subPath: custom.config.php
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: nextcloud-data
+        persistentVolumeClaim:
+          claimName: nextcloud-data
+      # - name: smb-storage
+      #   persistentVolumeClaim:
+      #     claimName: nextcloud-smb  # TODO: Fix SMB mount issue
+      - name: php-config
+        configMap:
+          name: nextcloud-config
+      - name: apache-config
+        configMap:
+          name: nextcloud-config
+      - name: nextcloud-config
+        configMap:
+          name: nextcloud-config

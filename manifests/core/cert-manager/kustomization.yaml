@@ -1,0 +1,145 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cert-manager
+
+resources:
+  # Include shared vault auth base
+  - ../../base/vault-auth
+  # Include job templates
+  - ../../base/job-templates
+  # Core cert-manager installation
+  - https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+  
+  # Vault configuration
+  # - job-vault-configure-cert-manager.yaml  # Replaced by job template
+  # - vault-connection.yaml  # Now provided by base/vault-auth
+  # - vault-auth-cert-manager.yaml  # Now provided by base/vault-auth
+  # - job-vault-populate-secrets.yaml  # Replaced by job template
+  - vaultstaticsecret-ovh-credentials.yaml
+  
+  # OVH DNS-01 webhook for Let's Encrypt
+  - webhook-ovh-manifests.yaml  # Generated from helm template
+  # - ovh-credentials-secret.yaml # Replaced by VaultStaticSecret
+  - ovh-webhook-rbac-fix.yaml   # RBAC to allow webhook to read secrets
+  - ovh-credentials-copy-job.yaml # Copy credentials to all namespaces (webhook limitation)
+  - clusterissuer-letsencrypt-ovh-webhook-final.yaml
+  
+  # Fix leader election issues (Talos doesn't allow kube-system access)
+  # - cainjector-leader-election-fix.yaml  # Conflicts with cert-manager's built-in resources
+  # - cert-manager-leader-election-fix.yaml
+
+patches:
+  # Strategic merge patches for cert-manager components
+  - path: cainjector-patch.yaml
+  - path: cert-manager-controller-patch.yaml
+  
+
+  # Customize the vault auth from base
+  - target:
+      kind: VaultAuth
+      name: vault-auth
+    patch: |-
+      apiVersion: secrets.hashicorp.com/v1beta1
+      kind: VaultAuth
+      metadata:
+        name: cert-manager-auth
+        namespace: cert-manager
+      spec:
+        kubernetes:
+          role: cert-manager
+          serviceAccount: cert-manager
+  
+  # Customize the RBAC for vault token reader
+  - target:
+      kind: RoleBinding
+      name: PLACEHOLDER-vault-admin-token-reader
+      namespace: vault
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: cert-manager-vault-admin-token-reader
+        namespace: vault
+      subjects:
+      - kind: ServiceAccount
+        name: vault-config
+        namespace: cert-manager
+  
+  # Customize the vault configure job from v2 template
+  - target:
+      kind: Job
+      name: vault-configure
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-configure-cert-manager
+        namespace: cert-manager
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-configure
+              env:
+              - name: SERVICE_NAME
+                value: cert-manager
+              - name: POLICY_NAME
+                value: cert-manager-policy
+              - name: ROLE_NAME
+                value: cert-manager
+              - name: SERVICE_ACCOUNT
+                value: cert-manager
+              - name: NAMESPACE
+                value: cert-manager
+              - name: POLICY_CONTENT
+                value: |
+                  path "secret/data/cert-manager/*" {
+                    capabilities = ["read"]
+                  }
+  
+  # Patch vault populate secrets job from v2 template
+  - target:
+      kind: Job
+      name: vault-populate
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-populate-cert-manager-secrets
+        namespace: cert-manager
+      spec:
+        template:
+          spec:
+            serviceAccountName: cert-manager
+            containers:
+            - name: vault-populate
+              env:
+              - name: SERVICE_NAME
+                value: cert-manager
+              - name: POPULATE_SCRIPT
+                value: |
+                  # Get service account token
+                  SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                  
+                  # Login to Vault using Kubernetes auth
+                  echo "Logging into Vault..."
+                  VAULT_TOKEN=$(vault write -field=token auth/kubernetes/login \
+                    role=cert-manager \
+                    jwt=$SA_TOKEN)
+                  
+                  export VAULT_TOKEN
+                  
+                  # Check and populate OVH credentials
+                  echo "Checking OVH credentials..."
+                  if ! vault kv get secret/cert-manager/ovh >/dev/null 2>&1; then
+                    echo "Creating OVH credentials in Vault..."
+                    vault kv put secret/cert-manager/ovh \
+                      applicationKey="d39425a1639ab4e3" \
+                      applicationSecret="8c9ea952ea25221013cd4ce74544f4c4" \
+                      consumerKey="3bb32020644c9f3ad302645992284df7"
+                  else
+                    echo "OVH credentials already exist in Vault"
+                  fi
+              - name: VAULT_SKIP_VERIFY
+                value: "true"

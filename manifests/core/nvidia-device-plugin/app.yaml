@@ -1,0 +1,6 @@
+name: nvidia-device-plugin
+project: core
+namespace: kube-system
+path: manifests/core/nvidia-device-plugin
+syncWave: "-23"
+createNamespace: "false"  # kube-system already exists

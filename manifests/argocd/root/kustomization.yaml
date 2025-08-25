@@ -1,0 +1,8 @@
+# Root directory containing ApplicationSets that auto-discover apps
+# This is referenced by the root Application (app-of-apps.yaml)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- applicationset-core.yaml
+- applicationset-apps.yaml

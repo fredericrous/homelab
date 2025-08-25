@@ -1,0 +1,6 @@
+name: coredns
+project: core
+namespace: kube-system
+path: manifests/core/coredns
+syncWave: "-6"
+createNamespace: "false"  # kube-system already exists

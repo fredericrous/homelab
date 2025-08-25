@@ -1,0 +1,5 @@
+name: plex
+project: apps
+namespace: plex
+path: manifests/apps/plex
+syncWave: "30"

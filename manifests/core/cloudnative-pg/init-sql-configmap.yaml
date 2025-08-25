@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-sql
+  namespace: postgres
+data:
+  init.sql: |
+    -- Create Harbor user
+    CREATE USER harbor WITH PASSWORD 'HarborDB123';
+    
+    -- Create Harbor databases
+    CREATE DATABASE registry OWNER harbor;
+    CREATE DATABASE core OWNER harbor;
+    CREATE DATABASE notary_signer OWNER harbor;
+    CREATE DATABASE notary_server OWNER harbor;
+    
+    -- Grant permissions on Harbor databases
+    GRANT ALL PRIVILEGES ON DATABASE registry TO harbor;
+    GRANT ALL PRIVILEGES ON DATABASE core TO harbor;
+    GRANT ALL PRIVILEGES ON DATABASE notary_signer TO harbor;
+    GRANT ALL PRIVILEGES ON DATABASE notary_server TO harbor;
+    
+    -- Create LLDAP user and database
+    CREATE USER lldap WITH PASSWORD 'lldap-db-password';
+    CREATE DATABASE lldap OWNER lldap;
+    GRANT ALL PRIVILEGES ON DATABASE lldap TO lldap;

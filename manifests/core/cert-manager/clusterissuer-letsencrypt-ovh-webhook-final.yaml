@@ -1,0 +1,22 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-ovh-webhook-final
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@daddyshome.fr
+    privateKeySecretRef:
+      name: letsencrypt-ovh-webhook-final
+    solvers:
+    - dns01:
+        webhook:
+          groupName: acme.daddyshome.fr
+          solverName: ovh
+          config:
+            endpoint: ovh-eu
+            applicationKey: d39425a1639ab4e3
+            applicationSecretRef:
+              key: applicationSecret
+              name: ovh-credentials
+            consumerKey: 3bb32020644c9f3ad302645992284df7

@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authelia-db-init
+  namespace: authelia
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: psql
+        image: postgres:16-alpine
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "Creating authelia database..."
+          
+          # Use psql directly with password from environment
+          PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres-apps-rw.postgres.svc.cluster.local -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'authelia'" | grep -q 1 || \
+          PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres-apps-rw.postgres.svc.cluster.local -U postgres <<EOF
+          CREATE USER authelia WITH PASSWORD 'authelia-db-password';
+          CREATE DATABASE authelia OWNER authelia;
+          GRANT ALL PRIVILEGES ON DATABASE authelia TO authelia;
+          \c authelia
+          GRANT ALL ON SCHEMA public TO authelia;
+          EOF
+          
+          echo "Database setup completed!"
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "initial-password-change-me"

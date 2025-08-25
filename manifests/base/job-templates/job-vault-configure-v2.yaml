@@ -1,0 +1,89 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-configure
+  namespace: default  # Will be overridden
+spec:
+  template:
+    spec:
+      serviceAccountName: vault-config
+      restartPolicy: OnFailure
+      containers:
+      - name: vault-configure
+        image: hashicorp/vault:1.16
+        command: ["/scripts/configure-vault.sh"]
+        env:
+        - name: VAULT_ADDR
+          value: http://vault.vault.svc.cluster.local:8200
+        - name: SERVICE_NAME
+          value: ""  # Set by service patch
+        - name: POLICY_NAME
+          value: ""  # Set by service patch
+        - name: ROLE_NAME
+          value: ""  # Set by service patch
+        - name: SERVICE_ACCOUNT
+          value: ""  # Set by service patch
+        - name: NAMESPACE
+          value: ""  # Set by service patch
+        - name: POLICY_CONTENT
+          value: |  # Set by service patch
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+      volumes:
+      - name: scripts
+        configMap:
+          name: vault-configure-scripts
+          defaultMode: 0755
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-configure-scripts
+  namespace: default  # Will be overridden
+data:
+  configure-vault.sh: |
+    #!/bin/sh
+    set -e
+    
+    # Wait for Vault to be ready and unsealed
+    until vault status 2>/dev/null | grep -q "Sealed.*false"; do
+      echo "Waiting for Vault to be unsealed..."
+      sleep 5
+    done
+    
+    # Get admin token from vault namespace
+    echo "Fetching vault admin token..."
+    export VAULT_TOKEN=$(kubectl get secret vault-admin-token -n vault -o jsonpath='{.data.token}' | base64 -d)
+    
+    if [ -z "$VAULT_TOKEN" ]; then
+      echo "Error: Could not fetch vault admin token"
+      exit 1
+    fi
+    
+    # Check if policy already exists
+    echo "Checking existing ${SERVICE_NAME} policy..."
+    if vault policy read ${POLICY_NAME} 2>/dev/null; then
+      echo "${SERVICE_NAME} policy already exists"
+    else
+      # Create policy
+      echo "Creating ${SERVICE_NAME} policy..."
+      vault policy write ${POLICY_NAME} - <<EOF
+    ${POLICY_CONTENT}
+    EOF
+    fi
+    
+    # Check if Kubernetes auth role exists
+    if vault read auth/kubernetes/role/${ROLE_NAME} 2>/dev/null; then
+      echo "${SERVICE_NAME} Kubernetes auth role already exists"
+    else
+      # Create Kubernetes auth role
+      echo "Creating Kubernetes auth role..."
+      vault write auth/kubernetes/role/${ROLE_NAME} \
+        bound_service_account_names=${SERVICE_ACCOUNT} \
+        bound_service_account_namespaces=${NAMESPACE} \
+        policies=${POLICY_NAME} \
+        ttl=24h
+    fi
+    
+    echo "${SERVICE_NAME} Vault configuration completed successfully"

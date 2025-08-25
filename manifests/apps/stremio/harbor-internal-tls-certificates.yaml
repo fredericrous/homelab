@@ -1,0 +1,119 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-ca
+  namespace: harbor
+spec:
+  secretName: harbor-ca
+  commonName: harbor-ca
+  isCA: true
+  issuerRef:
+    name: ca-issuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: harbor-ca-issuer
+  namespace: harbor
+spec:
+  ca:
+    secretName: harbor-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-core-tls
+  namespace: harbor
+spec:
+  secretName: harbor-core-tls
+  dnsNames:
+  - harbor-core
+  - harbor-core.harbor
+  - harbor-core.harbor.svc
+  - harbor-core.harbor.svc.cluster.local
+  issuerRef:
+    name: harbor-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-registry-tls
+  namespace: harbor
+spec:
+  secretName: harbor-registry-tls
+  dnsNames:
+  - harbor-registry
+  - harbor-registry.harbor
+  - harbor-registry.harbor.svc
+  - harbor-registry.harbor.svc.cluster.local
+  ipAddresses:
+  - 192.168.1.90
+  issuerRef:
+    name: harbor-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-jobservice-tls
+  namespace: harbor
+spec:
+  secretName: harbor-jobservice-tls
+  dnsNames:
+  - harbor-jobservice
+  - harbor-jobservice.harbor
+  - harbor-jobservice.harbor.svc
+  - harbor-jobservice.harbor.svc.cluster.local
+  issuerRef:
+    name: harbor-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-portal-tls
+  namespace: harbor
+spec:
+  secretName: harbor-portal-tls
+  dnsNames:
+  - harbor-portal
+  - harbor-portal.harbor
+  - harbor-portal.harbor.svc
+  - harbor-portal.harbor.svc.cluster.local
+  issuerRef:
+    name: harbor-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-trivy-tls
+  namespace: harbor
+spec:
+  secretName: harbor-trivy-tls
+  dnsNames:
+  - harbor-trivy
+  - harbor-trivy.harbor
+  - harbor-trivy.harbor.svc
+  - harbor-trivy.harbor.svc.cluster.local
+  issuerRef:
+    name: harbor-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-exporter-tls
+  namespace: harbor
+spec:
+  secretName: harbor-exporter-tls
+  dnsNames:
+  - harbor-exporter
+  - harbor-exporter.harbor
+  - harbor-exporter.harbor.svc
+  - harbor-exporter.harbor.svc.cluster.local
+  issuerRef:
+    name: harbor-ca-issuer
+    kind: Issuer

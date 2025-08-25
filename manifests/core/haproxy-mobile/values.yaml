@@ -1,0 +1,26 @@
+controller:
+  name: haproxy-mobile
+  ingressClass: haproxy-mobile
+  ingressClassResource:
+    enabled: true
+    default: false
+    name: haproxy-mobile
+    controllerClass: haproxy.org/ingress-controller-mobile
+  
+  service:
+    type: LoadBalancer
+    loadBalancerIP: 192.168.1.81
+    ports:
+      http: 80
+      https: 4443
+      stat: 1024
+    
+  config:
+    ssl-redirect-port: "4443"
+    # No client-ca configuration for mobile
+    
+  containerPort:
+    https: 8443
+    
+  # Different config map name to avoid conflicts
+  configMapName: haproxy-mobile-config

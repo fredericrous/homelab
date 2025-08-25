@@ -1,0 +1,46 @@
+# Service for read-write connections (primary)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-apps-rw
+  namespace: postgres
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: postgres-apps
+    cnpg.io/instanceRole: primary
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+---
+# Service for read-only connections (replicas)
+apiVersion: v1
+kind: Service  
+metadata:
+  name: postgres-apps-ro
+  namespace: postgres
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: postgres-apps
+    cnpg.io/instanceRole: replica
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+---
+# Service for any instance (load balanced)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-apps-any
+  namespace: postgres
+spec:
+  type: ClusterIP
+  selector:
+    cnpg.io/cluster: postgres-apps
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432

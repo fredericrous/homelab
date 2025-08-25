@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: haproxy-controller
+
+resources:
+  - haproxy-ingress.yaml
+  - ingressclass.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: haproxy-kubernetes-ingress
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: "--ingress-class=haproxy"
+  - target:
+      kind: ConfigMap
+      name: haproxy-kubernetes-ingress
+    patch: |-
+      - op: add
+        path: /data/client-ca
+        value: "haproxy-controller/client-ca-cert"
+  - target:
+      kind: Service
+      name: haproxy-kubernetes-ingress
+    patch: |-
+      - op: replace
+        path: /spec/ports/0/nodePort
+        value: 30080
+      - op: replace
+        path: /spec/ports/1/nodePort
+        value: 30443
+      - op: replace
+        path: /spec/ports/2/nodePort
+        value: 31024

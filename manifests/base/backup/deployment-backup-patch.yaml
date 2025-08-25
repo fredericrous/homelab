@@ -1,0 +1,11 @@
+# Strategic merge patch for Deployments
+# Apps need to set backup.velero.io/backup-volumes annotation value
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: not-used
+spec:
+  template:
+    metadata:
+      annotations:
+        backup.velero.io/backup-volumes: PLACEHOLDER

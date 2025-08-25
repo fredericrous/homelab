@@ -1,0 +1,90 @@
+image:
+  repository: velero/velero
+  tag: v1.16.2
+  pullPolicy: IfNotPresent
+
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.9.0
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: homelab-backups
+      config:
+        region: eu-west-1
+        s3ForcePathStyle: "false"
+      credential:
+        name: velero-credentials
+        key: cloud
+    - name: smb-local
+      provider: aws
+      bucket: velero
+      config:
+        region: minio
+        s3ForcePathStyle: "true"
+        s3Url: http://minio-smb.velero.svc.cluster.local:9000
+      credential:
+        name: velero-credentials-minio
+        key: cloud
+  volumeSnapshotLocation:
+    - name: rook-ceph
+      provider: csi
+      config: {}
+
+snapshotsEnabled: true
+features: EnableCSI
+
+schedules:
+  ${BACKUP_SCHEDULES}
+
+credentials:
+  existingSecret: velero-credentials
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+serviceAccount:
+  server:
+    create: true
+    name: velero
+
+deployNodeAgent: true
+
+nodeAgent:
+  podVolumePath: /var/lib/kubelet/pods
+  privileged: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+
+backupsEnabled: true
+restoreOnlyMode: false
+
+logLevel: info
+logFormat: text
+
+defaultBackupTTL: 720h
+defaultItemOperationTimeout: 4h

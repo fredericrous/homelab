@@ -1,0 +1,18 @@
+# Patch to add SMB volume to deployments
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: PLACEHOLDER
+spec:
+  template:
+    spec:
+      volumes:
+      - name: smb-data
+        persistentVolumeClaim:
+          claimName: pvc-smb-PLACEHOLDER
+      containers:
+      - name: PLACEHOLDER
+        volumeMounts:
+        - name: smb-data
+          mountPath: /mnt/smb
+          subPath: SUBPATH_PLACEHOLDER

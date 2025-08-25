@@ -1,0 +1,14 @@
+# This patch needs to be applied to Talos nodes to allow pulling from internal Harbor registry
+machine:
+  registries:
+    mirrors:
+      harbor-registry.harbor.svc.cluster.local:5000:
+        endpoints:
+          - http://harbor-registry.harbor.svc.cluster.local:5000
+    config:
+      harbor-registry.harbor.svc.cluster.local:5000:
+        tls:
+          insecureSkipVerify: true
+        auth:
+          username: admin
+          password: "33V4wUaUxgEC2cFEqENfkv"

@@ -1,0 +1,6 @@
+name: csi-driver-nfs
+project: core
+namespace: kube-system
+path: manifests/core/csi-driver-nfs
+syncWave: "-11"
+createNamespace: "false"  # kube-system already exists

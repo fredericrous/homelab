@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-postgres-create-db-fixed
+  namespace: nextcloud
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: postgres-setup
+        image: postgres:16-alpine
+        env:
+        - name: PGHOST
+          value: postgres-apps-rw.postgres.svc.cluster.local
+        - name: PGPORT
+          value: "5432"
+        - name: PGUSER
+          value: postgres
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser-secret
+              key: password
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: database-password
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "Creating Nextcloud database and user..."
+          
+          # Check if user exists
+          if psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='nextcloud'" | grep -q 1; then
+            echo "User 'nextcloud' already exists"
+          else
+            psql -c "CREATE USER nextcloud WITH PASSWORD '$DB_PASSWORD';"
+            echo "User 'nextcloud' created"
+          fi
+          
+          # Check if database exists
+          if psql -tAc "SELECT 1 FROM pg_database WHERE datname='nextcloud'" | grep -q 1; then
+            echo "Database 'nextcloud' already exists"
+          else
+            psql -c "CREATE DATABASE nextcloud OWNER nextcloud;"
+            echo "Database 'nextcloud' created"
+          fi
+          
+          # Grant privileges
+          psql -c "GRANT ALL PRIVILEGES ON DATABASE nextcloud TO nextcloud;"
+          echo "Privileges granted"
+          
+          echo "PostgreSQL setup completed successfully!"

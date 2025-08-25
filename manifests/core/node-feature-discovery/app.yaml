@@ -1,0 +1,5 @@
+name: node-feature-discovery
+project: core
+namespace: node-feature-discovery
+path: manifests/core/node-feature-discovery
+syncWave: "-24"

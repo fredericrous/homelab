@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: debug-net
+  namespace: default
+spec:
+  hostNetwork: true
+  containers:
+  - name: debug
+    image: nicolaka/netshoot
+    command: ["sleep", "3600"]
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN"]

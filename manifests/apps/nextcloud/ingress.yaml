@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    haproxy.org/ssl-redirect: "true"
+    haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+    haproxy.org/auth-tls-verify-client: "required"  # Can use required with DNS-01
+    # Nextcloud specific settings
+    haproxy.org/timeout-client: "600s"
+    haproxy.org/timeout-server: "600s"
+    haproxy.org/load-balance: "leastconn"
+    # Large file uploads
+    haproxy.org/request-max-size: "10737418240"  # 10GB
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - drive.daddyshome.fr
+    secretName: nextcloud-tls
+  rules:
+  - host: drive.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nextcloud
+            port:
+              number: 80

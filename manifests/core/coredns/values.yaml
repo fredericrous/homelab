@@ -1,0 +1,13 @@
+replicaCount: 1
+service:
+  name: kube-dns
+  clusterIP: 10.96.0.10
+deployment:
+  name: coredns
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 70Mi

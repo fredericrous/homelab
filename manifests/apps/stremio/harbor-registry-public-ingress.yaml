@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: harbor-registry-public
+  namespace: harbor
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-ovh-webhook-final
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - registry.daddyshome.fr
+    secretName: harbor-registry-public-tls
+  rules:
+  - host: registry.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: harbor-registry
+            port:
+              number: 5443

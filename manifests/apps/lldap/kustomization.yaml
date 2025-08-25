@@ -1,0 +1,103 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: lldap
+
+resources:
+  # Include shared vault auth base
+  - ../../base/vault-auth
+  # Include job templates
+  - ../../base/job-templates
+  # App-specific resources
+  - namespace.yaml
+  # - job-vault-configure-lldap.yaml  # Replaced by job template
+  # - vault-connection.yaml  # Now provided by base/vault-auth
+  # - vault-auth-lldap.yaml  # Now provided by base/vault-auth
+  # - secrets.yaml  # Replaced by VaultStaticSecret in vault-secret-sync.yaml
+  - vault-secret-sync.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+patches:
+  # Customize the vault auth from base
+  - target:
+      kind: VaultAuth
+      name: vault-auth
+    patch: |-
+      apiVersion: secrets.hashicorp.com/v1beta1
+      kind: VaultAuth
+      metadata:
+        name: lldap-auth
+        namespace: lldap
+      spec:
+        kubernetes:
+          role: lldap
+          serviceAccount: lldap
+  
+  # Customize the RBAC for vault token reader
+  - target:
+      kind: RoleBinding
+      name: PLACEHOLDER-vault-admin-token-reader
+      namespace: vault
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: lldap-vault-admin-token-reader
+        namespace: vault
+      subjects:
+      - kind: ServiceAccount
+        name: vault-config
+        namespace: lldap
+  
+  # Add backup annotations for persistent volumes
+  - target:
+      kind: Deployment
+      name: lldap
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: lldap
+      spec:
+        template:
+          metadata:
+            annotations:
+              backup.velero.io/backup-volumes: lldap-data
+  
+  # Patch vault configure job template
+  - target:
+      kind: Job
+      name: vault-configure
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-configure-lldap
+        namespace: lldap
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-configure
+              env:
+              - name: VAULT_POLICY_NAME
+                value: "lldap-policy"
+              - name: VAULT_POLICY_CONTENT
+                value: |
+                  path "secret/data/lldap/*" {
+                    capabilities = ["read"]
+                  }
+                  path "secret/data/postgres/superuser" {
+                    capabilities = ["read"]
+                  }
+                  path "secret/data/cert-manager/ovh" {
+                    capabilities = ["read"]
+                  }
+              - name: VAULT_ROLE_NAME
+                value: "lldap"
+              - name: VAULT_ROLE_SERVICE_ACCOUNTS
+                value: "lldap"
+              - name: VAULT_ROLE_NAMESPACES
+                value: "lldap"

@@ -1,0 +1,7 @@
+# Argo CD manages itself after bootstrap
+# This file is discovered by the core ApplicationSet
+name: argocd
+project: core
+namespace: argocd
+path: manifests/argocd
+syncWave: "-11"  # Deploy very early as other apps depend on it

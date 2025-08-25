@@ -1,0 +1,7 @@
+name: vault
+project: core
+namespace: vault
+path: manifests/core/vault
+autoSync: "false"  # Vault is critical for secrets management
+prune: "false"     # Never auto-prune vault resources
+syncWave: "-16"

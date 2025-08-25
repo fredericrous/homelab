@@ -1,0 +1,114 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: stremio
+
+resources:
+  # Include shared vault auth base
+  - ../../base/vault-auth
+  # Include job templates
+  - ../../base/job-templates
+  # App-specific resources
+  - namespace.yaml
+  # - stremio-vault-auth.yaml  # Now provided by base/vault-auth
+  # - job-vault-configure-stremio.yaml  # Now using job-templates base
+  - harbor-registry-secret.yaml
+  - harbor-registry-user-secret.yaml
+  - pvc.yaml
+  - pvc-web.yaml
+  - build-workspace-pvc.yaml
+  - buildkitd-service.yaml
+  - build-job.yaml
+  - stremio-web-copy-job.yaml
+  - deployment-server.yaml
+  - deployment-web.yaml
+  - stremio-nginx-config.yaml
+  - stremio-server-nginx-proxy.yaml
+  - stremio-ffmpeg-mtls-config.yaml
+  - mtls-client-configmap.yaml
+  - service.yaml
+  - ingress.yaml
+  - ingress-mobile.yaml
+  - stremio-server-ingress.yaml
+
+patches:
+  # Customize the vault auth from base
+  - target:
+      kind: VaultAuth
+      name: vault-auth
+    patch: |-
+      apiVersion: secrets.hashicorp.com/v1beta1
+      kind: VaultAuth
+      metadata:
+        name: stremio-auth
+        namespace: stremio
+      spec:
+        kubernetes:
+          role: stremio
+          serviceAccount: stremio
+  
+  # Customize the vault configure job from v2 template
+  - target:
+      kind: Job
+      name: vault-configure
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-configure-stremio
+        namespace: stremio
+      spec:
+        template:
+          spec:
+            containers:
+            - name: vault-configure
+              env:
+              - name: SERVICE_NAME
+                value: stremio
+              - name: POLICY_NAME
+                value: stremio
+              - name: ROLE_NAME
+                value: stremio
+              - name: SERVICE_ACCOUNT
+                value: stremio
+              - name: NAMESPACE
+                value: stremio
+              - name: POLICY_CONTENT
+                value: |
+                  path "secret/data/harbor/admin" {
+                    capabilities = ["read"]
+                  }
+                  path "secret/data/harbor/registry-user" {
+                    capabilities = ["read"]
+                  }
+  
+  # Customize the RBAC for vault token reader
+  - target:
+      kind: RoleBinding
+      name: PLACEHOLDER-vault-admin-token-reader
+      namespace: vault
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: stremio-vault-admin-token-reader
+        namespace: vault
+      subjects:
+      - kind: ServiceAccount
+        name: vault-config
+        namespace: stremio
+  
+  # Backup annotations - replaced patch-velero-backup.yaml
+  - target:
+      kind: Deployment
+      name: stremio-server
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: stremio-server
+      spec:
+        template:
+          metadata:
+            annotations:
+              backup.velero.io/backup-volumes: config,media

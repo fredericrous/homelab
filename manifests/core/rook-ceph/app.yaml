@@ -1,0 +1,21 @@
+name: rook-ceph
+project: core
+namespace: rook-ceph
+path: manifests/core/rook-ceph
+autoSync: "false"  # Storage control plane is critical
+prune: "false"     # Never auto-prune storage resources
+syncWave: "-22"
+serverSideApply: "true"
+ignoreDifferences:
+  - group: ceph.rook.io
+    kind: CephCluster
+    jsonPointers:
+    - /status
+  - group: ceph.rook.io
+    kind: CephBlockPool
+    jsonPointers:
+    - /status
+  - group: ceph.rook.io
+    kind: CephFilesystem
+    jsonPointers:
+    - /status

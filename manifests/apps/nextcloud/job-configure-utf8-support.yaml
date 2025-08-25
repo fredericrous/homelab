@@ -1,0 +1,92 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: configure-utf8-support
+  namespace: nextcloud
+spec:
+  template:
+    metadata:
+      labels:
+        app: nextcloud-config
+    spec:
+      serviceAccountName: nextcloud
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-nextcloud
+        image: busybox:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Nextcloud to be ready..."
+          until nc -z nextcloud.nextcloud.svc.cluster.local 80; do
+            echo "Nextcloud is not ready yet..."
+            sleep 10
+          done
+          echo "Nextcloud is ready!"
+      containers:
+      - name: configure-utf8
+        image: nextcloud:28
+        command:
+        - sh
+        - -c
+        - |
+          echo "🔧 Configuring UTF-8 support for special characters..."
+          
+          # Check current locale settings
+          echo "📋 Current locale settings in container:"
+          locale
+          
+          # Set the default charset for file encoding
+          echo "⚙️ Configuring Nextcloud for UTF-8 file handling..."
+          su -s /bin/sh www-data -c "
+            php occ config:system:set default_charset --value='UTF-8' &&
+            php occ config:system:set filesystem_check_changes --value=1 --type=integer &&
+            php occ config:system:set localstorage.allowsymlinks --value=true --type=boolean
+          "
+          
+          # Enable maintenance mode for safer configuration changes
+          echo "🔧 Enabling maintenance mode..."
+          su -s /bin/sh www-data -c "php occ maintenance:mode --on"
+          
+          # Configure MySQL connection to use UTF-8mb4 for full Unicode support
+          echo "🔧 Setting database charset to UTF-8mb4..."
+          su -s /bin/sh www-data -c "
+            php occ config:system:set mysql.utf8mb4 --value=true --type=boolean
+          "
+          
+          # Install and enable the files_external_onedrive app which has better encoding support
+          echo "📦 Installing encoding fix app if available..."
+          su -s /bin/sh www-data -c "
+            php occ app:install files_inotify || echo 'App might not be available'
+          "
+          
+          # Disable maintenance mode
+          echo "✅ Disabling maintenance mode..."
+          su -s /bin/sh www-data -c "php occ maintenance:mode --off"
+          
+          # Clear file cache to force re-scan with new settings
+          echo "🔄 Clearing file cache..."
+          su -s /bin/sh www-data -c "
+            php occ files:cleanup &&
+            php occ files:scan-app-data
+          "
+          
+          # Check current configuration
+          echo "📋 Current relevant configuration:"
+          su -s /bin/sh www-data -c "
+            php occ config:system:get default_charset &&
+            php occ config:system:get mysql.utf8mb4
+          "
+          
+          echo "💡 Note: For files with encoding issues, you may need to:"
+          echo "   1. Rename files on the SMB server to use standard characters"
+          echo "   2. Use a tool like 'convmv' to convert filenames to UTF-8"
+          echo "   3. Set the SMB mount options to use UTF-8 encoding"
+        volumeMounts:
+        - name: nextcloud-data
+          mountPath: /var/www/html
+      volumes:
+      - name: nextcloud-data
+        persistentVolumeClaim:
+          claimName: nextcloud-data
