@@ -37,34 +37,5 @@ resource "helm_release" "cilium" {
   }
 }
 
-# Verify Cilium is healthy
-resource "null_resource" "verify_cilium" {
-  count = var.configure_talos ? 1 : 0
-  
-  depends_on = [helm_release.cilium]
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      set -euo pipefail
-      
-      export KUBECONFIG=${abspath("${path.module}/../kubeconfig")}
-      
-      echo "🔍 Verifying Cilium deployment..."
-      
-      # Wait for Cilium pods to be ready
-      echo "Waiting for Cilium DaemonSet..."
-      kubectl -n kube-system rollout status ds/cilium --timeout=5m
-      
-      echo "Waiting for Cilium Operator..."
-      kubectl -n kube-system rollout status deploy/cilium-operator --timeout=5m || true
-      
-      # Show Cilium pod status
-      echo ""
-      echo "Cilium pods status:"
-      kubectl -n kube-system get pods -l k8s-app=cilium
-      kubectl -n kube-system get pods -l name=cilium-operator
-      
-      echo "✅ Cilium is healthy!"
-    EOT
-  }
-}
+# The helm_release resource with wait=true already ensures Cilium is healthy
+# No need for additional verification

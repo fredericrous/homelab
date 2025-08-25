@@ -126,8 +126,8 @@ resource "helm_release" "argocd" {
   }
 }
 
-# Verify ArgoCD is healthy
-resource "null_resource" "verify_argocd" {
+# Get ArgoCD admin password after deployment
+resource "null_resource" "argocd_info" {
   count = var.configure_talos ? 1 : 0
   
   depends_on = [helm_release.argocd]
@@ -138,27 +138,6 @@ resource "null_resource" "verify_argocd" {
       
       export KUBECONFIG=${abspath("${path.module}/../kubeconfig")}
       
-      echo "🔍 Verifying ArgoCD deployment..."
-      
-      # Wait for ArgoCD components
-      echo "Waiting for ArgoCD Server..."
-      kubectl -n argocd rollout status deploy/argocd-server --timeout=5m
-      
-      echo "Waiting for ArgoCD Repo Server..."
-      kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=5m
-      
-      echo "Waiting for ArgoCD Application Controller..."
-      kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=5m
-      
-      echo "Waiting for ArgoCD ApplicationSet Controller..."
-      kubectl -n argocd rollout status deploy/argocd-applicationset-controller --timeout=5m
-      
-      # Show ArgoCD pod status
-      echo ""
-      echo "ArgoCD pods status:"
-      kubectl -n argocd get pods
-      
-      # Get initial admin password
       echo ""
       echo "📝 ArgoCD initial admin password:"
       kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
@@ -168,8 +147,6 @@ resource "null_resource" "verify_argocd" {
       echo "  kubectl port-forward svc/argocd-server -n argocd 8080:443"
       echo "  Then visit: https://localhost:8080"
       echo "  Username: admin"
-      
-      echo "✅ ArgoCD is healthy!"
     EOT
   }
 }

@@ -2,7 +2,7 @@
 resource "null_resource" "wait_nodes_ready" {
   count = var.configure_talos ? 1 : 0
   
-  depends_on = [helm_release.cilium, null_resource.verify_cilium]
+  depends_on = [helm_release.cilium]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -22,7 +22,7 @@ resource "null_resource" "wait_nodes_ready" {
         ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep -c " Ready " || true)
         total_nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo "0")
         
-        echo "Nodes ready: $ready_nodes/$total_nodes (${elapsed}s elapsed)"
+        echo "Nodes ready: $ready_nodes/$total_nodes ($${elapsed}s elapsed)"
         
         # Check if all nodes are ready
         if [ "$total_nodes" -gt 0 ] && [ "$ready_nodes" -eq "$total_nodes" ]; then

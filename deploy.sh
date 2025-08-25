@@ -73,7 +73,7 @@ terraform apply -auto-approve -target=null_resource.helm_repos
 
 # Stage 6: Deploy ArgoCD
 echo "🚀 Stage 6: Deploying ArgoCD..."
-terraform apply -auto-approve -target=helm_release.argocd -target=null_resource.verify_argocd
+terraform apply -auto-approve -target=helm_release.argocd -target=null_resource.argocd_info
 
 echo "✅ Stage 7: Verifying cluster..."
 export KUBECONFIG=../kubeconfig
