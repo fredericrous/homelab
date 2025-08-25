@@ -165,11 +165,6 @@ variable "configure_talos" {
   default     = false
 }
 
-variable "bootstrap_cni" {
-  description = "Apply a temporary Cilium quick-install at bootstrap"
-  type        = bool
-  default     = true
-}
 
 variable "talos_install_image_base" {
   description = "Talos installation image for base nodes (can be overridden, defaults to dynamically generated)"

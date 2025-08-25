@@ -34,13 +34,10 @@ locals {
     }
   )
 
-  common_patches = concat(
-    [
-      file("${path.module}/patch/disable-flannel-kubeproxy.yaml"),
-      file("${path.module}/patch/sysctls-patch.yaml")
-    ],
-    var.bootstrap_cni ? [file("${path.module}/patch/cilium-bootstrap-extramanifests.yaml")] : []
-  )
+  common_patches = [
+    file("${path.module}/patch/disable-flannel-kubeproxy.yaml"),
+    file("${path.module}/patch/sysctls-patch.yaml")
+  ]
 
   network_config = {
     for node_key, node in local.all_nodes : node_key => yamlencode({

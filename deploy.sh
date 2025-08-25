@@ -59,20 +59,34 @@ terraform apply -auto-approve -parallelism=10 \
     -target=talos_cluster_kubeconfig.this \
     -target=local_file.kubeconfig
 
-# Stage 3: Wait for Cilium and verify cluster
-echo "⏳ Stage 3: Waiting for Cilium CNI..."
-terraform apply -auto-approve -target=null_resource.wait_for_cilium
+# Stage 3: Install Cilium with Helm provider
+echo "🚀 Stage 3: Installing Cilium CNI with Helm provider..."
+terraform apply -auto-approve -target=helm_release.cilium
 
-echo "✅ Stage 4: Verifying cluster..."
+# Stage 4: Wait for nodes to be ready
+echo "⏳ Stage 4: Waiting for nodes to be Ready..."
+terraform apply -auto-approve -target=null_resource.wait_nodes_ready
+
+# Stage 5: Add Helm repositories
+echo "📦 Stage 5: Adding Helm repositories..."
+terraform apply -auto-approve -target=null_resource.helm_repos
+
+# Stage 6: Deploy ArgoCD
+echo "🚀 Stage 6: Deploying ArgoCD..."
+terraform apply -auto-approve -target=helm_release.argocd -target=null_resource.verify_argocd
+
+echo "✅ Stage 7: Verifying cluster..."
 export KUBECONFIG=../kubeconfig
 kubectl get nodes
+echo ""
+kubectl get pods -n argocd
 
 echo "🎉 Deployment complete!"
 echo ""
 echo "Next steps:"
 echo "  export KUBECONFIG=$PWD/kubeconfig"
 echo "  export TALOSCONFIG=$PWD/talosconfig"
-echo "  kubectl apply -k manifests/argocd/"
+echo "  kubectl apply -k ../manifests/apps/  # Deploy applications via ArgoCD"
 echo ""
 echo "To check cluster health:"
 echo "  talosctl -n 192.168.1.67 health"

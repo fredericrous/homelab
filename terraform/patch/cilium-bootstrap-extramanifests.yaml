@@ -1,4 +1,2 @@
-# Ask Talos to fetch & apply a pinned Cilium quick-install one time at bootstrap
-cluster:
-  extraManifests:
-    - https://raw.githubusercontent.com/fredericrous/homelab/main/manifests/core/cilium/bootstrap/install.yaml
+# This file is no longer needed - Cilium is installed via Helm after bootstrap
+# Removed to avoid extraManifests issues
