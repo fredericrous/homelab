@@ -35,7 +35,7 @@ locals {
   )
 
   common_patches = [
-    file("${path.module}/patch/disable-flannel-kubeproxy.yaml"),
+    file("${path.module}/patch/cluster-init.yaml"),
     file("${path.module}/patch/sysctls-patch.yaml")
   ]
 
@@ -68,15 +68,7 @@ locals {
   node_patches = merge(
     {
       controlplane = [
-        # TODO: check if having both file and yamlencode work together
-        file("${path.module}/patch/controlplane-ips-patch.yaml"),
-        yamlencode({
-          cluster = {
-            apiServer = {
-              certSANs = [var.nodes.controlplane.ip, "127.0.0.1"]
-            }
-          }
-        })
+        file("${path.module}/patch/controlplane-ips-patch.yaml")
       ]
     },
     {

@@ -1,45 +1,43 @@
-# Wait for nodes to be ready after Cilium CNI is installed
+# Wait for all nodes to be ready after CNI deployment
 resource "null_resource" "wait_nodes_ready" {
   count = var.configure_talos ? 1 : 0
-  
-  depends_on = [helm_release.cilium]
+
+  depends_on = [
+    null_resource.cilium_bootstrap,
+    talos_machine_configuration_apply.workers
+  ]
 
   provisioner "local-exec" {
     command = <<-EOT
-      set -euo pipefail
+      set -e
+      export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
       
-      export KUBECONFIG=${abspath("${path.module}/../kubeconfig")}
-      
-      echo "⏳ Waiting for nodes to become Ready after CNI installation..."
-      
-      # Wait up to 5 minutes for all nodes to be ready
-      timeout=300
-      elapsed=0
-      interval=10
-      
-      while [ $elapsed -lt $timeout ]; do
-        # Get node status
-        ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep -c " Ready " || true)
-        total_nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo "0")
+      echo "⏳ Waiting for all nodes to be Ready..."
+      for i in {1..120}; do
+        NOT_READY=$(kubectl get nodes -o jsonpath='{.items[?(@.status.conditions[?(@.type=="Ready")].status!="True")].metadata.name}' | tr ' ' '\n' | grep -v '^$' || true)
         
-        echo "Nodes ready: $ready_nodes/$total_nodes ($${elapsed}s elapsed)"
-        
-        # Check if all nodes are ready
-        if [ "$total_nodes" -gt 0 ] && [ "$ready_nodes" -eq "$total_nodes" ]; then
+        if [ -z "$NOT_READY" ]; then
           echo "✅ All nodes are Ready!"
           kubectl get nodes
-          exit 0
+          break
+        else
+          echo "Waiting for nodes: $NOT_READY ($i/120)"
+          sleep 5
         fi
         
-        sleep $interval
-        elapsed=$((elapsed + interval))
+        if [ $i -eq 120 ]; then
+          echo "❌ Timeout waiting for nodes to be ready"
+          kubectl get nodes
+          kubectl describe nodes
+          exit 1
+        fi
       done
       
-      echo "❌ Timeout waiting for nodes to become Ready"
-      echo "Current node status:"
-      kubectl get nodes || true
-      kubectl describe nodes || true
-      exit 1
+      echo "✅ Cluster is ready for workloads!"
     EOT
+  }
+
+  triggers = {
+    cluster_id = talos_machine_secrets.this.id
   }
 }

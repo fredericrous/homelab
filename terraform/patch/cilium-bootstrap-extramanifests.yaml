@@ -1,2 +1,0 @@
-# This file is no longer needed - Cilium is installed via Helm after bootstrap
-# Removed to avoid extraManifests issues

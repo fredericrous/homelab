@@ -7,3 +7,4 @@ provider "proxmox" {
 }
 
 provider "talos" {}
+

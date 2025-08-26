@@ -1,146 +1,102 @@
-# Deploy ArgoCD with Helm provider
-resource "helm_release" "argocd" {
+# Deploy ArgoCD with local-exec due to kubeconfig limitations
+resource "null_resource" "argocd_install" {
   count = var.configure_talos ? 1 : 0
-  
+
   depends_on = [
-    null_resource.wait_nodes_ready,
-    null_resource.helm_repos
+    local_file.kubeconfig,
+    null_resource.helm_repos,
+    null_resource.cilium_bootstrap  # Wait for CNI before deploying ArgoCD
   ]
 
-  name             = "argocd"
-  repository       = "https://argoproj.github.io/argo-helm"
-  chart            = "argo-cd"
-  version          = "7.7.12"
-  namespace        = "argocd"
-  create_namespace = true
-
-  wait          = true
-  wait_for_jobs = true
-  timeout       = 600
-
-  # Server configuration
-  set {
-    name  = "server.extraArgs[0]"
-    value = "--insecure"
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
+      
+      echo "🔍 Checking if ArgoCD is already installed..."
+      if kubectl get deployment -n argocd argocd-server >/dev/null 2>&1; then
+        echo "✅ ArgoCD already installed, skipping"
+        exit 0
+      fi
+      
+      echo "🚀 Installing ArgoCD..."
+      helm install argocd argo/argo-cd \
+        --version 7.7.12 \
+        --namespace argocd \
+        --create-namespace \
+        --wait --timeout 10m \
+        --set server.extraArgs[0]="--insecure" \
+        --set redis.enabled=true \
+        --set server.resources.limits.cpu=500m \
+        --set server.resources.limits.memory=512Mi \
+        --set server.resources.requests.cpu=250m \
+        --set server.resources.requests.memory=256Mi \
+        --set controller.resources.limits.cpu=1000m \
+        --set controller.resources.limits.memory=1Gi \
+        --set controller.resources.requests.cpu=500m \
+        --set controller.resources.requests.memory=512Mi \
+        --set repoServer.resources.limits.cpu=500m \
+        --set repoServer.resources.limits.memory=512Mi \
+        --set repoServer.resources.requests.cpu=250m \
+        --set repoServer.resources.requests.memory=256Mi \
+        --set dex.enabled=false \
+        --set applicationSet.enabled=true \
+        --set applicationSet.resources.limits.cpu=500m \
+        --set applicationSet.resources.limits.memory=512Mi \
+        --set applicationSet.resources.requests.cpu=250m \
+        --set applicationSet.resources.requests.memory=256Mi
+      
+      echo "✅ ArgoCD installed successfully"
+    EOT
   }
 
-  # Use internal Redis (comes with ArgoCD)
-  set {
-    name  = "redis.enabled"
-    value = "true"
+  # Trigger replacement if cluster is recreated
+  triggers = {
+    cluster_id = talos_machine_secrets.this.id
+  }
+}
+
+# Bootstrap ArgoCD with app-of-apps
+resource "null_resource" "argocd_bootstrap" {
+  count = var.configure_talos ? 1 : 0
+
+  depends_on = [null_resource.argocd_install]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
+      
+      echo "⏳ Waiting for ArgoCD to be ready..."
+      kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || true
+      
+      echo "🚀 Bootstrapping ArgoCD with app-of-apps..."
+      kubectl apply -f ${path.module}/../manifests/argocd/ || true
+      
+      echo "✅ ArgoCD bootstrap initiated - it will manage all applications including Cilium"
+    EOT
   }
 
-  # Resource limits for server
-  set {
-    name  = "server.resources.limits.cpu"
-    value = "500m"
-  }
-
-  set {
-    name  = "server.resources.limits.memory"
-    value = "512Mi"
-  }
-
-  set {
-    name  = "server.resources.requests.cpu"
-    value = "250m"
-  }
-
-  set {
-    name  = "server.resources.requests.memory"
-    value = "256Mi"
-  }
-
-  # Resource limits for controller
-  set {
-    name  = "controller.resources.limits.cpu"
-    value = "1000m"
-  }
-
-  set {
-    name  = "controller.resources.limits.memory"
-    value = "1Gi"
-  }
-
-  set {
-    name  = "controller.resources.requests.cpu"
-    value = "500m"
-  }
-
-  set {
-    name  = "controller.resources.requests.memory"
-    value = "512Mi"
-  }
-
-  # Resource limits for repo server
-  set {
-    name  = "repoServer.resources.limits.cpu"
-    value = "500m"
-  }
-
-  set {
-    name  = "repoServer.resources.limits.memory"
-    value = "512Mi"
-  }
-
-  set {
-    name  = "repoServer.resources.requests.cpu"
-    value = "250m"
-  }
-
-  set {
-    name  = "repoServer.resources.requests.memory"
-    value = "256Mi"
-  }
-
-  # Disable Dex (we'll use external auth)
-  set {
-    name  = "dex.enabled"
-    value = "false"
-  }
-
-  # ApplicationSet controller
-  set {
-    name  = "applicationSet.enabled"
-    value = "true"
-  }
-
-  set {
-    name  = "applicationSet.resources.limits.cpu"
-    value = "500m"
-  }
-
-  set {
-    name  = "applicationSet.resources.limits.memory"
-    value = "512Mi"
-  }
-
-  set {
-    name  = "applicationSet.resources.requests.cpu"
-    value = "250m"
-  }
-
-  set {
-    name  = "applicationSet.resources.requests.memory"
-    value = "256Mi"
+  triggers = {
+    cluster_id = talos_machine_secrets.this.id
   }
 }
 
 # Get ArgoCD admin password after deployment
 resource "null_resource" "argocd_info" {
   count = var.configure_talos ? 1 : 0
-  
-  depends_on = [helm_release.argocd]
+
+  depends_on = [null_resource.argocd_install, null_resource.argocd_bootstrap]
 
   provisioner "local-exec" {
     command = <<-EOT
       set -euo pipefail
-      
+
       export KUBECONFIG=${abspath("${path.module}/../kubeconfig")}
-      
+
       echo ""
       echo "📝 ArgoCD initial admin password:"
-      kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+      kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d || echo "Secret not found"
       echo ""
       echo ""
       echo "🌐 Access ArgoCD:"

@@ -1,7 +1,0 @@
-# Turn off Talos' default CNI (flannel) and kube-proxy so Cilium can take over
-cluster:
-  network:
-    cni:
-      name: none             # <- disable flannel
-  proxy:
-    disabled: true           # <- required if you use Cilium's kube-proxy replacement

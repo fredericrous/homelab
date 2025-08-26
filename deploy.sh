@@ -36,8 +36,8 @@ terraform apply -auto-approve -parallelism=1 \
     -target=module.vms \
     -target=null_resource.wait_talos_ready
 
-# Stage 2a: Generate configurations and apply to control plane
-echo "🎯 Stage 2a: Configuring control plane and bootstrapping..."
+# Stage 2a: Generate configurations and apply to control plane ONLY
+echo "🎯 Stage 2a: Configuring control plane..."
 terraform apply -auto-approve -parallelism=10 \
     -var="configure_talos=true" \
     -target=data.external.schematic_base \
@@ -48,32 +48,46 @@ terraform apply -auto-approve -parallelism=10 \
     -target=null_resource.ensure_configs_dir \
     -target=local_file.talosconfig \
     -target=local_file.machine_configs \
-    -target=talos_machine_configuration_apply.cp \
-    -target=talos_machine_bootstrap.this
+    -target=null_resource.apply_cp_config
 
-# Stage 2b: Configure workers and get kubeconfig
-echo "👷 Stage 2b: Configuring workers..."
-terraform apply -auto-approve -parallelism=10 \
+# Stage 2b: Bootstrap the cluster and get kubeconfig
+echo "🚀 Stage 2b: Bootstrapping Kubernetes and getting kubeconfig..."
+terraform apply -auto-approve \
     -var="configure_talos=true" \
-    -target=talos_machine_configuration_apply.workers \
+    -target=talos_machine_bootstrap.this \
     -target=talos_cluster_kubeconfig.this \
     -target=local_file.kubeconfig
 
-# Stage 3: Install Cilium with Helm provider
-echo "🚀 Stage 3: Installing Cilium CNI with Helm provider..."
-terraform apply -auto-approve -target=helm_release.cilium
+# Stage 3: Add Helm repositories and install Cilium CNI (before workers)
+echo "📦 Stage 3: Adding Helm repositories..."
+terraform apply -auto-approve \
+    -var="configure_talos=true" \
+    -target=null_resource.helm_repos
 
-# Stage 4: Wait for nodes to be ready
-echo "⏳ Stage 4: Waiting for nodes to be Ready..."
-terraform apply -auto-approve -target=null_resource.wait_nodes_ready
+echo "🌐 Stage 3b: Installing Cilium CNI (required before workers join)..."
+terraform apply -auto-approve \
+    -var="configure_talos=true" \
+    -target=null_resource.cilium_bootstrap
 
-# Stage 5: Add Helm repositories
-echo "📦 Stage 5: Adding Helm repositories..."
-terraform apply -auto-approve -target=null_resource.helm_repos
+# Stage 4: Configure workers (now with CNI available)
+echo "👷 Stage 4: Configuring workers..."
+terraform apply -auto-approve -parallelism=10 \
+    -var="configure_talos=true" \
+    -target=null_resource.apply_worker_configs
 
-# Stage 6: Deploy ArgoCD
-echo "🚀 Stage 6: Deploying ArgoCD..."
-terraform apply -auto-approve -target=helm_release.argocd -target=null_resource.argocd_info
+# Stage 5: Deploy ArgoCD and bootstrap GitOps
+echo "🚀 Stage 5: Deploying ArgoCD and bootstrapping GitOps..."
+terraform apply -auto-approve \
+    -var="configure_talos=true" \
+    -target=null_resource.argocd_install \
+    -target=null_resource.argocd_bootstrap \
+    -target=null_resource.argocd_info
+
+# Stage 6: Wait for all nodes to be ready
+echo "⏳ Stage 6: Waiting for all nodes to be Ready..."
+terraform apply -auto-approve \
+    -var="configure_talos=true" \
+    -target=null_resource.wait_nodes_ready
 
 echo "✅ Stage 7: Verifying cluster..."
 export KUBECONFIG=../kubeconfig

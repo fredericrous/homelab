@@ -1,0 +1,61 @@
+# Temporary Cilium bootstrap manifest
+# This will be replaced by ArgoCD once it's running
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cilium
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cilium-operator
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cilium
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "pods", "endpoints", "services", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["nodes/status"]
+  verbs: ["patch"]
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["cilium.io"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cilium
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cilium
+subjects:
+- kind: ServiceAccount
+  name: cilium
+  namespace: kube-system
+---
+# Note: This is a minimal bootstrap - ArgoCD will deploy the full Cilium
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cilium-quick-install
+  namespace: kube-system
+data:
+  install.sh: |
+    #!/bin/bash
+    echo "This is a placeholder for Cilium bootstrap"
+    echo "ArgoCD will handle the actual Cilium deployment"
+    echo "For now, we'll use Helm to install Cilium temporarily"

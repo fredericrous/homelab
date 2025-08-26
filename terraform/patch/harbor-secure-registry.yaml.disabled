@@ -1,2 +1,0 @@
-# This file is no longer needed - registry configuration is done post-bootstrap
-# via the harbor-registry-config DaemonSet in manifests/apps/harbor/

@@ -9,18 +9,10 @@ The configuration uses the official Talos Terraform provider to handle the compl
 
 ## Network Configuration
 
-This setup uses predefined MAC addresses for each VM to ensure consistent network configuration:
-- Control Plane: `BC:24:11:00:00:67` → `192.168.1.67`
-- Worker 1 (GPU): `BC:24:11:00:00:68` → `192.168.1.68`
-- Worker 2: `BC:24:11:00:00:69` → `192.168.1.69`
-
-You have two options for IP assignment:
-
-### Option 1: DHCP Reservations (Recommended)
-Configure your DHCP server/router to assign the static IPs based on the MAC addresses above. This ensures VMs get the correct IPs immediately on boot.
-
-### Option 2: Talos Static Configuration
-If you can't configure DHCP reservations, Talos will configure the static IPs after installation. The VMs will initially get random DHCP IPs, then reconfigure themselves with the static IPs defined in the Talos configuration.
+This setup uses predefined IP addresses for each VM to ensure consistent network configuration:
+- Control Plane: `192.168.1.67`
+- Worker 1 (GPU): `192.168.1.68`
+- Worker 2: `192.168.1.69`
 
 ## Prerequisites
 
@@ -79,24 +71,6 @@ terraform apply -target=module.vms
 ```bash
 terraform apply -var="configure_talos=true"
 ```
-
-### Manual Talos Configuration (if not using DHCP reservations)
-
-If you can't configure DHCP reservations, after Stage 1:
-
-1. Find the DHCP IPs assigned to your VMs:
-   - Check Proxmox console (Talos maintenance mode shows IP)
-   - Check your router's DHCP lease table
-   - Use `qm guest cmd <vmid> network-get-interfaces` on Proxmox
-
-2. Apply configuration to each node:
-   ```bash
-   talosctl apply-config --insecure --nodes <DHCP_IP> --file configs/talos-cp-1.yaml
-   talosctl apply-config --insecure --nodes <DHCP_IP> --file configs/talos-wk-1-gpu.yaml
-   talosctl apply-config --insecure --nodes <DHCP_IP> --file configs/talos-wk-2.yaml
-   ```
-
-3. Wait for nodes to reboot with static IPs, then continue with Stage 2
 
 ### 3. Access the Cluster
 
@@ -169,7 +143,7 @@ terraform/
 All VMs use:
 - Bridge: vmbr0
 - Network model: virtio
-- Static IPs configured via DHCP reservation or Talos configuration
+- Static IPs configured via Cloud Init
 
 ### Patches Applied
 
@@ -177,7 +151,6 @@ All VMs use:
 2. **common-extensions.yaml**: Installs QEMU guest agent and AMD microcode on all nodes
 3. **gpu-worker-patch.yaml**: Configures GPU support and NVIDIA extensions on worker-1
 4. **sysctls-patch.yaml**: System tuning parameters
-5. **harbor-insecure-registry.yaml**: Harbor registry configuration
 6. **controlplane-ips-patch.yaml**: Control plane specific configuration
 7. **worker-ips-patch.yaml**: Worker nodes specific configuration
 
