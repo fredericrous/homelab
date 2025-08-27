@@ -22,7 +22,7 @@ resources:
   - webhook-ovh-manifests.yaml  # Generated from helm template
   # - ovh-credentials-secret.yaml # Replaced by VaultStaticSecret
   - ovh-webhook-rbac-fix.yaml   # RBAC to allow webhook to read secrets
-  - ovh-credentials-copy-job.yaml # Copy credentials to all namespaces (webhook limitation)
+  # - ovh-credentials-copy-job.yaml # Replaced by job template
   - clusterissuer-letsencrypt-ovh-webhook-final.yaml
   
   # Fix leader election issues (Talos doesn't allow kube-system access)
@@ -33,6 +33,7 @@ patches:
   # Strategic merge patches for cert-manager components
   - path: cainjector-patch.yaml
   - path: cert-manager-controller-patch.yaml
+  - path: webhook-security-patch.yaml
   
 
   # Customize the vault auth from base
@@ -143,3 +144,4 @@ patches:
                   fi
               - name: VAULT_SKIP_VERIFY
                 value: "true"
+  

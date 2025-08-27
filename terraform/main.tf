@@ -8,3 +8,9 @@ provider "proxmox" {
 
 provider "talos" {}
 
+provider "helm" {
+  kubernetes {
+    config_path = var.configure_talos ? "${path.module}/kubeconfig" : null
+  }
+}
+

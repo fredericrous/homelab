@@ -3,11 +3,20 @@ cluster:
   # Allow workloads on control plane
   allowSchedulingOnControlPlanes: true
   network:
+    # IMPORTANT: make these explicit so kube-proxy/Cilium agree
+    podSubnets:
+      - 10.244.0.0/16
+    serviceSubnets:
+      - 10.96.0.0/12
+    dnsDomain: cluster.local
     # Disable default CNI - Cilium will be installed via Helm
     cni:
       name: none
+  # Let kube-proxy manage Services (iptables)
   proxy:
-    disabled: true
+    disabled: false
+    extraArgs:
+      proxy-mode: "iptables"
 machine:
   # Disable kubespan
   network:

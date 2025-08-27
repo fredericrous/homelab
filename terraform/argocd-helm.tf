@@ -4,8 +4,7 @@ resource "null_resource" "argocd_install" {
 
   depends_on = [
     local_file.kubeconfig,
-    null_resource.helm_repos,
-    null_resource.cilium_bootstrap  # Wait for CNI before deploying ArgoCD
+    null_resource.helm_repos
   ]
 
   provisioner "local-exec" {

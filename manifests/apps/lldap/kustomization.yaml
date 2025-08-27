@@ -101,3 +101,63 @@ patches:
                 value: "lldap"
               - name: VAULT_ROLE_NAMESPACES
                 value: "lldap"
+  
+  # Customize the secret copier job from template
+  - target:
+      kind: ServiceAccount
+      name: secret-copier
+    patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: ovh-credentials-copier
+        namespace: lldap
+  
+  - target:
+      kind: ClusterRole
+      name: PLACEHOLDER-secret-copier
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: lldap-secret-copier
+  
+  - target:
+      kind: ClusterRoleBinding
+      name: PLACEHOLDER-secret-copier
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: lldap-secret-copier
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: lldap-secret-copier
+      subjects:
+      - kind: ServiceAccount
+        name: ovh-credentials-copier
+        namespace: lldap
+  
+  - target:
+      kind: Job
+      name: secret-copier
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: ovh-credentials-copier
+        namespace: lldap
+      spec:
+        template:
+          spec:
+            serviceAccountName: ovh-credentials-copier
+            containers:
+            - name: secret-copier
+              env:
+              - name: SOURCE_SECRET
+                value: ovh-credentials
+              - name: SOURCE_NAMESPACE
+                value: cert-manager
+              - name: TARGET_NAMESPACE
+                value: lldap

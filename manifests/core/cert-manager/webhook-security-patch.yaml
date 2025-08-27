@@ -1,0 +1,26 @@
+# Security context patch for cert-manager-webhook-ovh
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-webhook-ovh
+  namespace: cert-manager
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: cert-manager-webhook-ovh
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault

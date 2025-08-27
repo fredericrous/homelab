@@ -3,8 +3,8 @@ resource "null_resource" "wait_nodes_ready" {
   count = var.configure_talos ? 1 : 0
 
   depends_on = [
-    null_resource.cilium_bootstrap,
-    talos_machine_configuration_apply.workers
+    talos_machine_configuration_apply.workers,
+    null_resource.argocd_bootstrap  # ArgoCD will deploy Cilium
   ]
 
   provisioner "local-exec" {

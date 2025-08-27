@@ -99,6 +99,66 @@ patches:
               - name: VAULT_ROLE_NAMESPACES
                 value: "harbor"
 
+  # Customize the secret copier job from template
+  - target:
+      kind: ServiceAccount
+      name: secret-copier
+    patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: ovh-credentials-copier
+        namespace: harbor
+  
+  - target:
+      kind: ClusterRole
+      name: PLACEHOLDER-secret-copier
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: harbor-secret-copier
+  
+  - target:
+      kind: ClusterRoleBinding
+      name: PLACEHOLDER-secret-copier
+    patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: harbor-secret-copier
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: harbor-secret-copier
+      subjects:
+      - kind: ServiceAccount
+        name: ovh-credentials-copier
+        namespace: harbor
+  
+  - target:
+      kind: Job
+      name: secret-copier
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: ovh-credentials-copier
+        namespace: harbor
+      spec:
+        template:
+          spec:
+            serviceAccountName: ovh-credentials-copier
+            containers:
+            - name: secret-copier
+              env:
+              - name: SOURCE_SECRET
+                value: ovh-credentials
+              - name: SOURCE_NAMESPACE
+                value: cert-manager
+              - name: TARGET_NAMESPACE
+                value: harbor
+
 helmCharts:
 - name: harbor
   repo: https://charts.bitnami.com/bitnami

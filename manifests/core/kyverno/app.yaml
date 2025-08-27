@@ -1,0 +1,7 @@
+name: kyverno
+project: core
+namespace: kyverno
+path: manifests/core/kyverno
+syncWave: "-26"  # Deploy before cert-manager and other services that need DNS
+autoSync: "true"
+prune: "true"

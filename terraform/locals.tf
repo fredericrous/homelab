@@ -36,7 +36,8 @@ locals {
 
   common_patches = [
     file("${path.module}/patch/cluster-init.yaml"),
-    file("${path.module}/patch/sysctls-patch.yaml")
+    file("${path.module}/patch/sysctls-patch.yaml"),
+    file("${path.module}/patch/disable-forward-dns.yaml")
   ]
 
   network_config = {
@@ -59,6 +60,9 @@ locals {
           disk  = var.talos_install_disk
           image = node.talos_image
           wipe  = var.talos_install_wipe
+        }
+        kubelet = {
+          clusterDNS = ["10.96.0.10"]
         }
       }
     })

@@ -1,0 +1,55 @@
+# Kyverno ClusterPolicy to generate Cilium network policies for DNS access
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: generate-cilium-dns-policy
+  annotations:
+    policies.kyverno.io/title: Generate Cilium DNS Network Policies
+    policies.kyverno.io/category: Cilium
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Namespace
+    policies.kyverno.io/description: >-
+      This policy generates a CiliumNetworkPolicy in each namespace to allow
+      pods to access CoreDNS for DNS resolution. This fixes the "operation not permitted"
+      error when pods try to connect to DNS service.
+spec:
+  generateExistingOnPolicyUpdate: true
+  rules:
+  - name: generate-dns-policy
+    match:
+      any:
+      - resources:
+          kinds:
+          - Namespace
+    exclude:
+      any:
+      - resources:
+          namespaces:
+          - kube-system
+          - kube-public
+          - kube-node-lease
+    generate:
+      synchronize: true
+      apiVersion: cilium.io/v2
+      kind: CiliumNetworkPolicy
+      name: allow-dns
+      namespace: "{{request.object.metadata.name}}"
+      data:
+        spec:
+          description: "Allow all pods to access CoreDNS"
+          endpointSelector: {}
+          egress:
+          - toEndpoints:
+            - matchLabels:
+                k8s-app: kube-dns
+                io.kubernetes.pod.namespace: kube-system
+            toPorts:
+            - ports:
+              - port: "53"
+                protocol: UDP
+              - port: "53"
+                protocol: TCP
+          - toEntities:
+            - kube-apiserver
+          - toEntities:
+            - cluster

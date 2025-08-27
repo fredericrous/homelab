@@ -1,11 +1,30 @@
 machine:
   sysctls:
-    fs.inotify.max_user_watches: 1048576
-    fs.inotify.max_user_instances: 8192
-    net.core.default_qdisc: fq
-    net.ipv4.tcp_congestion_control: bbr
-    net.ipv4.tcp_fastopen: 3
-    net.ipv4.tcp_mtu_probing: 1
-    net.ipv4.tcp_window_scaling: 1
-    user.max_user_namespaces: 11255
-
+    # Required for eBPF datapath
+    kernel.unprivileged_bpf_disabled: "0"
+    kernel.kptr_restrict: "0"
+    net.core.bpf_jit_harden: "1"
+    
+    # Fix service-IP UDP (DNS) path on Talos/virt
+    net.ipv4.conf.all.rp_filter: "0"
+    net.ipv4.conf.default.rp_filter: "0"
+    net.ipv4.conf.eth0.rp_filter: "0"
+    
+    # NAT/forwarding (safe defaults for kube-proxy + Cilium)
+    net.ipv4.ip_forward: "1"
+    net.ipv4.conf.all.forwarding: "1"
+    net.ipv6.conf.all.forwarding: "1"
+    
+    # Allow routing to localhost - sometimes needed for service proxying
+    net.ipv4.conf.all.route_localnet: "1"
+    net.ipv4.conf.default.route_localnet: "1"
+    
+    # Existing performance sysctls
+    fs.inotify.max_user_watches: "1048576"
+    fs.inotify.max_user_instances: "8192"
+    net.core.default_qdisc: "fq"
+    net.ipv4.tcp_congestion_control: "bbr"
+    net.ipv4.tcp_fastopen: "3"
+    net.ipv4.tcp_mtu_probing: "1"
+    net.ipv4.tcp_window_scaling: "1"
+    user.max_user_namespaces: "11255"
