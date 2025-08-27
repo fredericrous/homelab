@@ -27,5 +27,11 @@ patches:
       name: haproxy-kubernetes-ingress
     patch: |-
       - op: replace
-        path: /spec/type
-        value: LoadBalancer
+        path: /spec/ports/0/nodePort
+        value: 30080
+      - op: replace
+        path: /spec/ports/1/nodePort
+        value: 30443
+      - op: replace
+        path: /spec/ports/2/nodePort
+        value: 31024
