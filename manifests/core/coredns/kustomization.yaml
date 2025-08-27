@@ -15,3 +15,7 @@ patches:
   target:
     kind: Deployment
     name: coredns
+- path: patch-service-selector.yaml
+  target:
+    kind: Service
+    name: dns-coredns

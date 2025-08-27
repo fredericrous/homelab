@@ -74,7 +74,11 @@ resource "talos_machine_bootstrap" "this" {
 resource "talos_machine_configuration_apply" "workers" {
   for_each = var.configure_talos ? { for k, n in local.all_nodes : k => n if k != "controlplane" } : {}
   
-  depends_on = [talos_machine_bootstrap.this, null_resource.apply_worker_configs_smart]
+  depends_on = [
+    talos_machine_bootstrap.this, 
+    null_resource.apply_worker_configs_smart,
+    null_resource.cilium_bootstrap  # Workers need CNI before joining
+  ]
   
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.nodes[each.key].machine_configuration
