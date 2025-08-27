@@ -71,7 +71,17 @@ resource "null_resource" "argocd_bootstrap" {
       kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || true
       
       echo "🚀 Bootstrapping ArgoCD with app-of-apps..."
-      kubectl apply -f ${path.module}/../manifests/argocd/ || true
+      # Apply kustomize, but delete any existing jobs that might conflict
+      kubectl delete job argocd-redis-secret-init -n argocd --ignore-not-found=true
+      
+      # Use kustomize with --enable-helm flag to process Helm charts
+      kustomize build ${path.module}/../manifests/argocd --enable-helm | kubectl apply -f -
+      
+      # If kustomize fails, check what happened but don't fail the deployment
+      if [ $? -ne 0 ]; then
+        echo "⚠️  Some ArgoCD resources may have failed to apply (this is normal for CRDs)"
+        echo "ArgoCD will reconcile these once it's running"
+      fi
       
       echo "✅ ArgoCD bootstrap initiated - it will manage all applications including Cilium"
     EOT

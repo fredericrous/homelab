@@ -1,0 +1,7 @@
+name: argocd-config
+project: core
+namespace: argocd
+path: manifests/core/argocd-config
+autoSync: "true"  # ArgoCD should manage its own config automatically
+prune: "true"     # Clean up removed resources
+syncWave: "10"    # Deploy after VSO and other core services

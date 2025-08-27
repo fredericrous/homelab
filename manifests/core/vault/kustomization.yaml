@@ -12,6 +12,7 @@ resources:
   - rbac-vault-config-role.yaml
   - job-vault-init.yaml
   - job-vault-unseal.yaml
+  - vault-configure-argocd-job.yaml  # Configure Vault for ArgoCD after initialization
   # vault-pvc.yaml is duplicate of vault-storage.yaml
 
 patches:

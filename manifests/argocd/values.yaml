@@ -19,16 +19,9 @@ server:
       cpu: 100m
       memory: 128Mi
 
-  # Enable ingress via HAProxy
+  # Disable helm chart ingress - we use our own ingress.yaml
   ingress:
-    enabled: true
-    hosts:
-      - argocd.daddyshome.fr
-    annotations:
-      kubernetes.io/ingress.class: haproxy
-      haproxy.org/grpc-web: "true"
-      # Add mTLS annotations if needed
-      # haproxy.org/client-certificate-auth: "optional"
+    enabled: false
 
   # Metrics
   metrics:

@@ -1,18 +1,12 @@
 # ApplicationSet for core platform components
-# Auto-discovers app.yaml files under manifests/core/
+# Simple, production-grade approach without complex conditionals
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: core
   namespace: argocd
 spec:
-  # Enable Go templating for advanced features like defaults
-  goTemplate: true
-  goTemplateOptions:
-  - missingkey=default
-  
   generators:
-  # Git file generator - discovers app.yaml files
   - git:
       repoURL: https://github.com/fredericrous/homelab.git
       revision: main
@@ -23,10 +17,8 @@ spec:
     metadata:
       name: '{{ .name }}'
       namespace: argocd
-      {{- if .syncWave }}
       annotations:
-        argocd.argoproj.io/sync-wave: "{{ .syncWave }}"
-      {{- end }}
+        argocd.argoproj.io/sync-wave: "{{ default "0" .syncWave }}"
       finalizers:
       - resources-finalizer.argocd.argoproj.io
     spec:
@@ -39,21 +31,13 @@ spec:
         server: https://kubernetes.default.svc
         namespace: '{{ .namespace }}'
       syncPolicy:
-        {{- if and (ne .autoSync "false") (ne (default "true" .autoSync) "false") }}
         automated:
-          prune: {{ ne (default "true" .prune) "false" }}
+          prune: true
           selfHeal: true
-        {{- end }}
         syncOptions:
-        - CreateNamespace={{ default "true" .createNamespace }}
-        {{- if eq .serverSideApply "true" }}
-        - ServerSideApply=true
-        {{- end }}
+        - CreateNamespace=true
         - PrunePropagationPolicy=foreground
         - ApplyOutOfSyncOnly=true
-        {{- if or (eq .hasCRDs "true") (contains "cert-manager" .name) (contains "operator" .name) }}
-        - SkipDryRunOnMissingResource=true
-        {{- end }}
         retry:
           limit: 5
           backoff:
@@ -62,11 +46,7 @@ spec:
             maxDuration: 3m
       revisionHistoryLimit: 3
       
-      {{- if .ignoreDifferences }}
-      ignoreDifferences:
-{{ toYaml .ignoreDifferences | indent 6 }}
-      {{- else }}
-      # Default ignore differences
+      # Standard ignore differences for common operators
       ignoreDifferences:
       # CloudNativePG
       - group: postgresql.cnpg.io
@@ -93,4 +73,3 @@ spec:
         kind: CephBlockPool
         jsonPointers:
         - /status
-      {{- end }}

@@ -42,39 +42,26 @@ resource "null_resource" "ensure_configs_dir" {
 }
 
 # Wave 1: Apply configuration to control plane only
-# Note: Using null_resource for initial config because talos_machine_configuration_apply
-# doesn't support insecure mode for nodes in maintenance state
-resource "null_resource" "apply_cp_config" {
-  count = var.configure_talos ? 1 : 0
+# Note: Initial configuration is handled by null_resource.apply_cp_config_smart
+# This resource ensures configuration is maintained/updated after initial bootstrap
+resource "talos_machine_configuration_apply" "cp" {
+  for_each = var.configure_talos ? { for k, n in local.all_nodes : k => n if k == "controlplane" } : {}
   
-  depends_on = [module.vms, null_resource.ensure_configs_dir, local_file.machine_configs]
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      set -euo pipefail
-      export TALOSCONFIG="${abspath(local_file.talosconfig.filename)}"
-      
-      echo "Applying configuration to control plane..."
-      talosctl apply-config --insecure -n ${local.all_nodes.controlplane.ip} -f "${abspath(local_file.machine_configs["controlplane"].filename)}"
-      
-      echo "Waiting for Talos API to be ready..."
-      until talosctl -n ${local.all_nodes.controlplane.ip} version >/dev/null 2>&1; do
-        echo "Waiting for API... (this is normal during initial bootstrap)"
-        sleep 5
-      done
-    EOT
-  }
+  depends_on = [module.vms, null_resource.ensure_configs_dir, null_resource.apply_cp_config_smart]
   
-  triggers = {
-    machine_config = data.talos_machine_configuration.nodes["controlplane"].machine_configuration
-  }
+  client_configuration        = talos_machine_secrets.this.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.nodes[each.key].machine_configuration
+  node                        = each.value.ip
+  endpoint                    = each.value.ip
+  
+  # NO config_patches here - they're already in the data source
 }
 
 # Bootstrap the cluster after control plane is configured
 resource "talos_machine_bootstrap" "this" {
   count = var.configure_talos ? 1 : 0
   
-  depends_on = [null_resource.apply_cp_config]
+  depends_on = [talos_machine_configuration_apply.cp]
   
   client_configuration = talos_machine_secrets.this.client_configuration
   node                 = local.all_nodes.controlplane.ip
@@ -82,38 +69,19 @@ resource "talos_machine_bootstrap" "this" {
 }
 
 # Wave 2: Apply configuration to workers after bootstrap
-# Using null_resource for initial config with insecure mode
-resource "null_resource" "apply_worker_configs" {
-  count = var.configure_talos ? 1 : 0
+# Note: Initial configuration is handled by null_resource.apply_worker_configs_smart
+# This resource ensures configuration is maintained/updated after initial bootstrap
+resource "talos_machine_configuration_apply" "workers" {
+  for_each = var.configure_talos ? { for k, n in local.all_nodes : k => n if k != "controlplane" } : {}
   
-  depends_on = [talos_machine_bootstrap.this, local_file.machine_configs]
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      set -euo pipefail
-      export TALOSCONFIG="${abspath(local_file.talosconfig.filename)}"
-      
-      # Apply worker configurations in parallel
-      %{ for k, n in local.all_nodes ~}
-      %{ if k != "controlplane" ~}
-      echo "Applying configuration to ${n.hostname}..."
-      talosctl apply-config --insecure -n ${n.ip} -f "${abspath(local_file.machine_configs[k].filename)}" &
-      %{ endif ~}
-      %{ endfor ~}
-      
-      # Wait for all background jobs
-      wait
-      echo "All worker configurations applied"
-    EOT
-  }
+  depends_on = [talos_machine_bootstrap.this, null_resource.apply_worker_configs_smart]
   
-  triggers = {
-    %{ for k, n in local.all_nodes ~}
-    %{ if k != "controlplane" ~}
-    ${k}_config = data.talos_machine_configuration.nodes[k].machine_configuration
-    %{ endif ~}
-    %{ endfor ~}
-  }
+  client_configuration        = talos_machine_secrets.this.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.nodes[each.key].machine_configuration
+  node                        = each.value.ip
+  endpoint                    = local.all_nodes.controlplane.ip # Use CP endpoint for better stability
+  
+  # NO config_patches here - they're already in the data source
 }
 
 # Get kubeconfig after bootstrap (don't wait for workers)

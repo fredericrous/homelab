@@ -12,7 +12,7 @@ locals {
         data_disk_size  = null
         gpu_passthrough = null
         machine_type    = "controlplane"
-        talos_image     = var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${data.external.schematic_base.result.id}:${var.talos_version}"
+        talos_image     = var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${local.base_schematic_id}:${local.talos_version}"
         labels          = var.nodes.controlplane.labels
       }
     },
@@ -28,7 +28,7 @@ locals {
         data_disk_size  = worker.data_disk_size
         gpu_passthrough = worker.gpu_passthrough
         machine_type    = "worker"
-        talos_image     = worker.gpu_passthrough != null ? (var.talos_install_image_gpu != "" ? var.talos_install_image_gpu : "factory.talos.dev/nocloud-installer/${data.external.schematic_gpu.result.id}:${var.talos_version}") : (var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${data.external.schematic_base.result.id}:${var.talos_version}")
+        talos_image     = worker.gpu_passthrough != null ? (var.talos_install_image_gpu != "" ? var.talos_install_image_gpu : "factory.talos.dev/nocloud-installer/${local.gpu_schematic_id}:${local.talos_version}") : (var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${local.base_schematic_id}:${local.talos_version}")
         labels          = worker.labels
       }
     }

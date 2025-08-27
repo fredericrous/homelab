@@ -1,5 +1,17 @@
-# Generate schematic IDs dynamically from YAML files
+# Check for cached schematic IDs first
+data "local_file" "schematic_base_cache" {
+  count    = fileexists("${path.module}/.schematic_base_id") ? 1 : 0
+  filename = "${path.module}/.schematic_base_id"
+}
+
+data "local_file" "schematic_gpu_cache" {
+  count    = fileexists("${path.module}/.schematic_gpu_id") ? 1 : 0
+  filename = "${path.module}/.schematic_gpu_id"
+}
+
+# Generate schematic IDs dynamically from YAML files only if not cached
 data "external" "schematic_base" {
+  count   = fileexists("${path.module}/.schematic_base_id") ? 0 : 1
   program = ["python3", "${path.module}/../scripts/talos_factory_id.py"]
   
   query = {
@@ -8,6 +20,7 @@ data "external" "schematic_base" {
 }
 
 data "external" "schematic_gpu" {
+  count   = fileexists("${path.module}/.schematic_gpu_id") ? 0 : 1
   program = ["python3", "${path.module}/../scripts/talos_factory_id.py"]
   
   query = {
@@ -15,12 +28,25 @@ data "external" "schematic_gpu" {
   }
 }
 
+# Cache the schematic IDs for future runs
+resource "local_file" "schematic_base_cache" {
+  count    = fileexists("${path.module}/.schematic_base_id") ? 0 : 1
+  filename = "${path.module}/.schematic_base_id"
+  content  = data.external.schematic_base[0].result.id
+}
+
+resource "local_file" "schematic_gpu_cache" {
+  count    = fileexists("${path.module}/.schematic_gpu_id") ? 0 : 1
+  filename = "${path.module}/.schematic_gpu_id"
+  content  = data.external.schematic_gpu[0].result.id
+}
+
 locals {
   talos_version = "v1.10.6"
 
-  # Use dynamically generated schematic IDs
-  base_schematic_id = data.external.schematic_base.result.id
-  gpu_schematic_id  = data.external.schematic_gpu.result.id
+  # Use cached IDs if available, otherwise use dynamically generated ones
+  base_schematic_id = length(data.local_file.schematic_base_cache) > 0 ? trimspace(data.local_file.schematic_base_cache[0].content) : data.external.schematic_base[0].result.id
+  gpu_schematic_id  = length(data.local_file.schematic_gpu_cache) > 0 ? trimspace(data.local_file.schematic_gpu_cache[0].content) : data.external.schematic_gpu[0].result.id
   
   # Use base schematic for ISO boot (all nodes boot from same ISO)
   # Actual extensions are installed via install.image
@@ -36,6 +62,11 @@ resource "proxmox_virtual_environment_download_file" "talos_iso" {
 
   url                   = local.iso_url
   file_name             = local.iso_name
-  overwrite             = true
-  overwrite_unmanaged   = true
+  overwrite             = false  # Don't overwrite if it exists
+  overwrite_unmanaged   = false  # Don't touch files not managed by terraform
+  
+  # Ignore changes to the URL to prevent re-downloads
+  lifecycle {
+    ignore_changes = [url]
+  }
 }

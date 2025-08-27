@@ -20,10 +20,12 @@ resources:
 # Bootstrap job to complete the handover to GitOps
 - bootstrap-job.yaml
 
-# Vault integration
-- vault-auth.yaml
-- vault-configure-job.yaml
-- argocd-ldap-secret.yaml
+# Ingress for ArgoCD
+- ingress.yaml
+
+# Vault integration moved to manifests/core/argocd-config/
+# This follows the self-management pattern where ArgoCD manages its own config
+# after VSO CRDs are available
 
 # Helm chart for Argo CD
 helmCharts:

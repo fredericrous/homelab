@@ -48,7 +48,8 @@ terraform apply -auto-approve -parallelism=10 \
     -target=null_resource.ensure_configs_dir \
     -target=local_file.talosconfig \
     -target=local_file.machine_configs \
-    -target=null_resource.apply_cp_config
+    -target=null_resource.apply_cp_config_smart \
+    -target=talos_machine_configuration_apply.cp
 
 # Stage 2b: Bootstrap the cluster and get kubeconfig
 echo "🚀 Stage 2b: Bootstrapping Kubernetes and getting kubeconfig..."
@@ -73,7 +74,8 @@ terraform apply -auto-approve \
 echo "👷 Stage 4: Configuring workers..."
 terraform apply -auto-approve -parallelism=10 \
     -var="configure_talos=true" \
-    -target=null_resource.apply_worker_configs
+    -target=null_resource.apply_worker_configs_smart \
+    -target=talos_machine_configuration_apply.workers
 
 # Stage 5: Deploy ArgoCD and bootstrap GitOps
 echo "🚀 Stage 5: Deploying ArgoCD and bootstrapping GitOps..."

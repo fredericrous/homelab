@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    haproxy.org/ssl-redirect: "true"
+    haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+    haproxy.org/auth-tls-verify-client: "required"
+    # ArgoCD specific settings for gRPC
+    haproxy.org/backend-server-proto: "h2"
+    haproxy.org/check: "true"
+    haproxy.org/check-port: "8080"
+    haproxy.org/check-proto: "http"
+    haproxy.org/check-uri: "/healthz"
+    # Timeouts for ArgoCD operations
+    haproxy.org/timeout-client: "300s"
+    haproxy.org/timeout-server: "300s"
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - argocd.daddyshome.fr
+    secretName: argocd-server-tls
+  rules:
+  - host: argocd.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: argocd-server
+            port:
+              number: 80
