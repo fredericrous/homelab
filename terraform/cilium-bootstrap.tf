@@ -5,7 +5,8 @@ resource "null_resource" "cilium_bootstrap" {
   depends_on = [
     local_file.kubeconfig,
     talos_machine_bootstrap.this,
-    talos_cluster_kubeconfig.this
+    talos_cluster_kubeconfig.this,
+    null_resource.dns_bootstrap
   ]
 
   provisioner "local-exec" {

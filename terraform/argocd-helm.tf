@@ -4,7 +4,8 @@ resource "null_resource" "argocd_install" {
 
   depends_on = [
     local_file.kubeconfig,
-    null_resource.helm_repos
+    null_resource.helm_repos,
+    null_resource.dns_bootstrap
   ]
 
   provisioner "local-exec" {
