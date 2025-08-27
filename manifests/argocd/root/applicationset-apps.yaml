@@ -1,12 +1,10 @@
 # ApplicationSet for user applications
-# Simple, production-grade approach without complex conditionals
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: apps
   namespace: argocd
 spec:
-  goTemplate: true
   generators:
   - git:
       repoURL: https://github.com/fredericrous/homelab.git
@@ -16,21 +14,21 @@ spec:
   
   template:
     metadata:
-      name: '{{ .name }}'
+      name: '{{name}}'
       namespace: argocd
       annotations:
-        argocd.argoproj.io/sync-wave: "{{ .syncWave }}"
+        argocd.argoproj.io/sync-wave: "{{syncWave}}"
       finalizers:
       - resources-finalizer.argocd.argoproj.io
     spec:
-      project: '{{ .project }}'
+      project: '{{project}}'
       source:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
-        path: '{{ .path }}'
+        path: '{{path}}'
       destination:
         server: https://kubernetes.default.svc
-        namespace: '{{ .namespace }}'
+        namespace: '{{namespace}}'
       syncPolicy:
         automated:
           prune: true
