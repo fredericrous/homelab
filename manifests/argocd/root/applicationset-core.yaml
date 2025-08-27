@@ -6,6 +6,7 @@ metadata:
   name: core
   namespace: argocd
 spec:
+  goTemplate: true
   generators:
   - git:
       repoURL: https://github.com/fredericrous/homelab.git
