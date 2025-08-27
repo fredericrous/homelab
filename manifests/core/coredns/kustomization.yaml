@@ -18,4 +18,4 @@ patches:
 - path: patch-service-selector.yaml
   target:
     kind: Service
-    name: dns-coredns
+    name: kube-dns

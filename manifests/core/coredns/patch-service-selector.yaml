@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: dns-coredns
+  name: kube-dns
   namespace: kube-system
 spec:
   selector:
