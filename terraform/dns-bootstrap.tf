@@ -74,13 +74,22 @@ spec:
 EOF
       
       echo "⏳ Waiting for DNS endpoints to be ready..."
-      for i in {1..60}; do
+      for i in {1..30}; do
         ENDPOINTS=$(kubectl get endpoints -n kube-system kube-dns -o jsonpath='{.subsets[0].addresses}' 2>/dev/null || echo "")
         if [ -n "$ENDPOINTS" ]; then
           echo "✅ DNS endpoints are ready"
-          break
+          
+          # Test DNS resolution is actually working
+          echo "🧪 Testing DNS resolution..."
+          if kubectl run dns-test-$RANDOM --image=busybox:1.28 --restart=Never --rm -i --timeout=10s --command -- nslookup kubernetes.default.svc.cluster.local 2>&1 | grep -q "Address.*10.96.0.1"; then
+            echo "✅ DNS resolution is working"
+            break
+          else
+            echo "⚠️  DNS endpoints exist but resolution not working yet... ($i/30)"
+          fi
+        else
+          echo "Waiting for DNS endpoints... ($i/30)"
         fi
-        echo "Waiting for DNS endpoints... ($i/60)"
         sleep 2
       done
       
