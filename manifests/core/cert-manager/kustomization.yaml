@@ -6,8 +6,6 @@ namespace: cert-manager
 resources:
   # Include shared vault auth base
   - ../../base/vault-auth
-  # Include job templates
-  - ../../base/job-templates
   # Core cert-manager installation
   - https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
   
@@ -34,6 +32,7 @@ patches:
   - path: cainjector-patch.yaml
   - path: cert-manager-controller-patch.yaml
   - path: webhook-security-patch.yaml
+  
   
 
   # Customize the vault auth from base
