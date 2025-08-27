@@ -6,3 +6,4 @@ metadata:
 spec:
   selector:
     k8s-app: kube-dns
+    $patch: replace

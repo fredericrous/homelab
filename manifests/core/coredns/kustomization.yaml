@@ -15,7 +15,7 @@ patches:
   target:
     kind: Deployment
     name: coredns
-- path: patch-service-selector.yaml
+- path: patch-service-selector-json.yaml
   target:
     kind: Service
     name: kube-dns
