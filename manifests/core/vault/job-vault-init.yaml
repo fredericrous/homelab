@@ -21,14 +21,17 @@ spec:
           
           # Wait for Vault pod to be accessible
           echo "Waiting for Vault to be ready..."
-          for i in {1..30}; do
-            if vault status >/dev/null 2>&1 || vault operator init -status 2>&1 | grep -q "Vault is not initialized"; then
-              echo "Vault is responding"
-              break
-            fi
-            echo "Waiting for Vault... ($i/30)"
+          timeout 60s sh -c 'until vault status >/dev/null 2>&1 || vault operator init -status 2>&1 | grep -q "Vault is not initialized"; do
+            echo "Waiting for Vault..."
             sleep 2
-          done
+          done'
+          
+          if [ $? -eq 0 ]; then
+            echo "Vault is responding"
+          else
+            echo "Timeout waiting for Vault to be ready"
+            exit 1
+          fi
           
           # Check if already initialized
           if vault status 2>/dev/null | grep -q "Initialized.*true"; then
