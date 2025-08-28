@@ -85,13 +85,28 @@ terraform apply -auto-approve \
     -target=null_resource.argocd_bootstrap \
     -target=null_resource.argocd_info
 
-# Stage 6: Wait for all nodes to be ready
-echo "⏳ Stage 6: Waiting for all nodes to be Ready..."
+# Stage 6: Bootstrap DNS service
+echo "🌐 Stage 6: Bootstrapping DNS service..."
 terraform apply -auto-approve \
     -var="configure_talos=true" \
-    -target=null_resource.wait_nodes_ready
+    -target=null_resource.dns_bootstrap
 
-echo "✅ Stage 7: Verifying cluster..."
+# Stage 7: Deploy critical core services
+echo "🔐 Stage 7: Deploying core services (Vault, VSO, cert-manager)..."
+terraform apply -auto-approve \
+    -var="configure_talos=true" \
+    -target=null_resource.vault_sync \
+    -target=null_resource.vso_sync \
+    -target=null_resource.cert_manager_sync \
+    -target=null_resource.client_ca_sync
+
+# Stage 8: Wait for all nodes to be ready
+echo "⏳ Stage 8: Final verification..."
+terraform apply -auto-approve \
+    -var="configure_talos=true" \
+    -target=null_resource.wait_nodes_ready_updated
+
+echo "✅ Stage 9: Verifying cluster..."
 export KUBECONFIG=../kubeconfig
 kubectl get nodes
 echo ""

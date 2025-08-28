@@ -23,6 +23,10 @@ patches:
     target:
       kind: StatefulSet
       name: vault
+  - path: patch-liveness-probe.yaml
+    target:
+      kind: StatefulSet
+      name: vault
   
   # Customize the secret copier job from template
   - target:

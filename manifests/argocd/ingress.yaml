@@ -5,9 +5,10 @@ metadata:
   namespace: argocd
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
-    haproxy.org/ssl-redirect: "true"
-    haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
-    haproxy.org/auth-tls-verify-client: "required"
+    haproxy.org/ssl-redirect: "false"
+    # Temporarily disabled for troubleshooting
+    # haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+    # haproxy.org/auth-tls-verify-client: "required"
     # ArgoCD specific settings for gRPC
     haproxy.org/backend-server-proto: "h2"
     haproxy.org/check: "true"
@@ -19,10 +20,11 @@ metadata:
     haproxy.org/timeout-server: "300s"
 spec:
   ingressClassName: haproxy
-  tls:
-  - hosts:
-    - argocd.daddyshome.fr
-    secretName: argocd-server-tls
+  # Temporarily disabled until cert-manager is working
+  # tls:
+  # - hosts:
+  #   - argocd.daddyshome.fr
+  #   secretName: argocd-server-tls
   rules:
   - host: argocd.daddyshome.fr
     http:

@@ -1,0 +1,21 @@
+# Patch to increase liveness probe delay for initial vault setup
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vault
+  namespace: vault
+spec:
+  template:
+    spec:
+      containers:
+      - name: vault
+        livenessProbe:
+          httpGet:
+            path: /v1/sys/health?standbyok=true&uninitcode=200&sealedcode=200
+            port: 8200
+            scheme: HTTP
+          initialDelaySeconds: 120  # Increased from 30 to give init job time
+          periodSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+          timeoutSeconds: 5
