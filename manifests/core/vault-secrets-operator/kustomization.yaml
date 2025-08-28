@@ -4,10 +4,7 @@ kind: Kustomization
 resources:
   # Include shared vault auth base (for vault-config service account)
   - ../../base/vault-auth
-  # Include job templates
-  - ../../base/job-templates
   # App-specific resources
-  # - job-vault-configure-vso.yaml  # Replaced by job template
   - vault-secret-sync.yaml
   - vault-auth-global.yaml
 
@@ -51,35 +48,3 @@ patches:
         name: vault-config
         namespace: vault-secrets-operator-system
   
-  # Patch vault configure job template
-  - target:
-      kind: Job
-      name: vault-configure
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-configure-vso
-        namespace: vault-secrets-operator-system
-      spec:
-        template:
-          spec:
-            containers:
-            - name: vault-configure
-              env:
-              - name: VAULT_POLICY_NAME
-                value: "vso"
-              - name: VAULT_POLICY_CONTENT
-                value: |
-                  path "auth/kubernetes/role/*" {
-                    capabilities = ["read", "list"]
-                  }
-                  path "sys/auth" {
-                    capabilities = ["read"]
-                  }
-              - name: VAULT_ROLE_NAME
-                value: "vault-secrets-operator"
-              - name: VAULT_ROLE_SERVICE_ACCOUNTS
-                value: "vault-secrets-operator"
-              - name: VAULT_ROLE_NAMESPACES
-                value: "vault-secrets-operator-system"
