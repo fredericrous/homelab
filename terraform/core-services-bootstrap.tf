@@ -159,10 +159,15 @@ resource "null_resource" "vault_sync" {
       # Wait for Vault namespace and PVC
       echo "⏳ Waiting for Vault PVC to be bound..."
       for i in {1..60}; do
-        pvc_status=$(kubectl get pvc -n vault data-vault-0 -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+        pvc_status=$(kubectl get pvc -n vault vault-data -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
         if [[ "$pvc_status" == "Bound" ]]; then
           echo "✅ Vault PVC is bound"
           break
+        elif [[ "$pvc_status" == "Pending" ]]; then
+          # Get more details about why it's pending
+          pvc_events=$(kubectl get events -n vault --field-selector involvedObject.name=vault-data --sort-by='.lastTimestamp' | tail -5)
+          echo "PVC is Pending. Recent events:"
+          echo "$pvc_events"
         fi
         echo "PVC status: $pvc_status ($i/60)"
         sleep 5
