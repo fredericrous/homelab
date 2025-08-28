@@ -33,10 +33,20 @@ spec:
             exit 1
           fi
           
-          # Check if already initialized
-          if vault status 2>/dev/null | grep -q "Initialized.*true"; then
+          # Check if already initialized FIRST before doing anything else
+          init_status=$(vault operator init -status 2>&1)
+          if echo "$init_status" | grep -q "Vault is initialized"; then
             echo "Vault is already initialized"
-            exit 0
+            
+            # Check if keys exist in secrets
+            if kubectl get secret -n vault vault-keys >/dev/null 2>&1 && kubectl get secret -n vault vault-admin-token >/dev/null 2>&1; then
+              echo "Vault secrets already exist. Nothing to do."
+              exit 0
+            else
+              echo "ERROR: Vault is initialized but secrets are missing!"
+              echo "This requires manual intervention to recreate the secrets."
+              exit 1
+            fi
           fi
           
           echo "Initializing Vault..."
