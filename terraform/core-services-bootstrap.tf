@@ -68,7 +68,7 @@ resource "null_resource" "wait_for_appsets" {
       sleep 30  # Give ApplicationSets time to process
       
       echo "🔍 Checking for core applications..."
-      kubectl get app -n argocd | grep -E "(vault|cert-manager|client-ca|vault-secrets-operator)" || echo "Applications not yet created"
+      kubectl get app -n argocd | grep -E "(vault|cert-manager|vault-secrets-operator)" || echo "Applications not yet created"
       
       echo "✅ Proceeding with core services bootstrap"
     EOT
@@ -242,50 +242,6 @@ resource "null_resource" "cert_manager_sync" {
   }
 }
 
-# Stage 4: Sync client-ca (can run in parallel with cert-manager)
-resource "null_resource" "client_ca_sync" {
-  count = var.configure_talos ? 1 : 0
-  
-  depends_on = [null_resource.argocd_bootstrap]
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      set -e
-      export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
-      
-      echo "🔐 Waiting for client-ca application to be created by ApplicationSet..."
-      for i in {1..30}; do
-        if kubectl get app -n argocd client-ca >/dev/null 2>&1; then
-          echo "✅ client-ca application found"
-          break
-        fi
-        echo "Waiting for client-ca application... ($i/30)"
-        sleep 5
-      done
-      
-      echo "🔐 Syncing client-ca..."
-      # Force sync client-ca app
-      kubectl patch app -n argocd client-ca --type merge -p '{"operation":{"initiatedBy":{"username":"terraform"},"sync":{"prune":true,"syncStrategy":{"hook":{}}}}}'
-      
-      # Wait for client CA cert to be available
-      echo "⏳ Waiting for client CA certificate..."
-      for i in {1..30}; do
-        if kubectl get secret -n haproxy-controller client-ca-cert >/dev/null 2>&1; then
-          echo "✅ Client CA certificate is ready"
-          break
-        fi
-        echo "Waiting for client CA certificate... ($i/30)"
-        sleep 2
-      done
-      
-      echo "✅ client-ca synced successfully"
-    EOT
-  }
-
-  triggers = {
-    cluster_id = talos_machine_secrets.this.id
-  }
-}
 
 # Update wait_nodes_ready to depend on core services
 resource "null_resource" "wait_nodes_ready_updated" {
@@ -293,8 +249,7 @@ resource "null_resource" "wait_nodes_ready_updated" {
 
   depends_on = [
     talos_machine_configuration_apply.workers,
-    null_resource.cert_manager_sync,
-    null_resource.client_ca_sync
+    null_resource.cert_manager_sync
   ]
 
   provisioner "local-exec" {
@@ -305,7 +260,7 @@ resource "null_resource" "wait_nodes_ready_updated" {
       echo "✅ Core services deployed. Cluster is ready!"
       echo ""
       echo "📋 Service Status:"
-      kubectl get app -n argocd vault vault-secrets-operator cert-manager client-ca -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+      kubectl get app -n argocd vault vault-secrets-operator cert-manager -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
       echo ""
       echo "🌐 To access ArgoCD:"
       echo "  - URL: https://argocd.daddyshome.fr/"

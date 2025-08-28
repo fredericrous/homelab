@@ -99,8 +99,7 @@ terraform apply -auto-approve \
     -target=null_resource.rook_ceph_sync \
     -target=null_resource.vault_sync \
     -target=null_resource.vso_sync \
-    -target=null_resource.cert_manager_sync \
-    -target=null_resource.client_ca_sync
+    -target=null_resource.cert_manager_sync
 
 # Stage 8: Wait for all nodes to be ready
 echo "⏳ Stage 8: Final verification..."
