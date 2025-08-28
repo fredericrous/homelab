@@ -34,7 +34,10 @@ spec:
           fi
           
           # Check if already initialized FIRST before doing anything else
+          echo "Checking vault initialization status..."
           init_status=$(vault operator init -status 2>&1 || true)
+          echo "Init status: $init_status"
+          
           if echo "$init_status" | grep -q "Vault is initialized"; then
             echo "Vault is already initialized"
             
@@ -123,6 +126,7 @@ spec:
             fi
           fi
           
+          echo "Proceeding with vault initialization..."
           echo "Initializing Vault..."
           INIT_OUTPUT=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
           
