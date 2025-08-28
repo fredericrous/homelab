@@ -29,6 +29,7 @@ patches:
       name: vault
   
   # Customize the secret copier job from template
+  # Keep using the original service account name from the template
   - target:
       kind: ServiceAccount
       name: secret-copier
@@ -36,7 +37,7 @@ patches:
       apiVersion: v1
       kind: ServiceAccount
       metadata:
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: vault
   
   - target:
@@ -62,7 +63,7 @@ patches:
         name: vault-secret-copier
       subjects:
       - kind: ServiceAccount
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: vault
   
   - target:
@@ -72,12 +73,12 @@ patches:
       apiVersion: batch/v1
       kind: Job
       metadata:
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: vault
       spec:
         template:
           spec:
-            serviceAccountName: ovh-credentials-copier
+            serviceAccountName: secret-copier
             containers:
             - name: secret-copier
               env:
