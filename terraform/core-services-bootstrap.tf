@@ -1,12 +1,40 @@
 # Bootstrap critical core services that need manual syncing
 # These services have autoSync: false and must be deployed in order
 
+# Wait for ApplicationSets to generate apps
+resource "null_resource" "wait_for_appsets" {
+  count = var.configure_talos ? 1 : 0
+  
+  depends_on = [
+    null_resource.argocd_bootstrap
+  ]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
+      
+      echo "⏳ Waiting for ApplicationSets to generate applications..."
+      sleep 30  # Give ApplicationSets time to process
+      
+      echo "🔍 Checking for core applications..."
+      kubectl get app -n argocd | grep -E "(vault|cert-manager|client-ca|vault-secrets-operator)" || echo "Applications not yet created"
+      
+      echo "✅ Proceeding with core services bootstrap"
+    EOT
+  }
+
+  triggers = {
+    cluster_id = talos_machine_secrets.this.id
+  }
+}
+
 # Stage 1: Sync Vault (needs to be initialized and unsealed)
 resource "null_resource" "vault_sync" {
   count = var.configure_talos ? 1 : 0
   
   depends_on = [
-    null_resource.argocd_bootstrap,
+    null_resource.wait_for_appsets,
     null_resource.dns_bootstrap
   ]
 
@@ -14,6 +42,16 @@ resource "null_resource" "vault_sync" {
     command = <<-EOT
       set -e
       export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
+      
+      echo "🔐 Waiting for Vault application to be created by ApplicationSet..."
+      for i in {1..30}; do
+        if kubectl get app -n argocd vault >/dev/null 2>&1; then
+          echo "✅ Vault application found"
+          break
+        fi
+        echo "Waiting for Vault application... ($i/30)"
+        sleep 5
+      done
       
       echo "🔐 Syncing Vault application..."
       # Force sync Vault app
@@ -53,6 +91,16 @@ resource "null_resource" "vso_sync" {
     command = <<-EOT
       set -e
       export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
+      
+      echo "🔒 Waiting for VSO application to be created by ApplicationSet..."
+      for i in {1..30}; do
+        if kubectl get app -n argocd vault-secrets-operator >/dev/null 2>&1; then
+          echo "✅ VSO application found"
+          break
+        fi
+        echo "Waiting for VSO application... ($i/30)"
+        sleep 5
+      done
       
       echo "🔒 Syncing Vault Secrets Operator..."
       # Create namespace if it doesn't exist
@@ -94,6 +142,16 @@ resource "null_resource" "cert_manager_sync" {
     command = <<-EOT
       set -e
       export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
+      
+      echo "📜 Waiting for cert-manager application to be created by ApplicationSet..."
+      for i in {1..30}; do
+        if kubectl get app -n argocd cert-manager >/dev/null 2>&1; then
+          echo "✅ cert-manager application found"
+          break
+        fi
+        echo "Waiting for cert-manager application... ($i/30)"
+        sleep 5
+      done
       
       echo "📜 Syncing cert-manager..."
       # Force sync cert-manager app
@@ -143,6 +201,16 @@ resource "null_resource" "client_ca_sync" {
     command = <<-EOT
       set -e
       export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
+      
+      echo "🔐 Waiting for client-ca application to be created by ApplicationSet..."
+      for i in {1..30}; do
+        if kubectl get app -n argocd client-ca >/dev/null 2>&1; then
+          echo "✅ client-ca application found"
+          break
+        fi
+        echo "Waiting for client-ca application... ($i/30)"
+        sleep 5
+      done
       
       echo "🔐 Syncing client-ca..."
       # Force sync client-ca app

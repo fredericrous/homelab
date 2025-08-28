@@ -95,6 +95,7 @@ terraform apply -auto-approve \
 echo "🔐 Stage 7: Deploying core services (Vault, VSO, cert-manager)..."
 terraform apply -auto-approve \
     -var="configure_talos=true" \
+    -target=null_resource.wait_for_appsets \
     -target=null_resource.vault_sync \
     -target=null_resource.vso_sync \
     -target=null_resource.cert_manager_sync \
