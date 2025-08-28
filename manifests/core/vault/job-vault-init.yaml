@@ -34,7 +34,7 @@ spec:
           fi
           
           # Check if already initialized FIRST before doing anything else
-          init_status=$(vault operator init -status 2>&1)
+          init_status=$(vault operator init -status 2>&1 || true)
           if echo "$init_status" | grep -q "Vault is initialized"; then
             echo "Vault is already initialized"
             
