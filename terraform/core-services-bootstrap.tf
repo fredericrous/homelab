@@ -266,7 +266,7 @@ resource "null_resource" "vso_sync" {
       # Create namespace if it doesn't exist
       kubectl create namespace vault-secrets-operator-system --dry-run=client -o yaml | kubectl apply -f -
       
-      # Force sync VSO app
+      # Force sync VSO app - Helm will handle CRDs with installCRDs=true
       kubectl patch app -n argocd vault-secrets-operator --type merge -p '{"operation":{"initiatedBy":{"username":"terraform"},"sync":{"prune":true,"syncStrategy":{"hook":{}}}}}'
       
       # Wait for sync to complete

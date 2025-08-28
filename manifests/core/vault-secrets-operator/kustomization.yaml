@@ -4,7 +4,10 @@ kind: Kustomization
 resources:
   # Include shared vault auth base (for vault-config service account)
   - ../../base/vault-auth
+  # Include job templates
+  - ../../base/job-templates
   # App-specific resources
+  - job-vault-configure-vso.yaml
   - vault-secret-sync.yaml
   - vault-auth-global.yaml
 
@@ -15,8 +18,58 @@ helmCharts:
   version: 0.10.0
   namespace: vault-secrets-operator-system
   releaseName: vault-secrets-operator
+  valuesInline:
+    # Ensure CRDs are installed by Helm
+    installCRDs: true
+    controller:
+      manager:
+        image:
+          repository: hashicorp/vault-secrets-operator
+          tag: 0.10.0
 
 patches:
+  # VSO doesn't need the secret-copier job, so remove it
+  - target:
+      kind: ServiceAccount
+      name: secret-copier
+      namespace: PLACEHOLDER
+    patch: |-
+      $patch: delete
+      
+  - target:
+      kind: ClusterRole
+      name: PLACEHOLDER-secret-copier
+    patch: |-
+      $patch: delete
+      
+  - target:
+      kind: ClusterRoleBinding
+      name: PLACEHOLDER-secret-copier
+    patch: |-
+      $patch: delete
+      
+  - target:
+      kind: Job
+      name: secret-copier
+      namespace: PLACEHOLDER
+    patch: |-
+      $patch: delete
+      
+  # Also remove vault-configure and vault-populate jobs that aren't used by VSO
+  - target:
+      kind: Job
+      name: vault-configure
+      namespace: default
+    patch: |-
+      $patch: delete
+      
+  - target:
+      kind: Job
+      name: vault-populate
+      namespace: default
+    patch: |-
+      $patch: delete
+  
   # Customize the vault auth from base
   - target:
       kind: VaultAuth
