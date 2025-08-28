@@ -191,24 +191,47 @@ resource "null_resource" "vault_sync" {
       
       # Check if Vault is initialized
       echo "🔍 Checking Vault initialization status..."
+      
+      # First, check if vault-init job exists, if not create it
+      if ! kubectl get job -n vault vault-init >/dev/null 2>&1; then
+        echo "⚠️  vault-init job not found, creating it manually..."
+        kubectl apply -f ${abspath(path.module)}/../manifests/core/vault/job-vault-init.yaml || echo "Failed to create vault-init job"
+      fi
+      
       for i in {1..60}; do
         # Check if initialization secrets exist
         if kubectl get secret -n vault vault-keys >/dev/null 2>&1 && kubectl get secret -n vault vault-admin-token >/dev/null 2>&1; then
           echo "✅ Vault initialization secrets found"
           
           # Check Vault health endpoint
-          if kubectl exec -n vault vault-0 -- wget -qO- http://localhost:8200/v1/sys/health 2>/dev/null; then
-            echo "✅ Vault is responding to health checks"
+          vault_health=$(kubectl exec -n vault vault-0 -- vault status -format=json 2>/dev/null || echo "{}")
+          if echo "$vault_health" | jq -e '.initialized == true' >/dev/null 2>&1; then
+            echo "✅ Vault is initialized"
+            if echo "$vault_health" | jq -e '.sealed == false' >/dev/null 2>&1; then
+              echo "✅ Vault is unsealed and ready"
+            else
+              echo "⚠️  Vault is sealed, unseal job should handle this"
+            fi
           fi
           break
         fi
         
-        # Check if init job is running
-        init_job_status=$(kubectl get job -n vault vault-init -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || echo "NotFound")
-        if [[ "$init_job_status" == "True" ]]; then
-          echo "✅ Vault init job completed"
-        else
-          echo "Vault init job status: $init_job_status"
+        # Check init job status
+        if kubectl get job -n vault vault-init >/dev/null 2>&1; then
+          init_job_status=$(kubectl get job -n vault vault-init -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || echo "Running")
+          init_job_failed=$(kubectl get job -n vault vault-init -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo "False")
+          
+          if [[ "$init_job_status" == "True" ]]; then
+            echo "✅ Vault init job completed successfully"
+          elif [[ "$init_job_failed" == "True" ]]; then
+            echo "❌ Vault init job failed. Checking logs..."
+            kubectl logs -n vault job/vault-init --tail=20
+            break
+          else
+            echo "⏳ Vault init job is running..."
+            # Show last few log lines to see progress
+            kubectl logs -n vault job/vault-init --tail=5 2>/dev/null || true
+          fi
         fi
         
         echo "Waiting for Vault initialization... ($i/60)"
