@@ -5,6 +5,7 @@ resources:
   # Include shared vault auth base (for vault-config service account)
   - ../../base/vault-auth
   # App-specific resources (VSO doesn't need job-templates)
+  - job-install-crds.yaml  # PreSync hook to install CRDs
   - job-vault-configure-vso.yaml
   - vault-secret-sync.yaml
   - vault-auth-global.yaml
@@ -17,8 +18,6 @@ helmCharts:
   namespace: vault-secrets-operator-system
   releaseName: vault-secrets-operator
   valuesInline:
-    # Ensure CRDs are installed by Helm
-    installCRDs: true
     controller:
       manager:
         image:
