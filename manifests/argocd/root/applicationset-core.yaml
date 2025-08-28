@@ -38,6 +38,7 @@ spec:
         - PrunePropagationPolicy=foreground
         - ApplyOutOfSyncOnly=true
         - ServerSideApply=true
+        - Replace=true  # Needed for CRDs
         retry:
           limit: 5
           backoff:
