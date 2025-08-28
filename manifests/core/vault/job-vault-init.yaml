@@ -43,9 +43,83 @@ spec:
               echo "Vault secrets already exist. Nothing to do."
               exit 0
             else
-              echo "ERROR: Vault is initialized but secrets are missing!"
-              echo "This requires manual intervention to recreate the secrets."
-              exit 1
+              echo "WARNING: Vault is initialized but secrets are missing!"
+              echo "This is a recovery scenario - the keys must be provided manually."
+              echo ""
+              echo "Checking for recovery secrets..."
+              
+              # Check if recovery secrets were provided
+              if [ -f /recovery/unseal-key ] && [ -f /recovery/root-token ]; then
+                echo "Recovery secrets found! Recreating Kubernetes secrets..."
+                
+                UNSEAL_KEY=$(cat /recovery/unseal-key)
+                ROOT_TOKEN=$(cat /recovery/root-token)
+                
+                # Create the secrets
+                cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: vault-keys
+            namespace: vault
+          type: Opaque
+          data:
+            unseal-key: $(echo -n "$UNSEAL_KEY" | base64)
+            root-token: $(echo -n "$ROOT_TOKEN" | base64)
+          EOF
+                
+                cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: vault-root-token
+            namespace: vault
+          type: Opaque
+          data:
+            root-token: $(echo -n "$ROOT_TOKEN" | base64)
+          EOF
+                
+                echo "Unsealing Vault with recovered key..."
+                vault operator unseal "$UNSEAL_KEY"
+                
+                # Create admin token
+                export VAULT_TOKEN="$ROOT_TOKEN"
+                echo "Creating admin token..."
+                ADMIN_TOKEN=$(vault token create -policy=admin-policy -period=768h -format=json | jq -r '.auth.client_token')
+                
+                cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: vault-admin-token
+            namespace: vault
+          type: Opaque
+          data:
+            token: $(echo -n "$ADMIN_TOKEN" | base64)
+          EOF
+                
+                echo "Recovery complete! Vault secrets have been recreated."
+                exit 0
+              else
+                echo ""
+                echo "MANUAL RECOVERY REQUIRED!"
+                echo "========================"
+                echo ""
+                echo "To recover, you need to provide the Vault unseal key and root token."
+                echo ""
+                echo "Option 1: If you have the keys, create a ConfigMap with them:"
+                echo "  kubectl create configmap vault-recovery -n vault \\"
+                echo "    --from-literal=unseal-key='YOUR_UNSEAL_KEY' \\"
+                echo "    --from-literal=root-token='YOUR_ROOT_TOKEN'"
+                echo ""
+                echo "Option 2: If keys are lost, you must reset Vault (DATA LOSS!):"
+                echo "  1. Delete the Vault StatefulSet: kubectl delete sts -n vault vault"
+                echo "  2. Delete the PVC: kubectl delete pvc -n vault vault-data"
+                echo "  3. Re-sync the Vault app in ArgoCD"
+                echo ""
+                echo "Then delete this job and let ArgoCD recreate it."
+                exit 1
+              fi
             fi
           fi
           
@@ -130,3 +204,12 @@ spec:
           value: http://vault:8200
         - name: VAULT_SKIP_VERIFY
           value: "true"
+        volumeMounts:
+        - name: recovery
+          mountPath: /recovery
+          readOnly: true
+      volumes:
+      - name: recovery
+        configMap:
+          name: vault-recovery
+          optional: true
