@@ -1,6 +1,56 @@
 # Bootstrap critical core services that need manual syncing
 # These services have autoSync: false and must be deployed in order
 
+# Stage 0: Sync Rook-Ceph storage (required by many services)
+resource "null_resource" "rook_ceph_sync" {
+  count = var.configure_talos ? 1 : 0
+  
+  depends_on = [
+    null_resource.argocd_bootstrap
+  ]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
+      
+      echo "💾 Waiting for Rook-Ceph application to be created by ApplicationSet..."
+      for i in {1..30}; do
+        if kubectl get app -n argocd rook-ceph >/dev/null 2>&1; then
+          echo "✅ Rook-Ceph application found"
+          break
+        fi
+        echo "Waiting for Rook-Ceph application... ($i/30)"
+        sleep 5
+      done
+      
+      echo "💾 Syncing Rook-Ceph storage operator..."
+      kubectl patch app -n argocd rook-ceph --type merge -p '{"operation":{"initiatedBy":{"username":"terraform"},"sync":{"prune":true,"syncStrategy":{"hook":{}}}}}'
+      
+      # Wait for Rook operator to be ready
+      echo "⏳ Waiting for Rook-Ceph operator..."
+      kubectl wait --for=condition=ready --timeout=300s pod -n rook-ceph -l app=rook-ceph-operator || true
+      
+      # Wait for storage class to be available
+      echo "🔍 Waiting for rook-ceph-block storage class..."
+      for i in {1..60}; do
+        if kubectl get storageclass rook-ceph-block >/dev/null 2>&1; then
+          echo "✅ Storage class rook-ceph-block is available"
+          break
+        fi
+        echo "Waiting for storage class... ($i/60)"
+        sleep 10
+      done
+      
+      echo "✅ Rook-Ceph storage is ready"
+    EOT
+  }
+
+  triggers = {
+    cluster_id = talos_machine_secrets.this.id
+  }
+}
+
 # Wait for ApplicationSets to generate apps
 resource "null_resource" "wait_for_appsets" {
   count = var.configure_talos ? 1 : 0
@@ -35,7 +85,8 @@ resource "null_resource" "vault_sync" {
   
   depends_on = [
     null_resource.wait_for_appsets,
-    null_resource.dns_bootstrap
+    null_resource.dns_bootstrap,
+    null_resource.rook_ceph_sync  # Vault needs storage
   ]
 
   provisioner "local-exec" {

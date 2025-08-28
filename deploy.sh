@@ -92,10 +92,11 @@ terraform apply -auto-approve \
     -target=null_resource.dns_bootstrap
 
 # Stage 7: Deploy critical core services
-echo "🔐 Stage 7: Deploying core services (Vault, VSO, cert-manager)..."
+echo "🔐 Stage 7: Deploying core services (Storage, Vault, VSO, cert-manager)..."
 terraform apply -auto-approve \
     -var="configure_talos=true" \
     -target=null_resource.wait_for_appsets \
+    -target=null_resource.rook_ceph_sync \
     -target=null_resource.vault_sync \
     -target=null_resource.vso_sync \
     -target=null_resource.cert_manager_sync \
