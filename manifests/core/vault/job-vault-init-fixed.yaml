@@ -32,7 +32,32 @@ spec:
           VAULT_STATUS=$(vault status -format=json 2>&1 || echo "{}")
           if echo "$VAULT_STATUS" | jq -e '.initialized == true' >/dev/null 2>&1; then
             echo "Vault is already initialized"
-            exit 0
+            
+            # Check if we have the keys
+            if kubectl get secret -n vault vault-keys >/dev/null 2>&1 && kubectl get secret -n vault vault-admin-token >/dev/null 2>&1; then
+              echo "Vault keys and admin token already exist. Exiting successfully."
+              exit 0
+            else
+              echo "WARNING: Vault is initialized but keys are missing!"
+              echo "This is a critical issue - the vault data is locked and cannot be recovered without the original keys."
+              echo "You may need to delete the PVC and start fresh if you don't have a backup of the keys."
+              
+              # Create a placeholder secret to prevent jobs from failing
+              cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: vault-keys
+            namespace: vault
+            annotations:
+              vault-init-error: "vault-initialized-but-keys-missing"
+          type: Opaque
+          data:
+            error: $(echo -n "Vault is initialized but original keys are missing. Manual intervention required." | base64)
+          EOF
+              
+              exit 1
+            fi
           fi
           
           echo "Vault is not initialized. Proceeding with initialization..."
