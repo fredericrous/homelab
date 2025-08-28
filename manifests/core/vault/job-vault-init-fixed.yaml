@@ -28,9 +28,11 @@ spec:
             sleep 2
           done
           
-          # Check if already initialized (vault status returns exit code 2 when uninitialized)
-          VAULT_STATUS=$(vault status -format=json 2>&1 || echo "{}")
-          if echo "$VAULT_STATUS" | jq -e '.initialized == true' >/dev/null 2>&1; then
+          # Check if already initialized
+          # Use vault's sys/init endpoint
+          INIT_CHECK=$(vault operator init -status 2>&1 || true)
+          
+          if echo "$INIT_CHECK" | grep -q "Vault is initialized"; then
             echo "Vault is already initialized"
             
             # Check if we have the keys
