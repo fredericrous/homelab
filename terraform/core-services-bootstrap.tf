@@ -192,12 +192,6 @@ resource "null_resource" "vault_sync" {
       # Check if Vault is initialized
       echo "🔍 Checking Vault initialization status..."
       
-      # First, check if vault-init job exists, if not create it
-      if ! kubectl get job -n vault vault-init >/dev/null 2>&1; then
-        echo "⚠️  vault-init job not found, creating it manually..."
-        kubectl apply -f ${abspath(path.module)}/../manifests/core/vault/job-vault-init.yaml || echo "Failed to create vault-init job"
-      fi
-      
       for i in {1..60}; do
         # Check if initialization secrets exist
         if kubectl get secret -n vault vault-keys >/dev/null 2>&1 && kubectl get secret -n vault vault-admin-token >/dev/null 2>&1; then
