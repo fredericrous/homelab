@@ -107,7 +107,7 @@ patches:
       apiVersion: v1
       kind: ServiceAccount
       metadata:
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: harbor
   
   - target:
@@ -133,7 +133,7 @@ patches:
         name: harbor-secret-copier
       subjects:
       - kind: ServiceAccount
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: harbor
   
   - target:
@@ -143,12 +143,12 @@ patches:
       apiVersion: batch/v1
       kind: Job
       metadata:
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: harbor
       spec:
         template:
           spec:
-            serviceAccountName: ovh-credentials-copier
+            serviceAccountName: secret-copier
             containers:
             - name: secret-copier
               env:

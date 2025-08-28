@@ -158,7 +158,7 @@ patches:
       apiVersion: v1
       kind: ServiceAccount
       metadata:
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: authelia
   
   - target:
@@ -184,7 +184,7 @@ patches:
         name: authelia-secret-copier
       subjects:
       - kind: ServiceAccount
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: authelia
   
   - target:
@@ -194,12 +194,12 @@ patches:
       apiVersion: batch/v1
       kind: Job
       metadata:
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: authelia
       spec:
         template:
           spec:
-            serviceAccountName: ovh-credentials-copier
+            serviceAccountName: secret-copier
             containers:
             - name: secret-copier
               env:

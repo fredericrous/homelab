@@ -110,7 +110,7 @@ patches:
       apiVersion: v1
       kind: ServiceAccount
       metadata:
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: lldap
   
   - target:
@@ -136,7 +136,7 @@ patches:
         name: lldap-secret-copier
       subjects:
       - kind: ServiceAccount
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: lldap
   
   - target:
@@ -146,12 +146,12 @@ patches:
       apiVersion: batch/v1
       kind: Job
       metadata:
-        name: ovh-credentials-copier
+        name: secret-copier
         namespace: lldap
       spec:
         template:
           spec:
-            serviceAccountName: ovh-credentials-copier
+            serviceAccountName: secret-copier
             containers:
             - name: secret-copier
               env:
