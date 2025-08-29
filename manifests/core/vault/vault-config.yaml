@@ -21,7 +21,7 @@ data:
     
     # Transit auto-unseal using QNAP Vault
     seal "transit" {
-      address = "http://192.168.1.100:8200"  # Update with your QNAP IP
+      address = "http://192.168.1.42:8200"
       disable_renewal = "false"
       key_name = "autounseal"
       mount_path = "transit/"
