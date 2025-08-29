@@ -7,12 +7,13 @@ MINIO_URL="http://192.168.1.42:9000"
 MINIO_USER="admin"
 MINIO_PASS="${MINIO_ROOT_PASSWORD:-changeme123}"
 
-# S3 configuration (update these)
+# S3 configuration (same as Vault secret/velero)
 S3_ALIAS="aws"
-S3_ENDPOINT="https://s3.amazonaws.com"
+S3_ENDPOINT="https://s3.eu-west-1.amazonaws.com"
+S3_REGION="${AWS_DEFAULT_REGION:-eu-west-1}"
 S3_ACCESS_KEY="${AWS_ACCESS_KEY_ID}"
 S3_SECRET_KEY="${AWS_SECRET_ACCESS_KEY}"
-S3_BUCKET="your-s3-backup-bucket"
+S3_BUCKET="homelab-backups"
 
 echo "🔧 Configuring MinIO client..."
 mc alias set $MINIO_ALIAS $MINIO_URL $MINIO_USER $MINIO_PASS
@@ -22,7 +23,7 @@ mc mb $MINIO_ALIAS/velero-backups --ignore-existing
 
 echo "🔄 Setting up replication to S3..."
 if [ -n "$AWS_ACCESS_KEY_ID" ]; then
-    mc alias set $S3_ALIAS $S3_ENDPOINT $S3_ACCESS_KEY $S3_SECRET_KEY
+    mc alias set $S3_ALIAS $S3_ENDPOINT $S3_ACCESS_KEY $S3_SECRET_KEY --api S3v4
     
     # Set up bucket replication
     mc replicate add $MINIO_ALIAS/velero-backups \
