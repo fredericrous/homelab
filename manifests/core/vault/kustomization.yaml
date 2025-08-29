@@ -3,8 +3,14 @@ kind: Kustomization
 
 namespace: vault
 
+configMapGenerator:
+  - name: vault-init-scripts
+    files:
+      - init-vault.sh=scripts/init-vault.sh
+
 resources:
-  # Include job templates
+  # Include base resources
+  - ../../base/vault-auth  # For vault-config service account
   - ../../base/job-templates
   # App-specific resources
   - namespace.yaml
@@ -13,6 +19,7 @@ resources:
   - vault-service.yaml
   - ingress.yaml
   - rbac-vault-config-role.yaml
+  - rbac-vault-secret-manager.yaml
   - job-vault-init.yaml
   - job-vault-unseal.yaml
   - vault-configure-argocd-job.yaml  # Configure Vault for ArgoCD after initialization
