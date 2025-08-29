@@ -23,7 +23,7 @@ resources:
   - rbac-vault-config-role.yaml
   - rbac-vault-secret-manager.yaml
   - job-vault-init.yaml
-  - job-vault-unseal.yaml
+  # - job-vault-unseal.yaml  # Not needed with transit auto-unseal
   - vault-configure-argocd-job.yaml  # Configure Vault for ArgoCD after initialization
   # vault-pvc.yaml is duplicate of vault-storage.yaml
 
@@ -49,16 +49,6 @@ patches:
         annotations:
           argocd.argoproj.io/sync-wave: "-1"
   
-  - target:
-      kind: Job
-      name: vault-unseal
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-unseal
-        annotations:
-          argocd.argoproj.io/sync-wave: "2"
   
   - target:
       kind: Job
