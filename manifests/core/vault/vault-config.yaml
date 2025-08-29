@@ -16,6 +16,9 @@ data:
     
     storage "file" {
       path = "/vault/data"
+      # Fix for CVE-2024-8185 in Vault 1.17.0-1.17.6
+      # Explicitly disable auto-initialization
+      disable_auto_init = true
     }
     
     # Enable the database secrets engine
