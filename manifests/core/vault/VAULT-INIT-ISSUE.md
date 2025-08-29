@@ -1,39 +1,45 @@
 # Vault Initialization Issue
 
 ## Problem
-Vault 1.17.0-1.17.6 has a security vulnerability (CVE-2024-8185) that causes it to auto-initialize when using file storage backend, creating inaccessible keys that cannot be recovered.
+Vault 1.17.x versions have a bug where the file storage backend incorrectly reports as "already initialized" even when it's not properly initialized. This creates a deadlock in our GitOps deployment.
 
 ## Root Cause
-CVE-2024-8185: A security vulnerability in Vault versions 1.17.0 through 1.17.6 where file storage backend auto-initializes by default, creating encryption keys that are not accessible to operators. This creates a deadlock where:
-1. Vault auto-initializes on startup with unknown keys
-2. The vault-init job detects initialization and fails (correctly)
-3. No vault-admin-token secret is created
-4. All dependent jobs wait forever
+Based on multiple GitHub issues (#28684, #28530, #29056), there appears to be a regression in Vault 1.17.x where:
+1. The file storage backend incorrectly detects initialization state
+2. `vault operator init -status` reports "Vault is initialized" when it's not
+3. The vault-init job detects this false initialization and fails
+4. No vault-admin-token secret is created
+5. All dependent jobs wait forever
 
-Note: This is NOT caused by persistent storage - the user's deploy.sh script wipes Talos nodes and disks completely.
+This particularly affects:
+- Fresh deployments with empty file storage
+- Upgrades from older versions (especially 1.14 to 1.17)
+- Migration scenarios
+
+Note: This is NOT caused by persistent storage retention - the user's deploy.sh script completely wipes Talos nodes and disks.
 
 ## Solutions
 
-### Option 1: Fix the Configuration (Implemented)
-Add `disable_auto_init = true` to the file storage configuration in vault.hcl:
+### Option 1: Downgrade to Vault 1.16.x or 1.14.x
+Use a version before the regression was introduced:
+```yaml
+image: hashicorp/vault:1.16.3  # or 1.14.10
+```
 
+### Option 2: Use Raft Storage Instead of File Storage
+Switch to integrated storage which doesn't have this bug:
 ```hcl
-storage "file" {
+storage "raft" {
   path = "/vault/data"
-  disable_auto_init = true  # Fix for CVE-2024-8185
+  node_id = "vault-0"
 }
 ```
 
-### Option 2: Upgrade Vault Version
-Upgrade to Vault 1.17.1 or later where this vulnerability is fixed:
-- 1.17.1 fixes CVE-2024-8185
-- Latest stable version recommended
-
-### Option 3: Use Different Storage Backend
-Switch from file storage to a backend not affected by CVE-2024-8185:
-- Raft (built-in, recommended)
-- Consul
-- etcd
+### Option 3: Wait for Bug Fix
+Monitor GitHub issues for a fix:
+- [Issue #28684](https://github.com/hashicorp/vault/issues/28684)
+- [Issue #28530](https://github.com/hashicorp/vault/issues/28530)
+- [Issue #29056](https://github.com/hashicorp/vault/issues/29056)
 
 ### Option 4: Use Vault Helm Chart
 The official Helm chart may have workarounds or better initialization handling:
@@ -54,7 +60,7 @@ helmCharts:
 ```
 
 ## Current Status
-We have implemented Option 1 by adding `disable_auto_init = true` to the Vault configuration. This prevents the auto-initialization behavior in Vault 1.17.0-1.17.6.
+The issue is a known bug in Vault 1.17.x where file storage incorrectly reports as initialized. There is no `disable_auto_init` parameter for file storage backend - that was an incorrect assumption.
 
 ## Additional Notes
 - The init-vault.sh script is already idempotent and handles recovery scenarios
