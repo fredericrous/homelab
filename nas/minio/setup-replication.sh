@@ -31,39 +31,19 @@ mc alias set $MINIO_ALIAS $MINIO_URL $MINIO_USER $MINIO_PASS
 echo "📦 Creating backup bucket..."
 mc mb $MINIO_ALIAS/velero-backups --ignore-existing
 
-echo "🔄 Setting up S3 alias for weekly sync..."
+echo "🔄 Verifying S3 credentials..."
 mc alias set $S3_ALIAS $S3_ENDPOINT $S3_ACCESS_KEY $S3_SECRET_KEY --api S3v4
 
-echo "📝 Creating weekly S3 sync script..."
-cat > /VMs/minio/sync-to-s3.sh <<'EOF'
-#!/bin/bash
-set -e
+echo "📁 Creating required directories..."
+mkdir -p /VMs/minio/scripts /VMs/minio/logs
 
-# Source Vault credentials
-export VAULT_ADDR=http://192.168.1.42:8200
-export VAULT_TOKEN=$(cat /VMs/vault/root-token)
-
-# Get fresh AWS credentials
-AWS_CREDS=$(vault kv get -format=json secret/velero | jq -r '.data.data')
-export AWS_ACCESS_KEY_ID=$(echo "$AWS_CREDS" | jq -r '.aws_access_key_id')
-export AWS_SECRET_ACCESS_KEY=$(echo "$AWS_CREDS" | jq -r '.aws_secret_access_key')
-
-# Configure mc
-mc alias set qnap http://localhost:9000 admin ${MINIO_ROOT_PASSWORD}
-mc alias set aws https://s3.eu-west-1.amazonaws.com $AWS_ACCESS_KEY_ID $AWS_SECRET_ACCESS_KEY
-
-# Sync to S3
-echo "$(date): Starting sync to S3..."
-mc mirror --overwrite --remove qnap/velero-backups aws/homelab-backups
-echo "$(date): Sync complete!"
-EOF
-
-chmod +x /VMs/minio/sync-to-s3.sh
-
-echo "📅 Setting up weekly cron job..."
-echo "0 3 * * 0 /VMs/minio/sync-to-s3.sh >> /VMs/minio/sync.log 2>&1" | crontab -
-
-echo "✅ Weekly S3 sync configured (Sundays at 3 AM)"
+echo "✅ QNAP MinIO configured!"
+echo ""
+echo "📅 To enable weekly S3 sync (Sundays at 3 AM):"
+echo "   1. Deploy the cron job stack:"
+echo "      docker stack deploy -c minio/docker-compose-cron.yml minio-cron"
+echo ""
+echo "   2. The sync will use Vault credentials automatically"
 
 echo ""
 echo "📊 Setup complete! Next steps:"

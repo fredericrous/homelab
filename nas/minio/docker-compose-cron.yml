@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  swarm-cronjob:
+    image: crazymax/swarm-cronjob:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - TZ=Europe/Paris
+      - LOG_LEVEL=info
+      - LOG_JSON=false
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - minio-net
+
+  minio-s3-sync:
+    image: minio/mc:RELEASE.2024-08-26T10-49-58Z
+    command: ["/scripts/sync-to-s3.sh"]
+    environment:
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-changeme123}
+    volumes:
+      - /VMs/minio/scripts:/scripts:ro
+      - /VMs/vault:/vault-data:ro
+      - /VMs/minio/logs:/logs
+    networks:
+      - minio-net
+      - vault-net
+    deploy:
+      mode: replicated
+      replicas: 0
+      labels:
+        - "swarm.cronjob.enable=true"
+        - "swarm.cronjob.schedule=0 3 * * 0"  # Sundays at 3 AM
+        - "swarm.cronjob.skip-running=true"
+      restart_policy:
+        condition: none
+
+networks:
+  minio-net:
+    external: true
+  vault-net:
+    external: true
