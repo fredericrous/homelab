@@ -70,7 +70,7 @@ Connection uses: `DOCKER_HOST=192.168.1.42:2376`
 
 1. **Immediate**: Velero backs up to Kubernetes MinIO (fast, local)
 2. **Daily**: Kubernetes MinIO syncs files >2 days old to QNAP MinIO
-3. **Weekly**: QNAP MinIO syncs all backups to AWS S3
+3. **Weekly**: QNAP MinIO syncs to AWS S3 (keeps only 7 most recent backups)
 
 ## Benefits
 

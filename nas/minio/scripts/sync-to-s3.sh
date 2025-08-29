@@ -35,4 +35,30 @@ mc alias set aws https://s3.eu-west-1.amazonaws.com $AWS_ACCESS_KEY_ID $AWS_SECR
 echo "Syncing from QNAP MinIO to AWS S3..."
 mc mirror --overwrite --remove qnap/velero-backups aws/homelab-backups
 
-echo "$(date): S3 sync completed successfully!"
+# Clean up old backups on S3 (keep only 7 most recent)
+echo "Cleaning up old backups on S3 (keeping 7 most recent)..."
+
+# Get all backup folders sorted by date (newest first)
+BACKUPS=$(mc ls aws/homelab-backups/backups/ | grep PRE | awk '{print $5}' | sort -r)
+
+# Count total backups
+TOTAL_BACKUPS=$(echo "$BACKUPS" | wc -l)
+
+if [ $TOTAL_BACKUPS -gt 7 ]; then
+    echo "Found $TOTAL_BACKUPS backups, removing $(($TOTAL_BACKUPS - 7)) oldest..."
+    
+    # Get backups to delete (all except the 7 newest)
+    TO_DELETE=$(echo "$BACKUPS" | tail -n +8)
+    
+    # Delete old backups
+    for backup in $TO_DELETE; do
+        echo "Deleting old backup: $backup"
+        mc rm -r --force "aws/homelab-backups/backups/$backup"
+    done
+    
+    echo "Cleanup complete. Kept 7 most recent backups."
+else
+    echo "Found $TOTAL_BACKUPS backups. No cleanup needed (limit is 7)."
+fi
+
+echo "$(date): S3 sync and cleanup completed successfully!"

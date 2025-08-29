@@ -20,6 +20,7 @@ docker stack deploy -c docker-compose-cron.yml minio-cron
 echo "✅ Cron job deployed!"
 echo ""
 echo "The S3 sync will run every Sunday at 3 AM"
+echo "Only the 7 most recent backups will be kept on S3"
 echo ""
 echo "To test the sync manually:"
 echo "  docker service create --name test-sync \\"
