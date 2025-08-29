@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: minio-sync-to-qnap
+  namespace: velero
+spec:
+  # Run daily at 2 AM
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: minio-sync
+            image: minio/mc:RELEASE.2024-08-26T10-49-58Z
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              # Configure MinIO clients
+              mc alias set k8s-minio http://minio:9000 minio minio123
+              mc alias set qnap-minio http://192.168.1.42:9000 admin ${QNAP_MINIO_PASSWORD}
+              
+              # Get date 2 days ago
+              CUTOFF_DATE=$(date -d '2 days ago' +%Y-%m-%d)
+              echo "Syncing backups older than $CUTOFF_DATE to QNAP..."
+              
+              # List all objects and sync those older than 2 days
+              mc find k8s-minio/velero-backups --older-than 2d | while read -r file; do
+                # Extract just the path after bucket name
+                object_path=${file#k8s-minio/velero-backups/}
+                
+                # Check if object exists on QNAP
+                if ! mc stat qnap-minio/velero-backups/$object_path >/dev/null 2>&1; then
+                  echo "Copying $object_path to QNAP..."
+                  mc cp $file qnap-minio/velero-backups/$object_path
+                fi
+              done
+              
+              echo "Sync complete!"
+            env:
+            - name: QNAP_MINIO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: qnap-minio-credentials
+                  key: password

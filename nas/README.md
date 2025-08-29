@@ -19,15 +19,20 @@ This directory contains Docker Compose configurations for services running on QN
 ## Architecture
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐
-│ Kubernetes      │     │ QNAP MinIO       │     │ AWS S3      │
-│ Velero Backups  │────▶│ (Primary Store)  │────▶│ (Replica)   │
-└─────────────────┘     └──────────────────┘     └─────────────┘
+3-Tier Backup Strategy:
+┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐     ┌─────────────┐
+│ Kubernetes      │     │ Kubernetes       │     │ QNAP MinIO       │     │ AWS S3      │
+│ Velero          │────▶│ MinIO            │────▶│ (Long-term)      │────▶│ (Archive)   │
+└─────────────────┘     └──────────────────┘     └──────────────────┘     └─────────────┘
+                        Immediate backups       Sync >2 days old         Weekly sync
+                                                    (daily)              (Sundays)
 
+Vault Architecture:
 ┌─────────────────┐     ┌──────────────────┐
 │ Kubernetes      │◀────│ QNAP Vault       │
-│ Vault (Unsealed)│     │ (Transit Keys)   │
-└─────────────────┘     └──────────────────┘
+│ Vault (Unsealed)│     │ (Transit Keys +  │
+└─────────────────┘     │  AWS Credentials)│
+                        └──────────────────┘
 ```
 
 ## Deployment
@@ -63,13 +68,13 @@ Connection uses: `DOCKER_HOST=192.168.1.42:2376`
 
 ## Backup Flow
 
-1. Velero in Kubernetes backs up to QNAP MinIO
-2. QNAP MinIO replicates to AWS S3 automatically
-3. Single backup configuration in Kubernetes (simpler!)
+1. **Immediate**: Velero backs up to Kubernetes MinIO (fast, local)
+2. **Daily**: Kubernetes MinIO syncs files >2 days old to QNAP MinIO
+3. **Weekly**: QNAP MinIO syncs all backups to AWS S3
 
 ## Benefits
 
 - **High Availability**: QNAP Vault is always available for unsealing
-- **Simplified Backups**: One backup job instead of two
-- **Automatic Replication**: MinIO handles S3 sync
-- **Centralized Storage**: All persistent data on QNAP
+- **Tiered Storage**: Recent backups are fast, older ones archived
+- **Cost Efficient**: Only long-term backups go to S3
+- **AWS Credentials**: Stored securely in QNAP Vault, not K8s

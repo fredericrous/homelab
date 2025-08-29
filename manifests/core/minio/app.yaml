@@ -1,0 +1,5 @@
+name: minio
+project: core
+namespace: velero
+path: manifests/core/minio
+syncWave: "-10"  # Deploy before backup app
