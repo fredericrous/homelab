@@ -66,11 +66,16 @@ The `cert/` directory should contain Docker TLS certificates:
 
 Connection uses: `DOCKER_HOST=192.168.1.42:2376`
 
-## Backup Flow
+## Backup Flow & Retention
 
-1. **Immediate**: Velero backs up to Kubernetes MinIO (fast, local)
-2. **Daily**: Kubernetes MinIO syncs files >2 days old to QNAP MinIO
-3. **Weekly**: QNAP MinIO syncs to AWS S3 (keeps only 7 most recent backups)
+1. **Kubernetes MinIO**: Immediate backups, kept for 2-3 days
+2. **QNAP MinIO**: Receives backups >2 days old, keeps 60 days (cleaned daily)
+3. **AWS S3**: Weekly sync from QNAP, keeps only 7 most recent backups
+
+### Retention Summary
+- **K8s MinIO**: ~3 days (before sync to QNAP)
+- **QNAP MinIO**: 60 days (8+ weeks of history)
+- **AWS S3**: 7 backups (~7 weeks if backing up weekly)
 
 ## Benefits
 
