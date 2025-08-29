@@ -10,11 +10,12 @@ configMapGenerator:
 
 resources:
   # Include base resources
-  - ../../base/vault-auth  # For vault-config service account
+  # - ../../base/vault-auth  # Temporarily disabled - requires VSO CRDs
   - ../../base/job-templates
   # App-specific resources
   - namespace.yaml
   - vault-config.yaml
+  - vault-config-serviceaccount.yaml  # Service account for vault-config jobs
   - vault-storage.yaml
   - vault-service.yaml
   - ingress.yaml
