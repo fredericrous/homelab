@@ -17,6 +17,7 @@ resources:
   - vault-config.yaml
   - vault-config-serviceaccount.yaml  # Service account for vault-config jobs
   - vault-storage.yaml
+  - job-vault-force-init.yaml  # Force clean vault data
   - vault-service.yaml
   - ingress.yaml
   - rbac-vault-config-role.yaml

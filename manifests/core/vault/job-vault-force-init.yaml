@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-force-init
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"  # Run with StatefulSet
+spec:
+  template:
+    spec:
+      serviceAccountName: vault
+      restartPolicy: OnFailure
+      initContainers:
+      # Force clean the data directory before Vault starts
+      - name: clean-vault-data
+        image: busybox:1.35
+        command: 
+        - sh
+        - -c
+        - |
+          echo "Forcefully cleaning Vault data directory..."
+          rm -rf /vault/data/*
+          rm -rf /vault/data/.*
+          echo "Vault data directory cleaned"
+        volumeMounts:
+        - name: data
+          mountPath: /vault/data
+      containers:
+      - name: wait-for-clean
+        image: busybox:1.35
+        command: ["sh", "-c", "echo 'Data cleaned, job complete'"]
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: vault-data
