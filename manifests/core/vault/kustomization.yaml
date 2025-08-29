@@ -36,6 +36,51 @@ patches:
       kind: StatefulSet
       name: vault
   
+  # Add sync waves to jobs for proper ordering
+  - target:
+      kind: Job
+      name: secret-copier
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: secret-copier
+        annotations:
+          argocd.argoproj.io/sync-wave: "-1"
+  
+  - target:
+      kind: Job
+      name: vault-unseal
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-unseal
+        annotations:
+          argocd.argoproj.io/sync-wave: "2"
+  
+  - target:
+      kind: Job
+      name: vault-configure
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-configure
+        annotations:
+          argocd.argoproj.io/sync-wave: "3"
+  
+  - target:
+      kind: Job
+      name: vault-populate
+    patch: |-
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: vault-populate
+        annotations:
+          argocd.argoproj.io/sync-wave: "4"
+  
   # Customize the secret copier job from template
   # Keep using the original service account name from the template
   - target:

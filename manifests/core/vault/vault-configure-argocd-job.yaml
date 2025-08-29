@@ -24,9 +24,7 @@ metadata:
   name: vault-configure-argocd
   namespace: vault
   annotations:
-    argocd.argoproj.io/sync-wave: "2"  # Run after vault is initialized
-    argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "5"  # Run after vault is initialized and configured
 spec:
   backoffLimit: 3
   template:
