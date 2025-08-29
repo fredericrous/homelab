@@ -40,14 +40,7 @@ spec:
                 fi
               done
               
-              # Clean up very old backups from K8s MinIO (safety cleanup - 7 days)
-              echo "Cleaning up backups older than 7 days from K8s MinIO..."
-              mc find k8s-minio/velero-backups --older-than 7d | while read -r file; do
-                echo "Removing old file: $file"
-                mc rm "$file"
-              done
-              
-              echo "Sync and cleanup complete!"
+              echo "Sync complete! (Lifecycle policies handle cleanup automatically)"
             env:
             - name: QNAP_MINIO_PASSWORD
               valueFrom:

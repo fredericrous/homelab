@@ -38,25 +38,6 @@ services:
       restart_policy:
         condition: none
 
-  minio-cleanup:
-    image: minio/mc:RELEASE.2024-08-26T10-49-58Z
-    command: ["/scripts/cleanup-old-backups.sh"]
-    environment:
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-changeme123}
-    volumes:
-      - /VMs/minio/scripts:/scripts:ro
-      - /VMs/minio/logs:/logs
-    networks:
-      - minio-net
-    deploy:
-      mode: replicated
-      replicas: 0
-      labels:
-        - "swarm.cronjob.enable=true"
-        - "swarm.cronjob.schedule=0 4 * * *"  # Daily at 4 AM
-        - "swarm.cronjob.skip-running=true"
-      restart_policy:
-        condition: none
 
 networks:
   minio-net:

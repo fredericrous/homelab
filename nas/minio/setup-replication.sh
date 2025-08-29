@@ -37,7 +37,10 @@ mc alias set $S3_ALIAS $S3_ENDPOINT $S3_ACCESS_KEY $S3_SECRET_KEY --api S3v4
 echo "📁 Creating required directories..."
 mkdir -p /VMs/minio/scripts /VMs/minio/logs
 
-echo "✅ QNAP MinIO configured!"
+echo "🗓️ Setting up lifecycle policy..."
+./setup-lifecycle.sh
+
+echo "✅ QNAP MinIO configured with 60-day retention!"
 echo ""
 echo "📅 To enable weekly S3 sync (Sundays at 3 AM):"
 echo "   1. Deploy the cron job stack:"

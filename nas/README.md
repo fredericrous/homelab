@@ -72,10 +72,10 @@ Connection uses: `DOCKER_HOST=192.168.1.42:2376`
 2. **QNAP MinIO**: Receives backups >2 days old, keeps 60 days (cleaned daily)
 3. **AWS S3**: Weekly sync from QNAP, keeps only 7 most recent backups
 
-### Retention Summary
-- **K8s MinIO**: ~3 days (before sync to QNAP)
-- **QNAP MinIO**: 60 days (8+ weeks of history)
-- **AWS S3**: 7 backups (~7 weeks if backing up weekly)
+### Retention Summary (Using MinIO Lifecycle Policies)
+- **K8s MinIO**: 7 days (automatic cleanup via lifecycle policy)
+- **QNAP MinIO**: 60 days (automatic cleanup via lifecycle policy)
+- **AWS S3**: 7 backups (manual cleanup during sync)
 
 ## Benefits
 

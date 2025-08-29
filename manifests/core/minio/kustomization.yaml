@@ -6,3 +6,5 @@ namespace: velero
 resources:
   - minio-deployment.yaml
   - cronjob-sync-to-qnap.yaml
+  - configmap-lifecycle.yaml
+  - job-configure-lifecycle.yaml

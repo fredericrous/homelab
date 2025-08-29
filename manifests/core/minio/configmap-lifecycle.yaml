@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-lifecycle-script
+  namespace: velero
+data:
+  setup-lifecycle.sh: |
+    #!/bin/sh
+    set -e
+    
+    echo "Waiting for MinIO to be ready..."
+    until mc alias set local http://minio:9000 minio minio123; do
+      echo "Waiting for MinIO..."
+      sleep 5
+    done
+    
+    echo "Creating bucket..."
+    mc mb local/velero-backups --ignore-existing
+    
+    echo "Setting up lifecycle policy (7 days retention)..."
+    cat <<'EOF' | mc ilm import local/velero-backups
+    {
+        "Rules": [
+            {
+                "ID": "DeleteOldBackups",
+                "Status": "Enabled",
+                "Expiration": {
+                    "Days": 7
+                },
+                "Filter": {
+                    "Prefix": "backups/"
+                }
+            }
+        ]
+    }
+    EOF
+    
+    echo "Lifecycle policy configured!"
+    mc ilm ls local/velero-backups
