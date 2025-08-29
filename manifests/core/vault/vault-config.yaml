@@ -14,9 +14,14 @@ data:
       cluster_address = "[::]:8201"
     }
     
-    storage "file" {
+    storage "raft" {
       path = "/vault/data"
+      node_id = "vault-0"
     }
+    
+    # Required for Raft storage
+    api_addr = "http://vault.vault.svc.cluster.local:8200"
+    cluster_addr = "http://vault.vault.svc.cluster.local:8201"
     
     # Enable the database secrets engine
     # This will be configured after initialization
@@ -71,6 +76,8 @@ spec:
           value: http://127.0.0.1:8200
         - name: VAULT_API_ADDR
           value: http://vault.vault.svc.cluster.local:8200
+        - name: VAULT_CLUSTER_ADDR
+          value: http://vault.vault.svc.cluster.local:8201
         ports:
         - containerPort: 8200
           name: http

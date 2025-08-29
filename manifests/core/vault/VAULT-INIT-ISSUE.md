@@ -60,7 +60,7 @@ helmCharts:
 ```
 
 ## Current Status
-The issue is a known bug in Vault 1.17.x where file storage incorrectly reports as initialized. There is no `disable_auto_init` parameter for file storage backend - that was an incorrect assumption.
+We have switched from file storage to Raft storage to avoid the known bug in Vault 1.17.x where file storage incorrectly reports as initialized. Raft storage is the recommended production storage backend and doesn't suffer from this initialization bug.
 
 ## Additional Notes
 - The init-vault.sh script is already idempotent and handles recovery scenarios

@@ -75,7 +75,7 @@ Services are organized into:
 1. **CNI**: Cilium (advanced networking, no kube-proxy)
 2. **Storage**: Rook-Ceph (distributed storage) + SMB CSI driver
 3. **Ingress**: HAProxy with mTLS client certificates
-4. **Secrets**: Vault + Vault Secrets Operator (VSO)
+4. **Secrets**: Vault (using Raft storage) + Vault Secrets Operator (VSO)
 5. **Certificates**: cert-manager with OVH DNS-01 webhook
 6. **Database**: CloudNativePG (PostgreSQL operator)
 7. **Identity**: LLDAP + Authelia (authentication/authorization)
@@ -126,6 +126,11 @@ kubectl apply -k manifests/vault/
 
 ### GPU Node
 - GPU patches commented out until fixed
+
+### Vault 1.17.x File Storage Bug
+- Vault 1.17.x has a bug where file storage incorrectly reports as initialized
+- We use Raft storage instead to avoid this issue
+- See manifests/core/vault/VAULT-INIT-ISSUE.md for details
 
 ## Vault Token and Keys
 Vault is automatically initialized by the `job-vault-init.yaml` job, which stores:
