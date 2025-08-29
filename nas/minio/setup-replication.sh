@@ -41,12 +41,6 @@ echo "🗓️ Setting up lifecycle policy..."
 ./setup-lifecycle.sh
 
 echo "✅ QNAP MinIO configured with 60-day retention!"
-echo ""
-echo "📅 To enable weekly S3 sync (Sundays at 3 AM):"
-echo "   1. Deploy the cron job stack:"
-echo "      docker stack deploy -c minio/docker-compose-cron.yml minio-cron"
-echo ""
-echo "   2. The sync will use Vault credentials automatically"
 
 echo ""
 echo "📊 Setup complete! Next steps:"
