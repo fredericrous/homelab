@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-setup-lifecycle
+  namespace: minio
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: setup-lifecycle
+        image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+        command: ["/bin/sh"]
+        args: ["/scripts/setup-lifecycle.sh"]
+        env:
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: minio-root-user
+              key: rootPassword
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: scripts
+        configMap:
+          name: minio-scripts
+          defaultMode: 0755

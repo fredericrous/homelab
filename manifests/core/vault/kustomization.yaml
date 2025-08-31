@@ -3,10 +3,7 @@ kind: Kustomization
 
 namespace: vault
 
-configMapGenerator:
-  - name: vault-init-scripts
-    files:
-      - init-vault.sh=scripts/init-vault.sh
+# ConfigMaps no longer needed with simplified init
 
 resources:
   # Include base resources
@@ -17,13 +14,13 @@ resources:
   - vault-config.yaml
   - vault-config-serviceaccount.yaml  # Service account for vault-config jobs
   - vault-storage.yaml
-  - job-vault-force-init.yaml  # Force clean vault data
+  # - job-vault-force-init.yaml  # Only use if you need to wipe vault data
   - vault-service.yaml
   - ingress.yaml
   - rbac-vault-config-role.yaml
   - rbac-vault-secret-manager.yaml
-  - job-vault-init.yaml
-  # - job-vault-unseal.yaml  # Not needed with transit auto-unseal
+  - job-configure-transit-token.yaml  # Ensures transit token secret exists
+  - job-vault-init-simplified.yaml  # Simplified init for transit unseal
   - vault-configure-argocd-job.yaml  # Configure Vault for ArgoCD after initialization
   # vault-pvc.yaml is duplicate of vault-storage.yaml
 

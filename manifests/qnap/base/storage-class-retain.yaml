@@ -1,0 +1,8 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: qnap-local-retain
+provisioner: rancher.io/local-path
+reclaimPolicy: Retain  # Data survives PVC deletion
+volumeBindingMode: WaitForFirstConsumer
+# Use this for critical data that should survive accidental deletion

@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: minio-s3-sync
+  namespace: minio
+spec:
+  schedule: "0 2 * * 0"  # Every Sunday at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: s3-sync
+            image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+            command: ["/bin/sh"]
+            args: ["/scripts/sync-to-s3.sh"]
+            env:
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root-user
+                  key: rootPassword
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: aws_access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: aws_secret_access_key
+            volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          volumes:
+          - name: scripts
+            configMap:
+              name: minio-scripts
+              defaultMode: 0755

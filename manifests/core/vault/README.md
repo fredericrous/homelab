@@ -1,27 +1,46 @@
 # HashiCorp Vault for Secret Management
 
-Minimal Vault setup for managing PostgreSQL credentials with automatic rotation.
+Vault setup with transit auto-unseal for managing secrets and credentials.
 
 ## Components
 
 - **Vault**: v1.17.6 with file storage backend
+- **Auto-Unseal**: Transit unseal using QNAP Vault
 - **Storage**: 10Gi Rook Ceph volume
-- **UI Access**: NodePort 30200
+- **UI Access**: Via ingress at vault.daddyshome.fr
 
-## Deployment Steps
+## Prerequisites
 
-1. **Deploy Vault**:
+1. **QNAP Vault** must be running and configured for transit unseal
+2. **Transit token secret** must be created:
    ```bash
-   kubectl apply -k .
+   kubectl create secret generic vault-transit-token \
+     --namespace=vault \
+     --from-literal=token=<TOKEN_FROM_QNAP>
    ```
 
-2. **Vault Initialization**:
-   Vault is automatically initialized by the `job-vault-init.yaml` job included in the kustomization.
-   The job stores the unseal key and admin token in Kubernetes secrets.
+## Deployment
 
-3. **Access Vault UI**:
-   - URL: `http://<node-ip>:30200`
-   - Token: Get from secret: `kubectl get secret vault-admin-token -n vault -o jsonpath='{.data.token}' | base64 -d`
+### Via ArgoCD (Recommended)
+
+The Vault application is deployed automatically by ArgoCD with proper ordering:
+1. Transit token validation (PreSync)
+2. Vault deployment
+3. Automatic initialization (PostSync)
+4. Configuration for other apps
+
+### Manual Deployment
+
+```bash
+# Create namespace and transit token secret first
+kubectl create namespace vault
+kubectl create secret generic vault-transit-token \
+  --namespace=vault \
+  --from-literal=token=<TOKEN_FROM_QNAP>
+
+# Deploy Vault
+kubectl apply -k .
+```
 
 ## Getting Credentials
 
@@ -46,15 +65,11 @@ vault kv get secret/<path>
 - Web UI for management
 - Kubernetes authentication integration
 
-## Unsealing Vault
+## Auto-Unseal with Transit
 
-If Vault needs to be unsealed (after pod restart):
-```bash
-# Get unseal key
-UNSEAL_KEY=$(kubectl get secret vault-keys -n vault -o jsonpath='{.data.unseal-key}' | base64 -d)
+Vault uses transit unseal with QNAP Vault, which means:
+- **No manual unsealing required** - Vault auto-unseals on startup
+- **No unseal keys to manage** - QNAP Vault handles the unsealing
+- **Automatic recovery** - Vault recovers automatically after crashes
 
-# Unseal vault
-kubectl exec -n vault vault-0 -- vault operator unseal $UNSEAL_KEY
-```
-
-The `job-vault-unseal.yaml` job will also automatically unseal Vault when deployed.
+For details, see [TRANSIT-UNSEAL-SETUP.md](./TRANSIT-UNSEAL-SETUP.md)

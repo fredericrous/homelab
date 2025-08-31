@@ -1,0 +1,72 @@
+global:
+  enabled: true
+  
+server:
+  image:
+    repository: hashicorp/vault
+    tag: "1.17.6"
+    pullPolicy: IfNotPresent
+
+  # Use file storage backend
+  dataStorage:
+    enabled: true
+    size: 10Gi
+    storageClass: qnap-local
+    accessMode: ReadWriteOnce
+    
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+      
+      listener "tcp" {
+        address = "[::]:8200"
+        cluster_address = "[::]:8201"
+        tls_disable = 1
+      }
+      
+      storage "file" {
+        path = "/vault/data"
+      }
+      
+      # Mlock is not supported in containers
+      disable_mlock = true
+      
+      api_addr = "http://192.168.1.42:8200"
+      cluster_addr = "http://192.168.1.42:8201"
+
+  service:
+    type: NodePort
+    nodePort: 61200
+    port: 8200
+    targetPort: 8200
+
+  ingress:
+    enabled: false
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  readinessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
+  livenessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true"
+    initialDelaySeconds: 60
+
+ui:
+  enabled: true
+  serviceType: "ClusterIP"
+
+injector:
+  enabled: false
+
+# Disable CSI provider as we're using file storage
+csi:
+  enabled: false

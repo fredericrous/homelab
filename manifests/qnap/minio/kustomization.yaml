@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: minio
+
+helmCharts:
+  - name: minio
+    repo: https://charts.min.io/
+    version: 5.4.0
+    releaseName: minio
+    namespace: minio
+    valuesFile: values.yaml
+
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - cronjob-s3-sync.yaml
+  - job-setup-lifecycle.yaml
+
+configMapGenerator:
+  - name: minio-scripts
+    namespace: minio
+    files:
+      - scripts/setup-lifecycle.sh
+      - scripts/sync-to-s3.sh
+
+# Secret minio-root-user is created by deploy script from Vault
+# or manually if Vault is not available

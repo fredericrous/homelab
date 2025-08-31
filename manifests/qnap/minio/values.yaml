@@ -1,0 +1,43 @@
+# MinIO Helm Chart Configuration for QNAP
+mode: standalone
+
+## Root credentials from existing secret
+existingSecret: minio-root-user
+
+## Persistence configuration - use existing PVC
+persistence:
+  enabled: true
+  existingClaim: minio-data
+
+## Service configuration  
+service:
+  type: NodePort
+  port: 9000
+  nodePort: 61900
+
+consoleService:
+  type: NodePort
+  port: 9001
+  nodePort: 61901
+
+## Resource limits
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 1Gi
+    cpu: 500m
+
+## Environment variables
+environment:
+  MINIO_BROWSER_REDIRECT_URL: "http://192.168.1.42:61901"
+  MINIO_SERVER_URL: "http://192.168.1.42:61900"
+
+## Disable things we don't need
+metrics:
+  serviceMonitor:
+    enabled: false
+
+## Single replica for standalone mode
+replicas: 1
