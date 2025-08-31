@@ -92,11 +92,17 @@ timeout 300s sh -c 'while true; do
     # Check Vault health endpoint
     vault_health=$(kubectl exec -n vault vault-0 -- sh -c "vault status -format=json 2>&1 || echo {}" 2>/dev/null || echo "{}")
     if echo "$vault_health" | grep -q "initialized.*true" >/dev/null 2>&1; then
-      echo "✅ Vault is initialized (may be auto-initialized with inaccessible keys)"
+      echo "✅ Vault is initialized"
       if echo "$vault_health" | grep -q "sealed.*false" >/dev/null 2>&1; then
-        echo "✅ Vault is unsealed and ready"
+        echo "✅ Vault is unsealed and ready (likely using transit auto-unseal)"
       else
-        echo "⚠️  Vault is sealed, unseal job should handle this"
+        echo "⚠️  Vault is sealed, checking transit unseal configuration..."
+        # Check if transit token secret exists
+        if kubectl get secret -n vault vault-transit-token >/dev/null 2>&1; then
+          echo "✅ Transit token secret exists, auto-unseal should work"
+        else
+          echo "❌ Transit token secret missing. Run setup-vault-transit-token.sh first"
+        fi
       fi
     fi
     # Exit successfully if secrets exist, even if they are placeholders

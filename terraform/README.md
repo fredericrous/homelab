@@ -16,10 +16,18 @@ This setup uses predefined IP addresses for each VM to ensure consistent network
 
 ## Prerequisites
 
-1. Proxmox VE installed and configured
-2. GPU passthrough configured in Proxmox (for worker-1-gpu)
-3. Talos ISO uploaded to Proxmox ISO storage
-4. Terraform installed locally
+1. **QNAP Services Deployed** (Required for Vault transit unseal):
+   ```bash
+   cd ../nas/
+   ./deploy-k3s-services.sh
+   ./setup-vault-transit-k3s.sh
+   export K8S_VAULT_TRANSIT_TOKEN=<token-from-script>
+   ```
+
+2. Proxmox VE installed and configured
+3. GPU passthrough configured in Proxmox (for worker-1-gpu)
+4. Talos ISO uploaded to Proxmox ISO storage
+5. Terraform and required CLI tools installed locally
 
 ## Usage
 
@@ -41,19 +49,39 @@ Due to Talos requiring nodes to be accessible at their static IPs, deployment is
 #### Automated Deployment (Recommended)
 
 ```bash
-# Run the deployment script
-./deploy.sh
+# Install Taskfile (one-time)
+brew install go-task  # macOS
+# or see https://taskfile.dev/installation/
+
+# Ensure transit token is set (required)
+export K8S_VAULT_TRANSIT_TOKEN=<token-from-qnap>
+
+# Run the deployment
+cd ..
+task deploy
+
+# Or resume from a specific stage (e.g., after a failure)
+task stage7  # Continues from stage 7
 ```
 
-This script will:
+Benefits:
+- **Resumable**: Start from any stage with `task stage7`
+- **Idempotent**: Won't re-run completed stages
+- **Clear status**: `task --list` shows all available tasks
+- **Fail fast** with helpful error messages
+
+
+This will:
 1. Create VMs with predefined MAC addresses
 2. Wait for VMs to boot and get DHCP IPs
 3. Automatically retrieve IPs from Proxmox API using QEMU guest agent
 4. Apply Talos configuration to the DHCP IPs
 5. Wait for nodes to reboot with static IPs
 6. Complete cluster bootstrap and generate kubeconfig
+7. Setup Vault transit auto-unseal
+8. Deploy core services via ArgoCD
 
-The script handles everything automatically - no manual intervention required!
+Taskfile handles everything automatically with resumability - if any stage fails, just run it again!
 
 #### Manual Two-Stage Deployment
 
