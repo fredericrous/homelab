@@ -7,7 +7,6 @@ vars:
   VAULT_ADDR: 'http://192.168.1.42:61200'
 
 env:
-  KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
   VAULT_ADDR: '{{.VAULT_ADDR}}'
 
 tasks:
@@ -19,6 +18,8 @@ tasks:
   deploy:
     desc: Deploy Vault and MinIO to K3s on QNAP
     deps: [check-k3s]
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
       - task: deploy-base
       - task: deploy-vault
@@ -27,6 +28,8 @@ tasks:
 
   check-k3s:
     desc: Verify K3s connectivity
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     preconditions:
       - sh: test -f {{.KUBECONFIG_QNAP}}
         msg: |
