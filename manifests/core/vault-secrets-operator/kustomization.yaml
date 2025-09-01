@@ -24,6 +24,10 @@ helmCharts:
     # Enable CRD upgrades
     crds:
       upgradeCRDs: true
+    # Add sync-wave annotation to all Helm resources (including CRDs)
+    # This ensures they are created before any VSO custom resources
+    commonAnnotations:
+      argocd.argoproj.io/sync-wave: "-10"
     controller:
       manager:
         image:
@@ -31,7 +35,7 @@ helmCharts:
           tag: 0.10.0
 
 patches:
-  # Add sync-wave to VSO resources to ensure they're created after CRDs
+  # Add sync-wave to all VSO custom resources to ensure they're created after Helm chart
   - target:
       group: secrets.hashicorp.com
       version: v1beta1
@@ -40,6 +44,14 @@ patches:
         path: /metadata/annotations
         value:
           argocd.argoproj.io/sync-wave: "10"
+  
+  # Add sync-wave to jobs to run after VSO resources
+  - target:
+      kind: Job
+    patch: |-
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "20"
   
   # Customize the vault auth from base
   - target:
