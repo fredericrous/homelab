@@ -7,7 +7,10 @@ namespace: vault
 
 resources:
   # Include base resources
-  - ../../base/vault-auth  # VSO CRDs will be installed before ArgoCD apps deploy
+  # NOTE: Vault doesn't use vault-auth base because:
+  # 1. It doesn't need VSO to manage its own secrets
+  # 2. This avoids circular dependency (VSO needs Vault, Vault needs VSO CRDs)
+  # 3. Vault uses direct secret mounts and init containers
   - ../../base/job-templates
   # App-specific resources
   - namespace.yaml
