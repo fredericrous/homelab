@@ -19,22 +19,22 @@ This homelab deployment is designed to be as automated as possible, with minimal
 ### 1. Deploy QNAP Services (One-time setup)
 
 ```bash
-cd nas/
-./deploy-k3s-services.sh
+# Deploy Vault and MinIO to QNAP
+task nas:deploy
 
-# After Vault is running, initialize it:
+# Initialize Vault (shows manual commands)
+task nas:vault-init
+
+# After manual initialization:
 export VAULT_ADDR=http://192.168.1.42:61200
-vault operator init -key-shares=1 -key-threshold=1
+export VAULT_TOKEN=<root-token>
 
-# Save the root token and unseal key!
-vault operator unseal <unseal-key>
-vault login <root-token>
+# Setup secrets and transit
+task nas:vault-secrets  # Configure MinIO password and AWS credentials
+task nas:vault-transit  # Setup transit for main cluster
 
-# Setup transit for main cluster (stores token in Vault)
-./setup-vault-transit-k3s.sh
-
-# Optional: Store bootstrap secrets
-./setup-vault-secrets.sh
+# Check status
+task nas:status
 ```
 
 ### 2. Deploy Main Kubernetes Cluster
@@ -118,11 +118,11 @@ vault kv put secret/aws \
 
 ## Deployment Flow
 
-1. **QNAP Setup** (`nas/deploy-k3s-services.sh`)
-   - Deploys K3s
-   - Deploys Vault and MinIO
-   - Creates transit unseal key
-   - Stores transit token
+1. **QNAP Setup** (`task nas:deploy`)
+   - Deploys Vault and MinIO to K3s
+   - `task nas:vault-init` - Initialize Vault manually
+   - `task nas:vault-secrets` - Setup MinIO and AWS credentials
+   - `task nas:vault-transit` - Configure transit unseal
 
 2. **Main Cluster** (`task deploy`)
    - Stage 1-6: Infrastructure setup
@@ -145,8 +145,10 @@ export VAULT_TOKEN=<qnap-root-token>
 vault kv get secret/k8s-transit
 
 # Regenerate if needed
-cd nas/
-./setup-vault-transit-k3s.sh
+task nas:vault-transit
+
+# Check NAS services status
+task nas:status
 ```
 
 ### Vault Not Initializing

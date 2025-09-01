@@ -1,5 +1,10 @@
 version: '3'
 
+includes:
+  nas:
+    taskfile: ./nas/Taskfile.yml
+    dir: ./nas
+
 vars:
   TERRAFORM_DIR: './terraform'
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'

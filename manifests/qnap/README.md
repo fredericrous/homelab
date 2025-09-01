@@ -13,10 +13,13 @@ This directory contains Kubernetes manifests for running Vault and MinIO on QNAP
 ### Deploy Services
 
 ```bash
-# Run deployment script
-./nas/deploy-k3s-services.sh
+# From project root
+task nas:deploy
 
-# The script will:
+# Or from nas directory
+cd nas && task deploy
+
+# The deployment will:
 # 1. Deploy base resources (storage class)
 # 2. Deploy Vault with NodePort 61200
 # 3. Create MinIO password secret (from Vault if available)
@@ -28,7 +31,10 @@ This directory contains Kubernetes manifests for running Vault and MinIO on QNAP
 ### Initialize and Configure Vault
 
 ```bash
-# Initialize Vault with 5 key shares and threshold of 3
+# Show initialization instructions
+task nas:vault-init
+
+# Then run the manual commands:
 export VAULT_ADDR=http://192.168.1.42:61200
 vault operator init -key-shares=5 -key-threshold=3
 
@@ -53,18 +59,18 @@ vault login <root-token>
 # Enable KV secrets engine
 vault secrets enable -path=secret kv-v2
 
-# Setup MinIO password and AWS credentials (recommended)
-./nas/setup-vault-secrets.sh
+# Setup MinIO password and AWS credentials
+task nas:vault-secrets
 
-# Add AWS credentials for MinIO S3 sync (if you have them)
+# The above task will handle:
+# - Generating secure MinIO password
+# - Setting up AWS credentials (interactively or from env)
+# - Creating Kubernetes secrets automatically
+
+# Or manually add credentials:
 vault kv put secret/velero \
   aws_access_key_id=YOUR_AWS_ACCESS_KEY \
   aws_secret_access_key=YOUR_AWS_SECRET
-
-# Create AWS credentials secret for MinIO S3 sync
-kubectl -n minio create secret generic aws-credentials \
-  --from-literal=aws_access_key_id=YOUR_AWS_ACCESS_KEY \
-  --from-literal=aws_secret_access_key=YOUR_AWS_SECRET
 ```
 
 ## Services
@@ -73,6 +79,7 @@ kubectl -n minio create secret generic aws-credentials \
 - **URL**: http://192.168.1.42:61200
 - **Purpose**: Transit unsealing for main Kubernetes cluster Vault
 - **Storage**: File backend on local disk
+- **Transit Setup**: Run `task nas:vault-transit` after initialization
 
 ### MinIO
 - **API URL**: http://192.168.1.42:61900
@@ -126,7 +133,15 @@ kubectl -n minio create secret generic aws-credentials \
 
 ### Check Service Status
 ```bash
-export KUBECONFIG=~/.kube/config-qnap
+# From project root
+task nas:status
+
+# View logs
+task nas:logs -- vault
+task nas:logs -- minio
+
+# Or directly with kubectl
+export KUBECONFIG=nas/kubeconfig.yaml
 kubectl get pods -A
 kubectl -n vault logs -l app.kubernetes.io/name=vault
 kubectl -n minio logs -l app=minio

@@ -40,10 +40,13 @@ K3s is pre-installed by QNAP. The kubeconfig is already available at `kubeconfig
 
 ### Deploy Services
 ```bash
-# Uses existing kubeconfig.yaml
-./deploy-k3s-services.sh
+# From project root directory
+task nas:deploy
 
-# The script will:
+# Or from nas directory
+task deploy
+
+# The task will:
 # - Create MinIO password secret (from Vault if available, or default)
 # - Deploy all services
 # - Setup AWS credentials if available
@@ -51,6 +54,10 @@ K3s is pre-installed by QNAP. The kubeconfig is already available at `kubeconfig
 
 ### Initialize Vault
 ```bash
+# Show initialization instructions
+task nas:vault-init
+
+# Then run the manual commands:
 export VAULT_ADDR=http://192.168.1.42:61200
 
 # Initialize with 5 key shares and threshold of 3
@@ -69,16 +76,11 @@ vault login <root-token>
 # Enable KV secrets engine
 vault secrets enable -path=secret kv-v2
 
-# Setup MinIO password and AWS credentials (recommended)
-./setup-vault-secrets.sh
+# Setup MinIO password and AWS credentials
+task nas:vault-secrets
 
-# Create AWS credentials secret for MinIO S3 sync
-export KUBECONFIG=kubeconfig.yaml
-kubectl -n minio create secret generic aws-credentials \
-  --from-literal=aws_access_key_id=YOUR_KEY \
-  --from-literal=aws_secret_access_key=YOUR_SECRET
-
-# Optional: Store in Vault for other uses
+# AWS credentials will be automatically created if stored in Vault
+# Or manually store them:
 vault kv put secret/velero \
   aws_access_key_id=YOUR_KEY \
   aws_secret_access_key=YOUR_SECRET
@@ -90,8 +92,8 @@ vault kv put secret/velero \
 export VAULT_ADDR=http://192.168.1.42:61200
 export VAULT_TOKEN=<root-token>
 
-./setup-vault-transit-k3s.sh
-# Save the generated token for Terraform deployment
+task nas:vault-transit
+# The transit token is automatically stored in Vault at secret/k8s-transit
 ```
 
 #### Why 5 keys with threshold 3?
@@ -139,10 +141,16 @@ export VAULT_TOKEN=<root-token>
 
 ### Check Status
 ```bash
+# Check overall status
+task nas:status
+
+# View logs
+task nas:logs -- vault
+task nas:logs -- minio
+
+# Direct kubectl commands
 export KUBECONFIG=kubeconfig.yaml
 kubectl get pods -A
-kubectl -n vault logs -l app.kubernetes.io/name=vault
-kubectl -n minio logs -l app=minio
 
 # Check cronjob status
 kubectl get cronjob -n minio
@@ -161,15 +169,16 @@ vault token renew <transit-token>
 
 ## Files
 
-- `deploy-k3s-services.sh`: Service deployment script
-  - Deploys base resources, Vault, and MinIO
-  - Checks for AWS credentials and creates secret if available
-  - Provides post-deployment instructions
-- `setup-vault-secrets.sh`: Configure Vault secrets
-  - Generates secure MinIO password
-  - Sets up AWS credentials for S3 sync
-  - Creates Kubernetes secrets if services are deployed
-- `setup-vault-transit-k3s.sh`: Transit unseal configuration
+- `Taskfile.yml`: Task automation for all NAS operations
+  - `task deploy`: Deploy Vault and MinIO
+  - `task vault-init`: Initialize Vault instructions
+  - `task vault-secrets`: Configure secrets
+  - `task vault-transit`: Setup transit unseal
+  - `task status`: Check services status
+  - `task logs`: View service logs
+- `deploy-k3s-services.sh`: Service deployment script (wrapped by Taskfile)
+- `setup-vault-secrets.sh`: Configure Vault secrets (wrapped by Taskfile)
+- `setup-vault-transit-k3s.sh`: Transit unseal configuration (wrapped by Taskfile)
 - `kubeconfig.yaml`: K3s cluster configuration (provided by QNAP)
 - `minio/scripts/`: Shell scripts for MinIO jobs
   - `setup-lifecycle.sh`: Configures 60-day retention policy

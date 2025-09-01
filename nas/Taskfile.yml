@@ -1,0 +1,295 @@
+version: '3'
+
+vars:
+  KUBECONFIG_QNAP: '{{.ROOT_DIR}}/kubeconfig.yaml'
+  MANIFESTS_DIR: '{{.ROOT_DIR}}/../manifests/qnap'
+  VAULT_ADDR: 'http://192.168.1.42:61200'
+
+env:
+  KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+  VAULT_ADDR: '{{.VAULT_ADDR}}'
+
+tasks:
+  default:
+    desc: Deploy K3s services to QNAP
+    cmds:
+      - task: deploy
+
+  deploy:
+    desc: Deploy Vault and MinIO to K3s on QNAP
+    deps: [check-k3s]
+    cmds:
+      - task: deploy-base
+      - task: deploy-vault
+      - task: deploy-minio
+      - task: post-deploy
+
+  check-k3s:
+    desc: Verify K3s connectivity
+    preconditions:
+      - sh: test -f {{.KUBECONFIG_QNAP}}
+        msg: |
+          QNAP kubeconfig not found at {{.KUBECONFIG_QNAP}}
+          Please install K3s on QNAP first and copy the kubeconfig
+      - sh: kubectl get nodes &>/dev/null
+        msg: |
+          Cannot connect to K3s cluster
+          Check if K3s is running and kubeconfig is correct
+    cmds:
+      - echo "✅ Connected to K3s cluster"
+      - kubectl get nodes
+
+  deploy-base:
+    desc: Deploy base resources
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - echo "📦 Deploying base resources..."
+      - kubectl apply -k {{.MANIFESTS_DIR}}/base
+    status:
+      - kubectl get namespace vault 2>/dev/null
+
+  deploy-vault:
+    desc: Deploy Vault
+    dir: '{{.ROOT_DIR}}'
+    deps: [deploy-base]
+    cmds:
+      - echo "📦 Deploying Vault..."
+      - kubectl kustomize {{.MANIFESTS_DIR}}/vault --enable-helm | kubectl apply -f -
+      - echo "⏳ Waiting for Vault to be ready..."
+      - kubectl -n vault wait --for=condition=ready pod -l app.kubernetes.io/name=vault --timeout=300s
+    status:
+      - kubectl get statefulset -n vault vault 2>/dev/null | grep -q "1/1"
+
+  deploy-minio:
+    desc: Deploy MinIO
+    dir: '{{.ROOT_DIR}}'
+    deps: [deploy-vault]
+    cmds:
+      - kubectl create namespace minio --dry-run=client -o yaml | kubectl apply -f -
+      - task: ensure-minio-secret
+      - echo "📦 Deploying MinIO..."
+      - kubectl kustomize {{.MANIFESTS_DIR}}/minio --enable-helm | kubectl apply -f -
+      - echo "⏳ Waiting for MinIO to be ready..."
+      - kubectl -n minio wait --for=condition=ready pod -l app=minio --timeout=300s
+    status:
+      - kubectl get deployment -n minio minio 2>/dev/null | grep -q "1/1"
+
+  ensure-minio-secret:
+    desc: Ensure MinIO root user secret exists
+    vars:
+      HAS_SECRET:
+        sh: kubectl -n minio get secret minio-root-user &>/dev/null && echo "true" || echo "false"
+    cmds:
+      - |
+        if [ "{{.HAS_SECRET}}" = "false" ]; then
+          echo "🔐 Creating MinIO root user secret..."
+          
+          # Try to get password from Vault
+          if vault status &>/dev/null 2>&1 && vault kv get secret/minio &>/dev/null 2>&1; then
+            echo "  Using password from Vault"
+            MINIO_ROOT_PASSWORD=$(vault kv get -field=root_password secret/minio)
+          else
+            echo "  ⚠️  Vault not available, using default password"
+            echo "     Run 'task vault-secrets' after Vault is ready to secure it"
+            MINIO_ROOT_PASSWORD="changeme123"
+          fi
+          
+          kubectl -n minio create secret generic minio-root-user \
+            --from-literal=rootUser=admin \
+            --from-literal=rootPassword="$MINIO_ROOT_PASSWORD"
+        else
+          echo "✅ MinIO root user secret already exists"
+        fi
+    silent: true
+
+  post-deploy:
+    desc: Post-deployment configuration
+    cmds:
+      - task: create-aws-secret
+      - task: show-info
+
+  create-aws-secret:
+    desc: Create AWS credentials secret if available
+    vars:
+      HAS_SECRET:
+        sh: kubectl -n minio get secret aws-credentials &>/dev/null && echo "true" || echo "false"
+      VAULT_READY:
+        sh: vault status &>/dev/null 2>&1 && echo "true" || echo "false"
+    cmds:
+      - |
+        if [ "{{.HAS_SECRET}}" = "false" ] && [ "{{.VAULT_READY}}" = "true" ]; then
+          if vault kv get secret/velero &>/dev/null 2>&1; then
+            echo "📦 Creating AWS credentials secret from Vault..."
+            AWS_KEY=$(vault kv get -field=aws_access_key_id secret/velero)
+            AWS_SECRET=$(vault kv get -field=aws_secret_access_key secret/velero)
+            
+            kubectl -n minio create secret generic aws-credentials \
+              --from-literal=aws_access_key_id="$AWS_KEY" \
+              --from-literal=aws_secret_access_key="$AWS_SECRET"
+            echo "✅ AWS credentials secret created from Vault"
+          else
+            echo "⚠️  AWS credentials not in Vault. Run 'task vault-secrets' to configure"
+          fi
+        fi
+    silent: true
+
+  vault-init:
+    desc: Initialize Vault (first time only)
+    preconditions:
+      - sh: kubectl get statefulset -n vault vault &>/dev/null
+        msg: "Vault not deployed yet. Run 'task deploy' first"
+    cmds:
+      - |
+        if kubectl -n vault get secret vault-keys &>/dev/null 2>&1; then
+          echo "✅ Vault is already initialized"
+          exit 0
+        fi
+        
+        echo "🔐 Initializing Vault..."
+        echo ""
+        echo "Run these commands manually:"
+        echo ""
+        echo "export VAULT_ADDR={{.VAULT_ADDR}}"
+        echo "vault operator init -key-shares=5 -key-threshold=3"
+        echo ""
+        echo "⚠️  SAVE ALL 5 unseal keys and the root token!"
+        echo ""
+        echo "Then unseal Vault:"
+        echo "vault operator unseal <key-1>"
+        echo "vault operator unseal <key-2>"
+        echo "vault operator unseal <key-3>"
+        echo ""
+        echo "Login with root token:"
+        echo "vault login <root-token>"
+        echo ""
+        echo "Enable KV v2 secrets engine:"
+        echo "vault secrets enable -path=secret kv-v2"
+        echo ""
+        echo "Then run:"
+        echo "  task vault-secrets     # Setup MinIO password and AWS credentials"
+        echo "  task vault-transit     # Configure transit unseal for main K8s"
+
+  vault-secrets:
+    desc: Setup Vault secrets for MinIO and AWS
+    dir: '{{.ROOT_DIR}}'
+    preconditions:
+      - sh: vault status &>/dev/null
+        msg: |
+          Vault is not accessible at {{.VAULT_ADDR}}
+          Make sure Vault is unsealed and you're logged in
+      - sh: vault token lookup &>/dev/null
+        msg: |
+          Not authenticated to Vault
+          Run: vault login <root-token>
+    cmds:
+      - ./setup-vault-secrets.sh
+
+  vault-transit:
+    desc: Setup Vault transit unseal for main K8s cluster
+    dir: '{{.ROOT_DIR}}'
+    preconditions:
+      - sh: vault status &>/dev/null
+        msg: |
+          Vault is not accessible at {{.VAULT_ADDR}}
+          Make sure Vault is unsealed and you're logged in
+      - sh: vault token lookup &>/dev/null
+        msg: |
+          Not authenticated to Vault
+          Run: vault login <root-token>
+    cmds:
+      - ./setup-vault-transit-k3s.sh
+      - |
+        echo ""
+        echo "✅ Transit token stored in Vault"
+        echo ""
+        echo "To deploy main cluster, run from project root:"
+        echo "  export QNAP_VAULT_TOKEN=<your-qnap-root-token>"
+        echo "  task deploy"
+
+  show-info:
+    desc: Show deployment information
+    vars:
+      VAULT_INITIALIZED:
+        sh: kubectl -n vault get secret vault-keys &>/dev/null 2>&1 && echo "true" || echo "false"
+      MINIO_PASSWORD:
+        sh: |
+          if vault status &>/dev/null 2>&1 && vault kv get secret/minio &>/dev/null 2>&1; then
+            echo "(stored in Vault at secret/minio)"
+          else
+            echo "changeme123 (default - run 'task vault-secrets' to secure)"
+          fi
+    cmds:
+      - |
+        echo ""
+        echo "✅ Deployment complete!"
+        echo ""
+        echo "📋 Service URLs:"
+        echo "  - Vault: {{.VAULT_ADDR}}"
+        echo "  - MinIO API: http://192.168.1.42:61900"
+        echo "  - MinIO Console: http://192.168.1.42:61901"
+        echo ""
+        echo "📦 MinIO credentials:"
+        echo "  Username: admin"
+        echo "  Password: {{.MINIO_PASSWORD}}"
+        if [ "{{.VAULT_INITIALIZED}}" = "false" ]; then
+          echo ""
+          echo "🔐 Next step: Initialize Vault"
+          echo "  task vault-init"
+        fi
+
+  status:
+    desc: Check status of QNAP services
+    cmds:
+      - echo "🔍 Checking QNAP services status..."
+      - echo ""
+      - echo "K3s nodes:"
+      - kubectl get nodes || echo "K3s not accessible"
+      - echo ""
+      - echo "Vault:"
+      - kubectl get pods -n vault 2>/dev/null || echo "Vault not deployed"
+      - |
+        if vault status &>/dev/null 2>&1; then
+          echo "Vault status: ✅ Accessible"
+        else
+          echo "Vault status: ❌ Not accessible or sealed"
+        fi
+      - echo ""
+      - echo "MinIO:"
+      - kubectl get pods -n minio 2>/dev/null || echo "MinIO not deployed"
+      - echo ""
+      - echo "Secrets:"
+      - |
+        echo -n "  MinIO password: "
+        kubectl -n minio get secret minio-root-user &>/dev/null && echo "✅" || echo "❌"
+        echo -n "  AWS credentials: "
+        kubectl -n minio get secret aws-credentials &>/dev/null && echo "✅" || echo "❌"
+        echo -n "  Transit token: "
+        vault kv get secret/k8s-transit &>/dev/null 2>&1 && echo "✅ (in Vault)" || echo "❌"
+
+  logs:
+    desc: Show logs for a service
+    vars:
+      SERVICE: '{{.CLI_ARGS}}'
+    cmds:
+      - |
+        case {{.SERVICE}} in
+          vault)
+            kubectl logs -n vault -l app.kubernetes.io/name=vault --tail=50
+            ;;
+          minio)
+            kubectl logs -n minio -l app=minio --tail=50
+            ;;
+          *)
+            echo "Usage: task logs -- [vault|minio]"
+            ;;
+        esac
+
+  clean:
+    desc: Remove all QNAP services
+    prompt: This will DELETE all services and data. Are you sure?
+    cmds:
+      - kubectl delete -k {{.MANIFESTS_DIR}}/minio --ignore-not-found
+      - kubectl delete -k {{.MANIFESTS_DIR}}/vault --ignore-not-found
+      - kubectl delete -k {{.MANIFESTS_DIR}}/base --ignore-not-found
+      - kubectl delete namespace minio vault --ignore-not-found
+      - echo "✅ All services removed"
