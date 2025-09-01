@@ -4,7 +4,6 @@ kind: Kustomization
 namespace: haproxy-controller
 
 resources:
-  - ../../base/vault-connection
   - ../../base/vault-auth
   - haproxy-ingress.yaml
   - ingressclass.yaml
