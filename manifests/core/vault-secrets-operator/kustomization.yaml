@@ -1,14 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+namespace: vault-secrets-operator
+
 resources:
   # Include shared vault auth base (for vault-config service account)
   - ../../base/vault-auth
   # App-specific resources (VSO doesn't need job-templates)
-  # - job-install-crds.yaml  # Not needed - Helm v3 installs CRDs automatically
   - job-vault-configure-vso.yaml
   - job-configure-default-vault-access.yaml  # Configure default namespace access
-  # - vault-secret-sync.yaml  # Replaced by smb-credentials-vso.yaml
   - smb-credentials-vso.yaml  # VSO resource for SMB credentials
   - vault-auth-global.yaml
 
@@ -17,9 +17,11 @@ helmCharts:
 - name: vault-secrets-operator
   repo: https://helm.releases.hashicorp.com
   version: 0.10.0
-  namespace: vault-secrets-operator-system
+  namespace: vault-secrets-operator
   releaseName: vault-secrets-operator
   valuesInline:
+    # Explicitly enable CRD installation
+    installCRDs: true
     controller:
       manager:
         image:
@@ -27,6 +29,16 @@ helmCharts:
           tag: 0.10.0
 
 patches:
+  # Add sync-wave to VSO resources to ensure they're created after CRDs
+  - target:
+      group: secrets.hashicorp.com
+      version: v1beta1
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          argocd.argoproj.io/sync-wave: "10"
+  
   # Customize the vault auth from base
   - target:
       kind: VaultAuth
@@ -36,11 +48,13 @@ patches:
       kind: VaultAuth
       metadata:
         name: vault-auth
-        namespace: vault-secrets-operator-system
+        namespace: vault-secrets-operator
+        annotations:
+          argocd.argoproj.io/sync-wave: "10"
       spec:
         kubernetes:
           role: vault-secrets-operator
-          serviceAccount: vault-secrets-operator
+          serviceAccount: vault-secrets-operator-controller-manager
   
   # Customize the RBAC for vault token reader
   - target:
@@ -56,5 +70,5 @@ patches:
       subjects:
       - kind: ServiceAccount
         name: vault-config
-        namespace: vault-secrets-operator-system
+        namespace: vault-secrets-operator
   

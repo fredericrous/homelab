@@ -2,7 +2,7 @@ apiVersion: secrets.hashicorp.com/v1beta1
 kind: VaultAuthGlobal
 metadata:
   name: default
-  namespace: vault-secrets-operator-system
+  namespace: vault-secrets-operator
 spec:
   defaultAuthMethod: kubernetes
   defaultMount: kubernetes
@@ -12,4 +12,4 @@ spec:
   kubernetes:
     role: vault-secrets-operator
     serviceAccount: vault-secrets-operator-controller-manager
-    namespace: vault-secrets-operator-system
+    namespace: vault-secrets-operator
