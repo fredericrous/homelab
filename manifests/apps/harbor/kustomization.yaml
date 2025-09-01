@@ -6,8 +6,8 @@ namespace: harbor
 resources:
   # Include shared vault auth base
   - ../../base/vault-auth
-  # Include job templates
-  - ../../base/job-templates
+  # Include job templates (without secret-copier)
+  # - ../../base/job-templates  # Removed - using VSO for secrets
   # App-specific resources
   - namespace.yaml
   - harbor-serviceaccount.yaml
@@ -18,6 +18,7 @@ resources:
   - harbor-database-secret.yaml
   - harbor-registry-secret.yaml
   - harbor-registry-vault-secret.yaml
+  - ovh-credentials-vso.yaml  # VSO resource for OVH credentials
   - harbor-vault-populate-job.yaml
   - harbor-registry-config-job.yaml
   - harbor-ingress.yaml
@@ -92,6 +93,9 @@ patches:
                   path "secret/data/postgres/superuser" {
                     capabilities = ["read"]
                   }
+                  path "secret/data/ovh-dns" {
+                    capabilities = ["read"]
+                  }
               - name: VAULT_ROLE_NAME
                 value: "harbor"
               - name: VAULT_ROLE_SERVICE_ACCOUNTS
@@ -99,65 +103,7 @@ patches:
               - name: VAULT_ROLE_NAMESPACES
                 value: "harbor"
 
-  # Customize the secret copier job from template
-  - target:
-      kind: ServiceAccount
-      name: secret-copier
-    patch: |-
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: secret-copier
-        namespace: harbor
-  
-  - target:
-      kind: ClusterRole
-      name: PLACEHOLDER-secret-copier
-    patch: |-
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRole
-      metadata:
-        name: harbor-secret-copier
-  
-  - target:
-      kind: ClusterRoleBinding
-      name: PLACEHOLDER-secret-copier
-    patch: |-
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRoleBinding
-      metadata:
-        name: harbor-secret-copier
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: ClusterRole
-        name: harbor-secret-copier
-      subjects:
-      - kind: ServiceAccount
-        name: secret-copier
-        namespace: harbor
-  
-  - target:
-      kind: Job
-      name: secret-copier
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: secret-copier
-        namespace: harbor
-      spec:
-        template:
-          spec:
-            serviceAccountName: secret-copier
-            containers:
-            - name: secret-copier
-              env:
-              - name: SOURCE_SECRET
-                value: ovh-credentials
-              - name: SOURCE_NAMESPACE
-                value: cert-manager
-              - name: TARGET_NAMESPACE
-                value: harbor
+  # Secret-copier removed - using VSO to pull ovh-credentials directly from Vault
 
 helmCharts:
 - name: harbor

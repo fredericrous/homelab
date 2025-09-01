@@ -94,7 +94,7 @@ patches:
                 value: cert-manager
               - name: POLICY_CONTENT
                 value: |
-                  path "secret/data/cert-manager/*" {
+                  path "secret/data/ovh-dns" {
                     capabilities = ["read"]
                   }
   
@@ -132,9 +132,9 @@ patches:
                   
                   # Check and populate OVH credentials
                   echo "Checking OVH credentials..."
-                  if ! vault kv get secret/cert-manager/ovh >/dev/null 2>&1; then
+                  if ! vault kv get secret/ovh-dns >/dev/null 2>&1; then
                     echo "Creating OVH credentials in Vault..."
-                    vault kv put secret/cert-manager/ovh \
+                    vault kv put secret/ovh-dns \
                       applicationKey="d39425a1639ab4e3" \
                       applicationSecret="8c9ea952ea25221013cd4ce74544f4c4" \
                       consumerKey="3bb32020644c9f3ad302645992284df7"

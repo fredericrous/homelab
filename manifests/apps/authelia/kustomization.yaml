@@ -6,8 +6,8 @@ namespace: authelia
 resources:
   # Include shared vault auth base
   - ../../base/vault-auth
-  # Include job templates
-  - ../../base/job-templates
+  # Include job templates (without secret-copier)
+  # - ../../base/job-templates  # Removed - using VSO for secrets
   # App-specific resources
   - namespace.yaml
   # - job-vault-configure-authelia.yaml  # Now using job-templates base
@@ -17,6 +17,7 @@ resources:
   # - secrets.yaml  # Replaced by VaultStaticSecret in vault-secret-sync.yaml
   - vault-secret-sync.yaml
   - postgres-superuser-secret.yaml
+  - ovh-credentials-vso.yaml  # VSO resource for OVH credentials
   - configmap.yaml
   - ca-configmap.yaml
   - ca-certificates-secret.yaml
@@ -108,6 +109,9 @@ patches:
                   path "secret/data/postgres/superuser" {
                     capabilities = ["read"]
                   }
+                  path "secret/data/ovh-dns" {
+                    capabilities = ["read"]
+                  }
   
   # Customize the vault populate job from template
   - target:
@@ -150,62 +154,4 @@ patches:
                   
                   echo "Authelia secrets successfully populated in Vault"
   
-  # Customize the secret copier job from template
-  - target:
-      kind: ServiceAccount
-      name: secret-copier
-    patch: |-
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: secret-copier
-        namespace: authelia
-  
-  - target:
-      kind: ClusterRole
-      name: PLACEHOLDER-secret-copier
-    patch: |-
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRole
-      metadata:
-        name: authelia-secret-copier
-  
-  - target:
-      kind: ClusterRoleBinding
-      name: PLACEHOLDER-secret-copier
-    patch: |-
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRoleBinding
-      metadata:
-        name: authelia-secret-copier
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: ClusterRole
-        name: authelia-secret-copier
-      subjects:
-      - kind: ServiceAccount
-        name: secret-copier
-        namespace: authelia
-  
-  - target:
-      kind: Job
-      name: secret-copier
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: secret-copier
-        namespace: authelia
-      spec:
-        template:
-          spec:
-            serviceAccountName: secret-copier
-            containers:
-            - name: secret-copier
-              env:
-              - name: SOURCE_SECRET
-                value: ovh-credentials
-              - name: SOURCE_NAMESPACE
-                value: cert-manager
-              - name: TARGET_NAMESPACE
-                value: authelia
+  # Secret-copier removed - using VSO to pull ovh-credentials directly from Vault

@@ -4,7 +4,7 @@ kind: Kustomization
 resources:
   - job-vault-configure-v2.yaml
   - job-vault-populate-v2.yaml
-  - job-secret-copier.yaml
+  # - job-secret-copier.yaml  # Removed - using VSO instead
   # - job-vault-configure-template.yaml  # Replaced by v2
   # - job-vault-populate-template.yaml  # Replaced by v2
   # - job-db-init-template.yaml  # TODO: Create v2 version
