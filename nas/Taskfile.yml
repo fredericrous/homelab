@@ -489,36 +489,30 @@ tasks:
     prompt: This will DELETE all services and data. Are you sure?
     cmds:
       - echo "🧹 Cleaning up K3s cluster on QNAP..."
-      - |
-        # Delete MinIO
-        if kubectl get namespace minio &>/dev/null 2>&1; then
-          echo "  Deleting MinIO..."
-          kubectl delete namespace minio --timeout=60s || true
-        fi
-      - |
-        # Delete Vault
-        if kubectl get namespace vault &>/dev/null 2>&1; then
-          echo "  Deleting Vault..."
-          kubectl delete namespace vault --timeout=60s || true
-        fi
-      - |
-        # Delete storage class
-        if kubectl get storageclass qnap-local &>/dev/null 2>&1; then
-          echo "  Deleting storage class..."
-          kubectl delete storageclass qnap-local || true
-        fi
-      - |
-        # Clean up any PVs that might be stuck
-        echo "🗑️  Cleaning up persistent volumes..."
-        kubectl get pv -o name | xargs -r kubectl delete --timeout=30s || true
+      - cmd: kubectl delete namespace minio --timeout=60s --ignore-not-found=true
+        ignore_error: true
+      - cmd: kubectl delete namespace vault --timeout=60s --ignore-not-found=true
+        ignore_error: true
+      - cmd: kubectl delete storageclass qnap-local --ignore-not-found=true
+        ignore_error: true
+      - cmd: kubectl delete pv --all --timeout=30s
+        ignore_error: true
       - |
         # Wait for namespaces to be fully deleted
         echo "⏳ Waiting for namespaces to be deleted..."
-        while kubectl get namespace minio &>/dev/null 2>&1 || kubectl get namespace vault &>/dev/null 2>&1; do
-          echo "  Still deleting namespaces..."
+        MAX_WAIT=60
+        COUNTER=0
+        while [ $COUNTER -lt $MAX_WAIT ]; do
+          if ! kubectl get namespace minio &>/dev/null 2>&1 && ! kubectl get namespace vault &>/dev/null 2>&1; then
+            echo "✅ Namespaces deleted"
+            break
+          fi
+          echo "  Still deleting namespaces... ($COUNTER/$MAX_WAIT)"
           sleep 5
-        done || true
+          COUNTER=$((COUNTER + 5))
+        done
       - |
+        echo ""
         echo "✅ K3s cluster cleaned up!"
         echo ""
         echo "📋 Next steps:"
