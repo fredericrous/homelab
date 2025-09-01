@@ -34,6 +34,7 @@ tasks:
       - task: stage8-post
       - task: stage9
       - task: stage10
+      - task: stage11
     
   prereq:
     desc: Pre-flight checks
@@ -214,6 +215,10 @@ tasks:
     desc: "Stage 8.5: Vault post-initialization tasks"
     dir: '{{.TERRAFORM_DIR}}'
     deps: [stage8]
+    env:
+      OVH_APPLICATION_KEY: '{{.OVH_APPLICATION_KEY}}'
+      OVH_APPLICATION_SECRET: '{{.OVH_APPLICATION_SECRET}}'
+      OVH_CONSUMER_KEY: '{{.OVH_CONSUMER_KEY}}'
     cmds:
       - 'echo "🔐 Stage 8.5: Running Vault post-initialization tasks..."'
       - './scripts/vault-post-init.sh "{{.KUBECONFIG}}"'
@@ -238,6 +243,18 @@ tasks:
       - 'kubectl get nodes'
       - 'echo ""'
       - 'kubectl get pods -n argocd'
+
+  stage11:
+    desc: "Stage 11: Post-deployment fixes"
+    dir: '{{.TERRAFORM_DIR}}'
+    deps: [stage10]
+    env:
+      OVH_APPLICATION_KEY: '{{.OVH_APPLICATION_KEY}}'
+      OVH_APPLICATION_SECRET: '{{.OVH_APPLICATION_SECRET}}'
+      OVH_CONSUMER_KEY: '{{.OVH_CONSUMER_KEY}}'
+    cmds:
+      - 'echo "🔧 Stage 11: Running post-deployment fixes..."'
+      - './scripts/post-deployment-fixes.sh "{{.KUBECONFIG}}"'
       - |
         echo ""
         echo "🎉 Deployment complete!"
@@ -249,6 +266,11 @@ tasks:
         echo ""
         echo "To check cluster health:"
         echo "  talosctl -n 192.168.1.67 health"
+        echo ""
+        echo "Access ArgoCD:"
+        echo "  URL: https://argocd.daddyshome.fr"
+        echo "  Username: admin"
+        echo "  Password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
 
   # Helper tasks
   terraform-init:

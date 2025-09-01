@@ -15,8 +15,11 @@ spec:
           solverName: ovh
           config:
             endpoint: ovh-eu
-            # applicationKey is read from ovh-credentials secret
+            # Application key must be provided in the config
+            # Get it from OVH API: https://eu.api.ovh.com/createApp/
+            applicationKey: "REPLACE_WITH_YOUR_APP_KEY"
             applicationSecretRef:
               key: applicationSecret
               name: ovh-credentials
-            # consumerKey is read from ovh-credentials secret
+            # Consumer key must be provided in the config
+            consumerKey: "REPLACE_WITH_YOUR_CONSUMER_KEY"

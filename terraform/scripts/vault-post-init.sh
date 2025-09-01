@@ -103,7 +103,18 @@ vault write auth/kubernetes/role/haproxy-ingress \
 
 echo "✅ Configured haproxy-ingress role"
 
-# Additional vault initialization tasks can be added here
-# For example, creating other policies, enabling auth methods, etc.
+# Store OVH credentials if provided
+if [ -n "$OVH_APPLICATION_KEY" ] && [ -n "$OVH_APPLICATION_SECRET" ] && [ -n "$OVH_CONSUMER_KEY" ]; then
+  echo "📤 Storing OVH credentials in Vault..."
+  vault kv put secret/ovh-dns \
+    applicationKey="$OVH_APPLICATION_KEY" \
+    applicationSecret="$OVH_APPLICATION_SECRET" \
+    consumerKey="$OVH_CONSUMER_KEY" || {
+    echo "⚠️  Failed to store OVH credentials in Vault"
+  }
+  echo "✅ OVH credentials stored in Vault"
+else
+  echo "ℹ️  OVH credentials not provided. Set OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, and OVH_CONSUMER_KEY to store them."
+fi
 
 echo "✅ Vault post-initialization tasks completed successfully"
