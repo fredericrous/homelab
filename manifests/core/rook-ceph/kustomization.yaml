@@ -12,9 +12,12 @@ helmCharts:
   valuesInline:
     crds:
       enabled: true
+    # CSI Settings for 2-node cluster
     csi:
-      # Set replicas to 2 for 2-node cluster
       provisionerReplicas: 2
+      enableRbdDriver: true
+      enableCephfsDriver: true
+      # Set the CSI driver provisioner replicas to 2
       csiRBDProvisionerResource: |
         limits:
           memory: 256Mi
