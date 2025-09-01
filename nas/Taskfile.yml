@@ -172,8 +172,8 @@ tasks:
         echo "vault secrets enable -path=secret kv-v2"
         echo ""
         echo "Then run:"
-        echo "  task vault-secrets     # Setup MinIO password and AWS credentials"
-        echo "  task vault-transit     # Configure transit unseal for main K8s"
+        echo "  task nas:vault-secrets     # Setup MinIO password and AWS credentials"
+        echo "  task nas:vault-transit     # Configure transit unseal for main K8s"
 
   vault-secrets:
     desc: Setup Vault secrets for MinIO and AWS
@@ -428,7 +428,7 @@ tasks:
         echo "📦 MinIO credentials:"
         echo "  Username: admin"
         echo "  Password: {{.MINIO_PASSWORD}}"
-        
+
         # Check Vault initialization status
         if ! kubectl -n vault get secret vault-keys &>/dev/null 2>&1; then
           echo ""

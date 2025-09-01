@@ -185,6 +185,7 @@ tasks:
       - |
         # Bootstrap secrets for cert-manager and other services
         echo "🔐 Bootstrapping placeholder secrets..."
+        echo "Using KUBECONFIG: ${KUBECONFIG}"
         kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
         
         if ! kubectl get secret ovh-credentials -n cert-manager &>/dev/null; then
