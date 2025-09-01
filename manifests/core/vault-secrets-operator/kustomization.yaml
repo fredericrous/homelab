@@ -19,9 +19,11 @@ helmCharts:
   version: 0.10.0
   namespace: vault-secrets-operator
   releaseName: vault-secrets-operator
+  includeCRDs: true  # Helm v3 - include CRDs in the installation
   valuesInline:
-    # Explicitly enable CRD installation
-    installCRDs: true
+    # Enable CRD upgrades
+    crds:
+      upgradeCRDs: true
     controller:
       manager:
         image:
