@@ -1,8 +1,9 @@
 version: '3'
 
 vars:
-  KUBECONFIG_QNAP: '{{.ROOT_DIR}}/kubeconfig.yaml'
-  MANIFESTS_DIR: '{{.ROOT_DIR}}/../manifests/qnap'
+  TASK_DIR: '{{.TASKFILE_DIR}}'
+  KUBECONFIG_QNAP: '{{.TASK_DIR}}/kubeconfig.yaml'
+  MANIFESTS_DIR: '{{.TASK_DIR}}/../manifests/qnap'
   VAULT_ADDR: 'http://192.168.1.42:61200'
 
 env:
@@ -49,7 +50,6 @@ tasks:
 
   deploy-base:
     desc: Deploy base resources
-    dir: '{{.ROOT_DIR}}'
     cmds:
       - echo "📦 Deploying base resources..."
       - kubectl apply -k {{.MANIFESTS_DIR}}/base
@@ -58,7 +58,6 @@ tasks:
 
   deploy-vault:
     desc: Deploy Vault
-    dir: '{{.ROOT_DIR}}'
     deps: [deploy-base]
     cmds:
       - echo "📦 Deploying Vault..."
@@ -70,7 +69,6 @@ tasks:
 
   deploy-minio:
     desc: Deploy MinIO
-    dir: '{{.ROOT_DIR}}'
     deps: [deploy-vault]
     cmds:
       - kubectl create namespace minio --dry-run=client -o yaml | kubectl apply -f -
@@ -179,7 +177,6 @@ tasks:
 
   vault-secrets:
     desc: Setup Vault secrets for MinIO and AWS
-    dir: '{{.ROOT_DIR}}'
     preconditions:
       - sh: vault status &>/dev/null
         msg: |
@@ -307,7 +304,6 @@ tasks:
 
   vault-transit:
     desc: Setup Vault transit unseal for main K8s cluster
-    dir: '{{.ROOT_DIR}}'
     preconditions:
       - sh: vault status &>/dev/null
         msg: |
