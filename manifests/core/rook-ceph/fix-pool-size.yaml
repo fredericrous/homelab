@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fix-ceph-pool-size
+  namespace: rook-ceph
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: rook-ceph-system
+      containers:
+      - name: fix-pool-size
+        image: rook/ceph:v1.16.0
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Adjusting Ceph pool replication size to match available OSDs..."
+          
+          # Wait for cluster to be ready
+          for i in {1..30}; do
+            if kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.phase}' | grep -q "Ready"; then
+              echo "Ceph cluster is ready"
+              break
+            fi
+            echo "Waiting for Ceph cluster to be ready... ($i/30)"
+            sleep 10
+          done
+          
+          # Get the ceph tools deployment
+          TOOLS_POD=$(kubectl get pod -n rook-ceph -l app=rook-ceph-mgr -o jsonpath='{.items[0].metadata.name}')
+          
+          if [ -z "$TOOLS_POD" ]; then
+            echo "No mgr pod found"
+            exit 1
+          fi
+          
+          echo "Using mgr pod: $TOOLS_POD"
+          
+          # Adjust pool sizes to 2 (min_size 1)
+          for pool in replicapool myfs-metadata myfs-replicated; do
+            echo "Adjusting pool $pool..."
+            kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool set $pool size 2 || true
+            kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool set $pool min_size 1 || true
+          done
+          
+          echo "Pool sizes adjusted successfully"

@@ -3,18 +3,125 @@ kind: Kustomization
 
 namespace: rook-ceph
 
-resources:
-- https://raw.githubusercontent.com/rook/rook/v1.15.8/deploy/examples/crds.yaml
-- https://raw.githubusercontent.com/rook/rook/v1.15.8/deploy/examples/common.yaml
-- https://raw.githubusercontent.com/rook/rook/v1.15.8/deploy/examples/operator.yaml
-- cluster-minimal.yaml
+helmCharts:
+- name: rook-ceph
+  repo: https://charts.rook.io/release
+  version: v1.15.5
+  releaseName: rook-ceph
+  namespace: rook-ceph
+  valuesInline:
+    crds:
+      enabled: true
+    csi:
+      # Set replicas to 2 for 2-node cluster
+      provisionerReplicas: 2
+      csiRBDProvisionerResource: |
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 10m
+          memory: 128Mi
+      csiCephFSProvisionerResource: |
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 10m
+          memory: 128Mi
+
+- name: rook-ceph-cluster
+  repo: https://charts.rook.io/release
+  version: v1.15.5
+  releaseName: rook-ceph-cluster
+  namespace: rook-ceph
+  valuesInline:
+    operatorNamespace: rook-ceph
+    configOverride: |
+      [global]
+      osd_pool_default_size = 2
+      osd_pool_default_min_size = 1
+      mon_warn_on_pool_no_redundancy = false
+    cephClusterSpec:
+      mon:
+        count: 3
+        allowMultiplePerNode: true
+      mgr:
+        count: 2
+        allowMultiplePerNode: false
+      dashboard:
+        enabled: true
+        ssl: false
+      crashCollector:
+        disable: false
+      storage:
+        useAllNodes: false
+        useAllDevices: false
+        deviceFilter: "sdb"
+        nodes:
+        - name: "talos-wk-1-gpu"
+          devices:
+          - name: "sdb"
+        - name: "talos-wk-2"
+          devices:
+          - name: "sdb"
+    cephBlockPools:
+    - name: replicapool
+      spec:
+        failureDomain: host
+        replicated:
+          size: 2
+          requireSafeReplicaSize: false
+      storageClass:
+        enabled: true
+        name: rook-ceph-block
+        isDefault: true
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true
+        parameters:
+          imageFormat: "2"
+          imageFeatures: layering
+          csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+          csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+          csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+          csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+          csi.storage.k8s.io/fstype: ext4
+    cephFileSystems:
+    - name: myfs
+      spec:
+        metadataPool:
+          replicated:
+            size: 2
+            requireSafeReplicaSize: false
+        dataPools:
+        - name: replicated
+          failureDomain: host
+          replicated:
+            size: 2
+            requireSafeReplicaSize: false
+        metadataServer:
+          activeCount: 1
+          activeStandby: true
+      storageClass:
+        enabled: true
+        name: rook-cephfs
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true
+        parameters:
+          csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+          csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+          csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+          csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+          csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+          csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+          csi.storage.k8s.io/fstype: ext4
 
 patches:
-- path: operator-patch.yaml
-  target:
-    kind: Deployment
-    name: rook-ceph-operator
-- path: namespace-patch.yaml
-  target:
+- target:
     kind: Namespace
     name: rook-ceph
+  patch: |-
+    - op: add
+      path: /metadata/annotations
+      value:
+        argocd.argoproj.io/sync-wave: "-5"
