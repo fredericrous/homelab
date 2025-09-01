@@ -22,7 +22,7 @@ resources:
   - ovh-webhook-rbac-fix.yaml   # RBAC to allow webhook to read secrets
   - ovh-webhook-kube-system-fix.yaml  # RBAC to allow webhook to read kube-system configmap
   # - ovh-credentials-copy-job.yaml # Replaced by job template
-  - clusterissuer-letsencrypt-ovh-webhook-final.yaml
+  - clusterissuer-letsencrypt-ovh-webhook-secure.yaml
   
   # Fix leader election issues (Talos doesn't allow kube-system access)
   # - cainjector-leader-election-fix.yaml  # Conflicts with cert-manager's built-in resources
@@ -134,11 +134,10 @@ patches:
                   # Check and populate OVH credentials
                   echo "Checking OVH credentials..."
                   if ! vault kv get secret/ovh-dns >/dev/null 2>&1; then
-                    echo "Creating OVH credentials in Vault..."
-                    vault kv put secret/ovh-dns \
-                      applicationKey="d39425a1639ab4e3" \
-                      applicationSecret="8c9ea952ea25221013cd4ce74544f4c4" \
-                      consumerKey="3bb32020644c9f3ad302645992284df7"
+                    echo "WARNING: OVH credentials not found in Vault!"
+                    echo "Please run scripts/generate-ovh-credentials.sh to create new credentials"
+                    echo "Then store them in Vault at secret/ovh-dns"
+                    exit 1
                   else
                     echo "OVH credentials already exist in Vault"
                   fi

@@ -1,13 +1,13 @@
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: letsencrypt-ovh-webhook-final
+  name: letsencrypt-ovh-webhook
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
     email: admin@daddyshome.fr
     privateKeySecretRef:
-      name: letsencrypt-ovh-webhook-final
+      name: letsencrypt-ovh-webhook-account
     solvers:
     - dns01:
         webhook:
@@ -15,8 +15,13 @@ spec:
           solverName: ovh
           config:
             endpoint: ovh-eu
-            # applicationKey is read from ovh-credentials secret
+            # All credentials are read from the ovh-credentials secret
+            applicationKeyRef:
+              key: applicationKey
+              name: ovh-credentials
             applicationSecretRef:
               key: applicationSecret
               name: ovh-credentials
-            # consumerKey is read from ovh-credentials secret
+            consumerKeyRef:
+              key: consumerKey  
+              name: ovh-credentials
