@@ -10,7 +10,7 @@ resources:
 secretGenerator:
 - name: client-ca-cert
   files:
-  - tls.crt=../../client-ca/ca/ca.crt
+  - tls.crt=../client-ca/ca/ca.crt
   options:
     disableNameSuffixHash: true
 
