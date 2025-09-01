@@ -31,7 +31,7 @@ tasks:
       - sh: test -f {{.KUBECONFIG_QNAP}}
         msg: |
           QNAP kubeconfig not found at {{.KUBECONFIG_QNAP}}
-          
+
           To get the kubeconfig from QNAP:
           1. SSH into QNAP: ssh admin@192.168.1.42
           2. Copy the K3s kubeconfig:
@@ -89,17 +89,17 @@ tasks:
       - |
         if [ "{{.HAS_SECRET}}" = "false" ]; then
           echo "🔐 Creating MinIO root user secret..."
-          
+
           # Try to get password from Vault
           if vault status &>/dev/null 2>&1 && vault kv get secret/minio &>/dev/null 2>&1; then
             echo "  Using password from Vault"
             MINIO_ROOT_PASSWORD=$(vault kv get -field=root_password secret/minio)
           else
             echo "  ⚠️  Vault not available, using default password"
-            echo "     Run 'task vault-secrets' after Vault is ready to secure it"
+            echo "     Run 'task nas:vault-secrets' after Vault is ready to secure it"
             MINIO_ROOT_PASSWORD="changeme123"
           fi
-          
+
           kubectl -n minio create secret generic minio-root-user \
             --from-literal=rootUser=admin \
             --from-literal=rootPassword="$MINIO_ROOT_PASSWORD"
@@ -128,7 +128,7 @@ tasks:
             echo "📦 Creating AWS credentials secret from Vault..."
             AWS_KEY=$(vault kv get -field=aws_access_key_id secret/velero)
             AWS_SECRET=$(vault kv get -field=aws_secret_access_key secret/velero)
-            
+
             kubectl -n minio create secret generic aws-credentials \
               --from-literal=aws_access_key_id="$AWS_KEY" \
               --from-literal=aws_secret_access_key="$AWS_SECRET"
@@ -150,7 +150,7 @@ tasks:
           echo "✅ Vault is already initialized"
           exit 0
         fi
-        
+
         echo "🔐 Initializing Vault..."
         echo ""
         echo "Run these commands manually:"
@@ -210,12 +210,12 @@ tasks:
           echo "🎲 Generating secure password for MinIO..."
           MINIO_ROOT_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
         fi
-        
+
         echo "💾 Storing MinIO credentials in Vault..."
         vault kv put secret/minio \
           root_user=admin \
           root_password="$MINIO_ROOT_PASSWORD"
-        
+
         echo "✅ MinIO credentials stored in Vault at secret/minio"
       - |
         # Check if MinIO is deployed and update secret
@@ -234,7 +234,7 @@ tasks:
         # Setup AWS credentials
         echo ""
         echo "☁️  Setting up AWS credentials for S3 sync..."
-        
+
         # Check if already exists
         if vault kv get secret/velero &>/dev/null 2>&1; then
           echo "✅ AWS credentials already exist in Vault"
@@ -246,7 +246,7 @@ tasks:
         else
           AWS_SETUP_NEEDED=true
         fi
-        
+
         if [ "$AWS_SETUP_NEEDED" = "true" ]; then
           # Check environment variables first
           if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
@@ -262,7 +262,7 @@ tasks:
             echo -n "   AWS Secret Access Key: "
             read -rs AWS_SECRET_ACCESS_KEY < /dev/tty
             echo ""
-            
+
             if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
               vault kv put secret/velero \
                 aws_access_key_id="$AWS_ACCESS_KEY_ID" \
@@ -281,7 +281,7 @@ tasks:
             echo "📦 Updating AWS credentials secret..."
             AWS_KEY=$(vault kv get -field=aws_access_key_id secret/velero)
             AWS_SECRET=$(vault kv get -field=aws_secret_access_key secret/velero)
-            
+
             kubectl -n minio create secret generic aws-credentials \
               --from-literal=aws_access_key_id="$AWS_KEY" \
               --from-literal=aws_secret_access_key="$AWS_SECRET" \
@@ -335,30 +335,30 @@ tasks:
         path "transit/encrypt/autounseal" {
           capabilities = ["update"]
         }
-        
+
         path "transit/decrypt/autounseal" {
           capabilities = ["update"]
         }
-        
+
         # Key configuration operations
         path "transit/keys/autounseal" {
           capabilities = ["read"]
         }
-        
+
         # Additional operations for seal migration
         path "transit/rewrap/autounseal" {
           capabilities = ["update"]
         }
-        
+
         path "transit/datakey/plaintext/autounseal" {
           capabilities = ["update"]
         }
-        
+
         # Allow checking if transit is mounted
         path "sys/mounts" {
           capabilities = ["read"]
         }
-        
+
         path "sys/mounts/transit" {
           capabilities = ["read"]
         }
@@ -380,11 +380,11 @@ tasks:
           -period=8760h \
           -renewable \
           -format=json | jq -r '.auth.client_token')
-        
+
         # Store token in Vault for automated retrieval
         echo "💾 Storing transit token in Vault..."
         vault kv put secret/k8s-transit token="$K8S_TOKEN" || echo "Failed to store in KV"
-        
+
         # Create a file with the token for easy access
         echo "$K8S_TOKEN" > /tmp/k8s-vault-transit-token
       - |
@@ -408,14 +408,12 @@ tasks:
   show-info:
     desc: Show deployment information
     vars:
-      VAULT_INITIALIZED:
-        sh: kubectl -n vault get secret vault-keys &>/dev/null 2>&1 && echo "true" || echo "false"
       MINIO_PASSWORD:
         sh: |
           if vault status &>/dev/null 2>&1 && vault kv get secret/minio &>/dev/null 2>&1; then
             echo "(stored in Vault at secret/minio)"
           else
-            echo "changeme123 (default - run 'task vault-secrets' to secure)"
+            echo "changeme123 (default - run 'task nas:vault-secrets' to secure)"
           fi
     cmds:
       - |
@@ -430,10 +428,12 @@ tasks:
         echo "📦 MinIO credentials:"
         echo "  Username: admin"
         echo "  Password: {{.MINIO_PASSWORD}}"
-        if [ "{{.VAULT_INITIALIZED}}" = "false" ]; then
+        
+        # Check Vault initialization status
+        if ! kubectl -n vault get secret vault-keys &>/dev/null 2>&1; then
           echo ""
           echo "🔐 Next step: Initialize Vault"
-          echo "  task vault-init"
+          echo "  task nas:vault-init"
         fi
 
   status:
