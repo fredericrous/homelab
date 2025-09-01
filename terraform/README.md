@@ -20,8 +20,8 @@ This setup uses predefined IP addresses for each VM to ensure consistent network
    ```bash
    cd ../nas/
    ./deploy-k3s-services.sh
-   ./setup-vault-transit-k3s.sh
-   export K8S_VAULT_TRANSIT_TOKEN=<token-from-script>
+   # Initialize Vault and save the root token (shown after initialization)
+   # The transit token is created automatically
    ```
 
 2. Proxmox VE installed and configured
@@ -53,8 +53,9 @@ Due to Talos requiring nodes to be accessible at their static IPs, deployment is
 brew install go-task  # macOS
 # or see https://taskfile.dev/installation/
 
-# Ensure transit token is set (required)
-export K8S_VAULT_TRANSIT_TOKEN=<token-from-qnap>
+# Export QNAP Vault root token
+export QNAP_VAULT_TOKEN=<qnap-vault-root-token>
+# The transit token will be automatically retrieved
 
 # Run the deployment
 cd ..

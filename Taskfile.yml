@@ -40,50 +40,45 @@ tasks:
     preconditions:
       - sh: test -f terraform.tfvars
         msg: "terraform.tfvars not found. Copy terraform.tfvars.example and configure it"
+    vars:
+      TRANSIT_TOKEN:
+        sh: |
+          # Try to get transit token automatically
+          if [ -n "$K8S_VAULT_TRANSIT_TOKEN" ]; then
+            echo "$K8S_VAULT_TRANSIT_TOKEN"
+          elif [ -n "$QNAP_VAULT_TOKEN" ] && command -v vault >/dev/null 2>&1; then
+            export VAULT_ADDR=http://192.168.1.42:61200
+            export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
+            vault kv get -field=token secret/k8s-transit 2>/dev/null || echo ""
+          else
+            echo ""
+          fi
     cmds:
       - |
-        # Try to get transit token automatically
-        if [ -z "$K8S_VAULT_TRANSIT_TOKEN" ]; then
-          echo "🔍 Attempting to retrieve transit token from QNAP Vault..."
-          
-          # Try direct Vault access
-          if command -v vault >/dev/null 2>&1; then
-            export VAULT_ADDR=http://192.168.1.42:61200
-            
-            # Check if we have a token in environment or can read from QNAP
-            if [ -n "$QNAP_VAULT_TOKEN" ]; then
-              export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
-              K8S_VAULT_TRANSIT_TOKEN=$(vault kv get -field=token secret/k8s-transit 2>/dev/null || echo "")
-            fi
-          fi
-          
-          if [ -z "$K8S_VAULT_TRANSIT_TOKEN" ]; then
-            echo "❌ Transit token not found"
-            echo ""
-            echo "To deploy, you need to:"
-            echo "1. Deploy QNAP services first:"
-            echo "   cd nas/"
-            echo "   ./deploy-k3s-services.sh"
-            echo ""
-            echo "2. Initialize Vault and save the root token"
-            echo ""
-            echo "3. Export the QNAP Vault root token:"
-            echo "   export QNAP_VAULT_TOKEN=<qnap-vault-root-token>"
-            echo ""
-            echo "The transit token will be automatically retrieved."
-            exit 1
-          else
-            echo "✅ Found K8S_VAULT_TRANSIT_TOKEN"
-            export K8S_VAULT_TRANSIT_TOKEN
-          fi
+        # Check if we have a transit token
+        if [ -z "{{.TRANSIT_TOKEN}}" ]; then
+          echo "❌ Transit token not found"
+          echo ""
+          echo "To deploy, you need to:"
+          echo "1. Deploy QNAP services first:"
+          echo "   cd nas/"
+          echo "   ./deploy-k3s-services.sh"
+          echo ""
+          echo "2. Initialize Vault and save the root token"
+          echo ""
+          echo "3. Export the QNAP Vault root token:"
+          echo "   export QNAP_VAULT_TOKEN=<qnap-vault-root-token>"
+          echo ""
+          echo "The transit token will be automatically retrieved."
+          exit 1
         else
-          echo "✅ K8S_VAULT_TRANSIT_TOKEN already set"
+          echo "✅ Found transit token"
+          # Export for use by other stages
+          echo "export K8S_VAULT_TRANSIT_TOKEN={{.TRANSIT_TOKEN}}" > /tmp/vault-transit-env
         fi
       - |
         if [ -f "./scripts/preflight-check.sh" ]; then
           echo "🔍 Running pre-flight checks..."
-          # Export the transit token for preflight check
-          export K8S_VAULT_TRANSIT_TOKEN="${K8S_VAULT_TRANSIT_TOKEN:-}"
           ./scripts/preflight-check.sh || exit 1
         fi
 
@@ -172,12 +167,14 @@ tasks:
     desc: "Stage 7: Setup Vault transit token and bootstrap"
     dir: '{{.TERRAFORM_DIR}}'
     deps: [kubeconfig-exists]
-    preconditions:
-      - sh: test -n "$K8S_VAULT_TRANSIT_TOKEN"
-        msg: "K8S_VAULT_TRANSIT_TOKEN must be set"
     cmds:
       - 'echo "🔑 Stage 7: Setting up Vault transit unseal and bootstrapping..."'
       - |
+        # Source the transit token from prereq if available
+        if [ -f /tmp/vault-transit-env ]; then
+          source /tmp/vault-transit-env
+        fi
+        
         # Setup transit token
         if [ -f "./scripts/deploy-vault-transit.sh" ]; then
           ./scripts/deploy-vault-transit.sh "{{.KUBECONFIG}}"
