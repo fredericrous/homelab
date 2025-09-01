@@ -22,6 +22,7 @@ resources:
   - ingress.yaml
   - rbac-vault-config-role.yaml
   - rbac-vault-secret-manager.yaml
+  - vault-transit-token-secret-placeholder.yaml  # Placeholder to prevent ArgoCD from pruning the secret
   # - job-configure-transit-token.yaml  # Not needed - terraform creates the secret
   - job-vault-init-simplified.yaml  # Simplified init for transit unseal
   - vault-configure-argocd-job.yaml  # Configure Vault for ArgoCD after initialization
