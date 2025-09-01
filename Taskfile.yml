@@ -53,21 +53,19 @@ tasks:
           fi
           
           if [ -z "$K8S_VAULT_TRANSIT_TOKEN" ]; then
-            echo "❌ K8S_VAULT_TRANSIT_TOKEN not found"
+            echo "❌ Transit token not found"
             echo ""
-            echo "To obtain this token:"
+            echo "To deploy, you need to:"
             echo "1. Deploy QNAP services first:"
             echo "   cd nas/"
             echo "   ./deploy-k3s-services.sh"
             echo ""
-            echo "2. The token should be automatically generated."
-            echo "   If not, run: ./setup-vault-transit-k3s.sh"
+            echo "2. Initialize Vault and save the root token"
             echo ""
-            echo "3. Export the token:"
-            echo "   export K8S_VAULT_TRANSIT_TOKEN=<token>"
-            echo ""
-            echo "Or export QNAP Vault token for auto-retrieval:"
+            echo "3. Export the QNAP Vault root token:"
             echo "   export QNAP_VAULT_TOKEN=<qnap-vault-root-token>"
+            echo ""
+            echo "The transit token will be automatically retrieved."
             exit 1
           else
             echo "✅ Found K8S_VAULT_TRANSIT_TOKEN"

@@ -45,11 +45,8 @@ cd terraform/
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your settings
 
-# Deploy everything
+# Deploy everything with automatic transit token retrieval
 cd ..
-task deploy
-
-# Or if you have QNAP Vault token:
 export QNAP_VAULT_TOKEN=<qnap-root-token>
 task deploy
 ```
@@ -58,10 +55,10 @@ task deploy
 
 ### 1. Transit Token Auto-Discovery
 
-The deployment automatically tries to retrieve the transit token:
-- From `K8S_VAULT_TRANSIT_TOKEN` environment variable
-- From QNAP Vault at `secret/k8s-transit` (if `QNAP_VAULT_TOKEN` is set)
-- Falls back to manual input if neither is available
+The deployment automatically retrieves the transit token from QNAP Vault:
+- Uses `QNAP_VAULT_TOKEN` to connect to QNAP Vault
+- Fetches the transit token from `secret/k8s-transit`
+- Falls back to manual input if QNAP token is not provided
 
 ### 2. Secret Bootstrap
 
@@ -113,10 +110,9 @@ vault kv put secret/aws \
 ## Environment Variables
 
 ### Required
-- `K8S_VAULT_TRANSIT_TOKEN` - Transit token from QNAP Vault
+- `QNAP_VAULT_TOKEN` - QNAP Vault root token (for automatic transit token retrieval)
 
-### Optional (for automation)
-- `QNAP_VAULT_TOKEN` - QNAP Vault root token (enables auto-retrieval)
+### Optional
 - `OVH_APPLICATION_KEY`, `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
 
