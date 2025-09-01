@@ -69,63 +69,67 @@ patches:
         annotations:
           argocd.argoproj.io/sync-wave: "4"
   
-  # Customize the secret copier job from template
-  # Keep using the original service account name from the template
-  - target:
-      kind: ServiceAccount
-      name: secret-copier
-    patch: |-
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: secret-copier
-        namespace: vault
+  # Comment out secret-copier for now - it creates a circular dependency
+  # The secret it's trying to copy (ovh-credentials) might not exist yet
+  # TODO: Fix this dependency issue properly
   
-  - target:
-      kind: ClusterRole
-      name: PLACEHOLDER-secret-copier
-    patch: |-
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRole
-      metadata:
-        name: vault-secret-copier
-  
-  - target:
-      kind: ClusterRoleBinding
-      name: PLACEHOLDER-secret-copier
-    patch: |-
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRoleBinding
-      metadata:
-        name: vault-secret-copier
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: ClusterRole
-        name: vault-secret-copier
-      subjects:
-      - kind: ServiceAccount
-        name: secret-copier
-        namespace: vault
-  
-  - target:
-      kind: Job
-      name: secret-copier
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: secret-copier
-        namespace: vault
-      spec:
-        template:
-          spec:
-            serviceAccountName: secret-copier
-            containers:
-            - name: secret-copier
-              env:
-              - name: SOURCE_SECRET
-                value: ovh-credentials
-              - name: SOURCE_NAMESPACE
-                value: cert-manager
-              - name: TARGET_NAMESPACE
-                value: vault
+  # # Customize the secret copier job from template
+  # # Keep using the original service account name from the template
+  # - target:
+  #     kind: ServiceAccount
+  #     name: secret-copier
+  #   patch: |-
+  #     apiVersion: v1
+  #     kind: ServiceAccount
+  #     metadata:
+  #       name: secret-copier
+  #       namespace: vault
+  # 
+  # - target:
+  #     kind: ClusterRole
+  #     name: PLACEHOLDER-secret-copier
+  #   patch: |-
+  #     apiVersion: rbac.authorization.k8s.io/v1
+  #     kind: ClusterRole
+  #     metadata:
+  #       name: vault-secret-copier
+  # 
+  # - target:
+  #     kind: ClusterRoleBinding
+  #     name: PLACEHOLDER-secret-copier
+  #   patch: |-
+  #     apiVersion: rbac.authorization.k8s.io/v1
+  #     kind: ClusterRoleBinding
+  #     metadata:
+  #       name: vault-secret-copier
+  #     roleRef:
+  #       apiGroup: rbac.authorization.k8s.io
+  #       kind: ClusterRole
+  #       name: vault-secret-copier
+  #     subjects:
+  #     - kind: ServiceAccount
+  #       name: secret-copier
+  #       namespace: vault
+  # 
+  # - target:
+  #     kind: Job
+  #     name: secret-copier
+  #   patch: |-
+  #     apiVersion: batch/v1
+  #     kind: Job
+  #     metadata:
+  #       name: secret-copier
+  #       namespace: vault
+  #     spec:
+  #       template:
+  #         spec:
+  #           serviceAccountName: secret-copier
+  #           containers:
+  #           - name: secret-copier
+  #             env:
+  #             - name: SOURCE_SECRET
+  #               value: ovh-credentials
+  #             - name: SOURCE_NAMESPACE
+  #               value: cert-manager
+  #             - name: TARGET_NAMESPACE
+  #               value: vault
