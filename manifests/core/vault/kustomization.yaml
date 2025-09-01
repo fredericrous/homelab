@@ -7,7 +7,7 @@ namespace: vault
 
 resources:
   # Include base resources
-  # - ../../base/vault-auth  # Temporarily disabled - requires VSO CRDs
+  - ../../base/vault-auth  # VSO CRDs will be installed before ArgoCD apps deploy
   - ../../base/job-templates
   # App-specific resources
   - namespace.yaml

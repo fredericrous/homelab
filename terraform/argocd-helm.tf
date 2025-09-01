@@ -70,6 +70,9 @@ resource "null_resource" "argocd_bootstrap" {
       echo "⏳ Waiting for ArgoCD to be ready..."
       kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || true
       
+      echo "📦 Installing VSO CRDs before ArgoCD bootstrap..."
+      ${path.module}/scripts/bootstrap-vso-crds.sh '${abspath(local_file.kubeconfig[0].filename)}'
+      
       echo "🚀 Bootstrapping ArgoCD with app-of-apps..."
       # Apply kustomize, but delete any existing jobs that might conflict
       kubectl delete job argocd-redis-secret-init -n argocd --ignore-not-found=true
