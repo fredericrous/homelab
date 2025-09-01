@@ -517,7 +517,7 @@ tasks:
         while kubectl get namespace minio &>/dev/null 2>&1 || kubectl get namespace vault &>/dev/null 2>&1; do
           echo "  Still deleting namespaces..."
           sleep 5
-        done
+        done || true
       - |
         echo "✅ K3s cluster cleaned up!"
         echo ""
