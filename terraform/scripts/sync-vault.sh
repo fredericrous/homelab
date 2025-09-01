@@ -27,7 +27,7 @@ echo "⏳ Waiting for Vault sync to complete..."
 timeout 600s sh -c 'while true; do
   sync_status=$(kubectl get app -n argocd vault -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
   health_status=$(kubectl get app -n argocd vault -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
-  
+
   if [ "$sync_status" = "Synced" ]; then
     echo "✅ Vault synced (Health: $health_status)"
     exit 0
@@ -88,7 +88,7 @@ timeout 300s sh -c 'while true; do
   # Check if initialization secrets exist
   if kubectl get secret -n vault vault-keys >/dev/null 2>&1 && kubectl get secret -n vault vault-admin-token >/dev/null 2>&1; then
     echo "✅ Vault initialization secrets found"
-    
+
     # Check Vault health endpoint
     vault_health=$(kubectl exec -n vault vault-0 -- sh -c "vault status -format=json 2>&1 || echo {}" 2>/dev/null || echo "{}")
     if echo "$vault_health" | grep -q "initialized.*true" >/dev/null 2>&1; then
@@ -106,16 +106,16 @@ timeout 300s sh -c 'while true; do
       fi
     fi
     # Exit successfully if secrets exist, even if they are placeholders
-    echo "ℹ️  Note: If these are placeholder secrets due to Vault 1.17.6 auto-initialization,"
+    echo "ℹ️  Note: If these are placeholder secrets due to Vault 1.20.1 auto-initialization,"
     echo "    Vault operations will fail until properly initialized with known keys."
     exit 0
   fi
-  
+
   # Check init job status
   if kubectl get job -n vault vault-init >/dev/null 2>&1; then
     init_job_status=$(kubectl get job -n vault vault-init -o jsonpath="{.status.conditions[?(@.type==\"Complete\")].status}" 2>/dev/null || echo "Running")
     init_job_failed=$(kubectl get job -n vault vault-init -o jsonpath="{.status.conditions[?(@.type==\"Failed\")].status}" 2>/dev/null || echo "False")
-    
+
     if [ "$init_job_status" = "True" ]; then
       echo "✅ Vault init job completed successfully"
       exit 0
@@ -127,25 +127,25 @@ timeout 300s sh -c 'while true; do
       echo "⏳ Vault init job is running..."
       # Show last few log lines to see progress
       kubectl logs -n vault job/vault-init --tail=5 2>/dev/null || true
-      
+
       # Check if the logs show Vault is already initialized (auto-init issue)
       if kubectl logs -n vault job/vault-init 2>/dev/null | grep -q "WARNING: Vault is already initialized"; then
-        echo "⚠️  Vault auto-initialized without providing keys (known issue with v1.17.6)"
+        echo "⚠️  Vault auto-initialized without providing keys (known issue with v1.20.1)"
         echo "ℹ️  Creating placeholder secrets to unblock deployment..."
-        
+
         # Check if placeholder secrets already exist
         if kubectl get secret -n vault vault-admin-token >/dev/null 2>&1; then
           echo "✅ Placeholder secrets already exist"
           exit 0
         fi
-        
-        echo "❌ Vault 1.17.6 auto-initialization detected. Manual intervention required."
+
+        echo "❌ Vault 1.20.1 auto-initialization detected. Manual intervention required."
         echo "   Run: kubectl apply -f manifests/core/vault/job-create-placeholder-secrets.yaml"
         exit 1
       fi
     fi
   fi
-  
+
   echo "Waiting for Vault initialization..."
   sleep 5
 done'

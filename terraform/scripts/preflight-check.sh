@@ -46,19 +46,7 @@ else
     CHECKS_PASSED=false
 fi
 
-# Check 4: Transit token
-echo -n "Checking K8S_VAULT_TRANSIT_TOKEN... "
-if [ -n "${K8S_VAULT_TRANSIT_TOKEN:-}" ]; then
-    echo -e "${GREEN}✓${NC}"
-else
-    echo -e "${RED}✗${NC} Not set"
-    echo ""
-    echo "  To obtain this token:"
-    echo "  1. Deploy QNAP services: cd nas/ && ./deploy-k3s-services.sh"
-    echo "  2. Initialize Vault and run: ./setup-vault-transit-k3s.sh"
-    echo "  3. Export: export K8S_VAULT_TRANSIT_TOKEN=<token>"
-    CHECKS_PASSED=false
-fi
+# Check 4: QNAP Vault Token (removed - handled by prereq task)
 
 # Check 5: Proxmox credentials
 echo -n "Checking terraform.tfvars... "

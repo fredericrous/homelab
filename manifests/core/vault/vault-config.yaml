@@ -23,9 +23,10 @@ data:
       address = "http://192.168.1.42:61200"
       disable_renewal = "false"
       key_name = "autounseal"
-      mount_path = "transit/"
+      mount_path = "transit"
       tls_skip_verify = "true"
-      # Token is provided via VAULT_SEAL_TRANSIT_TOKEN env var
+      # Token will be injected via init container
+      token = "TRANSIT_TOKEN_PLACEHOLDER"
     }
     
     # API address
@@ -72,6 +73,29 @@ spec:
       serviceAccountName: vault
       securityContext:
         fsGroup: 1000
+      initContainers:
+      - name: config-templater
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          # Copy the config from ConfigMap volume
+          cp /vault/config-template/vault.hcl /vault/config/vault.hcl
+          # Replace the placeholder with the actual token
+          sed -i "s/TRANSIT_TOKEN_PLACEHOLDER/$VAULT_SEAL_TRANSIT_TOKEN/g" /vault/config/vault.hcl
+          echo "Config templating complete"
+        env:
+        - name: VAULT_SEAL_TRANSIT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-transit-token
+              key: token
+        volumeMounts:
+        - name: config-template
+          mountPath: /vault/config-template
+        - name: config
+          mountPath: /vault/config
       containers:
       - name: vault
         image: hashicorp/vault:1.20.1
@@ -116,9 +140,11 @@ spec:
             memory: 512Mi
             cpu: 500m
       volumes:
-      - name: config
+      - name: config-template
         configMap:
           name: vault-config
+      - name: config
+        emptyDir: {}
       - name: data
         persistentVolumeClaim:
           claimName: vault-data

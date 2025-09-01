@@ -82,6 +82,8 @@ tasks:
       - |
         if [ -f "./scripts/preflight-check.sh" ]; then
           echo "🔍 Running pre-flight checks..."
+          # Export the transit token for preflight check
+          export K8S_VAULT_TRANSIT_TOKEN="${K8S_VAULT_TRANSIT_TOKEN:-}"
           ./scripts/preflight-check.sh || exit 1
         fi
 

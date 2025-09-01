@@ -127,11 +127,6 @@ kubectl apply -k manifests/vault/
 ### GPU Node
 - GPU patches commented out until fixed
 
-### Vault 1.17.x File Storage Bug
-- Vault 1.17.x has a bug where file storage incorrectly reports as initialized
-- We use Raft storage instead to avoid this issue
-- See manifests/core/vault/VAULT-INIT-ISSUE.md for details
-
 ## Vault Token and Keys
 Vault is automatically initialized by the `job-vault-init.yaml` job, which stores:
 - Admin token in `vault-admin-token` secret

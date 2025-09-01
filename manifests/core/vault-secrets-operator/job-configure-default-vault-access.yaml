@@ -14,7 +14,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: configure
-        image: hashicorp/vault:1.17.6
+        image: hashicorp/vault:1.20.1
         env:
         - name: VAULT_ADDR
           value: http://vault.vault.svc.cluster.local:8200
@@ -23,13 +23,13 @@ spec:
         - -c
         - |
           set -e
-          
+
           # Wait for Vault to be ready
           until vault status; do
             echo "Waiting for Vault to be ready..."
             sleep 5
           done
-          
+
           # Login with admin token
           if [ -f /vault/admin-token/token ]; then
             export VAULT_TOKEN=$(cat /vault/admin-token/token)
@@ -37,21 +37,21 @@ spec:
             echo "Admin token not found!"
             exit 1
           fi
-          
+
           # Create policy for default namespace to read SMB credentials
           vault policy write default-policy - <<EOF
           path "secret/data/smb" {
             capabilities = ["read"]
           }
           EOF
-          
+
           # Create Kubernetes auth role for default namespace
           vault write auth/kubernetes/role/default \
             bound_service_account_names=default \
             bound_service_account_namespaces=default \
             policies=default-policy \
             ttl=24h
-          
+
           echo "✅ Default namespace configured for SMB access"
         volumeMounts:
         - name: admin-token
