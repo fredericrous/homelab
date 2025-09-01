@@ -5,7 +5,7 @@ resources:
   # Include shared vault auth base (for vault-config service account)
   - ../../base/vault-auth
   # App-specific resources (VSO doesn't need job-templates)
-  - job-install-crds.yaml  # PreSync hook to install CRDs
+  # - job-install-crds.yaml  # Not needed - Helm v3 installs CRDs automatically
   - job-vault-configure-vso.yaml
   - job-configure-default-vault-access.yaml  # Configure default namespace access
   # - vault-secret-sync.yaml  # Replaced by smb-credentials-vso.yaml
