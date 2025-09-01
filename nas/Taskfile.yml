@@ -487,26 +487,6 @@ tasks:
             ;;
         esac
 
-  get-kubeconfig:
-    desc: Get kubeconfig from QNAP NAS
-    cmds:
-      - |
-        echo "📥 Getting kubeconfig from QNAP..."
-        echo ""
-        echo "Run these commands:"
-        echo "  ssh admin@192.168.1.42"
-        echo "  sudo cat /etc/rancher/k3s/k3s.yaml > /tmp/k3s.yaml"
-        echo "  exit"
-        echo ""
-        echo "Then copy to local:"
-        echo "  scp admin@192.168.1.42:/tmp/k3s.yaml {{.KUBECONFIG_QNAP}}"
-        echo ""
-        echo "Finally, update the server URL in {{.KUBECONFIG_QNAP}}:"
-        echo "  Change https://127.0.0.1:6443 to https://192.168.1.42:6443"
-        echo ""
-        echo "Or use sed:"
-        echo "  sed -i 's/127.0.0.1/192.168.1.42/g' {{.KUBECONFIG_QNAP}}"
-
   clean:
     desc: Remove all QNAP services
     deps: [check-k3s]
