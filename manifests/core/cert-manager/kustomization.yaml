@@ -20,6 +20,7 @@ resources:
   - webhook-ovh-manifests.yaml  # Generated from helm template
   # - ovh-credentials-secret.yaml # Replaced by VaultStaticSecret
   - ovh-webhook-rbac-fix.yaml   # RBAC to allow webhook to read secrets
+  - ovh-webhook-kube-system-fix.yaml  # RBAC to allow webhook to read kube-system configmap
   # - ovh-credentials-copy-job.yaml # Replaced by job template
   - clusterissuer-letsencrypt-ovh-webhook-final.yaml
   

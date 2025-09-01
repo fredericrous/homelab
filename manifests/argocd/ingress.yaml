@@ -20,11 +20,10 @@ metadata:
     haproxy.org/timeout-server: "300s"
 spec:
   ingressClassName: haproxy
-  # Temporarily disabled until cert-manager is working
-  # tls:
-  # - hosts:
-  #   - argocd.daddyshome.fr
-  #   secretName: argocd-server-tls
+  tls:
+  - hosts:
+    - argocd.daddyshome.fr
+    secretName: argocd-server-tls
   rules:
   - host: argocd.daddyshome.fr
     http:
