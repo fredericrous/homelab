@@ -4,7 +4,7 @@ Vault setup with transit auto-unseal for managing secrets and credentials.
 
 ## Components
 
-- **Vault**: v1.17.6 with file storage backend
+- **Vault**: v1.20.1 with file storage backend
 - **Auto-Unseal**: Transit unseal using QNAP Vault
 - **Storage**: 10Gi Rook Ceph volume
 - **UI Access**: Via ingress at vault.daddyshome.fr

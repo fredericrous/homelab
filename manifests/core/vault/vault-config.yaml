@@ -74,7 +74,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: vault
-        image: hashicorp/vault:1.17.6
+        image: hashicorp/vault:1.20.1
         command:
         - vault
         - server

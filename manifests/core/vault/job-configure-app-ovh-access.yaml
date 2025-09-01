@@ -14,7 +14,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: configure
-        image: hashicorp/vault:1.17.6
+        image: hashicorp/vault:1.20.1
         env:
         - name: VAULT_ADDR
           value: http://vault:8200

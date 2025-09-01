@@ -12,7 +12,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: vault-init
-        image: hashicorp/vault:1.17.6
+        image: hashicorp/vault:1.20.1
         command: ["/scripts/init-vault.sh"]
         env:
         - name: VAULT_ADDR
