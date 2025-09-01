@@ -30,7 +30,15 @@ tasks:
       - sh: test -f {{.KUBECONFIG_QNAP}}
         msg: |
           QNAP kubeconfig not found at {{.KUBECONFIG_QNAP}}
-          Please install K3s on QNAP first and copy the kubeconfig
+          
+          To get the kubeconfig from QNAP:
+          1. SSH into QNAP: ssh admin@192.168.1.42
+          2. Copy the K3s kubeconfig:
+             sudo cat /etc/rancher/k3s/k3s.yaml > /tmp/k3s.yaml
+          3. Exit SSH and copy to local:
+             scp admin@192.168.1.42:/tmp/k3s.yaml nas/kubeconfig.yaml
+          4. Update the server URL in nas/kubeconfig.yaml:
+             Change https://127.0.0.1:6443 to https://192.168.1.42:6443
       - sh: kubectl get nodes &>/dev/null
         msg: |
           Cannot connect to K3s cluster
@@ -482,8 +490,22 @@ tasks:
   clean:
     desc: Remove all QNAP services
     prompt: This will DELETE all services and data. Are you sure?
+    preconditions:
+      - sh: test -f {{.KUBECONFIG_QNAP}}
+        msg: |
+          QNAP kubeconfig not found at {{.KUBECONFIG_QNAP}}
+          
+          To get the kubeconfig from QNAP:
+          1. SSH into QNAP: ssh admin@192.168.1.42
+          2. Copy the K3s kubeconfig:
+             sudo cat /etc/rancher/k3s/k3s.yaml > /tmp/k3s.yaml
+          3. Exit SSH and copy to local:
+             scp admin@192.168.1.42:/tmp/k3s.yaml nas/kubeconfig.yaml
+          4. Update the server URL in nas/kubeconfig.yaml:
+             Change https://127.0.0.1:6443 to https://192.168.1.42:6443
     cmds:
       - echo "🧹 Cleaning up K3s cluster on QNAP..."
+      - echo "Using kubeconfig: {{.KUBECONFIG_QNAP}}"
       - |
         # Delete MinIO
         if kubectl get namespace minio &>/dev/null 2>&1; then
