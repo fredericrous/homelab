@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-configure-default-access
+  namespace: vault-secrets-operator-system
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  template:
+    spec:
+      serviceAccountName: vault-config
+      restartPolicy: OnFailure
+      containers:
+      - name: configure
+        image: hashicorp/vault:1.17.6
+        env:
+        - name: VAULT_ADDR
+          value: http://vault.vault.svc.cluster.local:8200
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          # Wait for Vault to be ready
+          until vault status; do
+            echo "Waiting for Vault to be ready..."
+            sleep 5
+          done
+          
+          # Login with admin token
+          if [ -f /vault/admin-token/token ]; then
+            export VAULT_TOKEN=$(cat /vault/admin-token/token)
+          else
+            echo "Admin token not found!"
+            exit 1
+          fi
+          
+          # Create policy for default namespace to read SMB credentials
+          vault policy write default-policy - <<EOF
+          path "secret/data/smb" {
+            capabilities = ["read"]
+          }
+          EOF
+          
+          # Create Kubernetes auth role for default namespace
+          vault write auth/kubernetes/role/default \
+            bound_service_account_names=default \
+            bound_service_account_namespaces=default \
+            policies=default-policy \
+            ttl=24h
+          
+          echo "✅ Default namespace configured for SMB access"
+        volumeMounts:
+        - name: admin-token
+          mountPath: /vault/admin-token
+          readOnly: true
+      volumes:
+      - name: admin-token
+        secret:
+          secretName: vault-admin-token

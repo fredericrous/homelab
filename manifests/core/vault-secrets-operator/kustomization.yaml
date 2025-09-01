@@ -7,7 +7,9 @@ resources:
   # App-specific resources (VSO doesn't need job-templates)
   - job-install-crds.yaml  # PreSync hook to install CRDs
   - job-vault-configure-vso.yaml
-  - vault-secret-sync.yaml
+  - job-configure-default-vault-access.yaml  # Configure default namespace access
+  # - vault-secret-sync.yaml  # Replaced by smb-credentials-vso.yaml
+  - smb-credentials-vso.yaml  # VSO resource for SMB credentials
   - vault-auth-global.yaml
 
 # Install Vault Secrets Operator via Helm
