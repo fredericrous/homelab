@@ -46,7 +46,17 @@ else
     CHECKS_PASSED=false
 fi
 
-# Check 4: QNAP Vault Token (removed - handled by prereq task)
+# Check 4: QNAP Vault Token
+echo -n "Checking QNAP Vault token... "
+if [ -z "${QNAP_VAULT_TOKEN:-}" ]; then
+    echo -e "${RED}✗${NC} Missing QNAP_VAULT_TOKEN"
+    echo "  This is REQUIRED for Vault transit unseal"
+    echo "  Export it before running deploy:"
+    echo "    export QNAP_VAULT_TOKEN=<your-qnap-vault-root-token>"
+    CHECKS_PASSED=false
+else
+    echo -e "${GREEN}✓${NC}"
+fi
 
 # Check 5: Proxmox credentials
 echo -n "Checking terraform.tfvars... "
