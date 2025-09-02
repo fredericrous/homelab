@@ -87,12 +87,6 @@ helmCharts:
       mon:
         count: 3
         allowMultiplePerNode: true
-        # Reduce mon database size
-        volumeClaimTemplate:
-          spec:
-            resources:
-              requests:
-                storage: 5Gi  # Reduced from default 10Gi
       mgr:
         count: 1  # Single mgr for homelab
         allowMultiplePerNode: false
