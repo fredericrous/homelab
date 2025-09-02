@@ -44,6 +44,12 @@ helmCharts:
       osd_pool_default_min_size = 1
       mon_warn_on_pool_no_redundancy = false
     cephClusterSpec:
+      placement:
+        all:
+          tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
       mon:
         count: 3
         allowMultiplePerNode: false
@@ -59,6 +65,9 @@ helmCharts:
         useAllNodes: false
         useAllDevices: false
         nodes:
+        - name: "talos-cp-1"
+          devices:
+          - name: "sdb"
         - name: "talos-wk-1-gpu"
           devices:
           - name: "sdb"
