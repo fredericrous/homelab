@@ -88,8 +88,8 @@ helmCharts:
         count: 3
         allowMultiplePerNode: true
       mgr:
-        count: 1  # Single mgr for homelab
-        allowMultiplePerNode: false
+        count: 2  # Minimum 2 mgr for Rook-Ceph to function
+        allowMultiplePerNode: true
         modules:
         - name: rook
           enabled: true
