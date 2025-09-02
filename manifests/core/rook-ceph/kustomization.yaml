@@ -22,10 +22,10 @@ helmCharts:
     logLevel: INFO
     # Disable discovery daemon logging
     discover:
-      toleration: |
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
     # CSI Settings for 3-node cluster
     csi:
       provisionerReplicas: 2
