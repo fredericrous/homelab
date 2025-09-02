@@ -83,6 +83,31 @@ if [ -f "terraform.tfvars" ]; then
     fi
 fi
 
+# Check 8: OVH Credentials for Let's Encrypt
+echo -n "Checking OVH credentials... "
+MISSING_OVH_VARS=()
+if [ -z "${OVH_APPLICATION_KEY:-}" ]; then
+    MISSING_OVH_VARS+=("OVH_APPLICATION_KEY")
+fi
+if [ -z "${OVH_APPLICATION_SECRET:-}" ]; then
+    MISSING_OVH_VARS+=("OVH_APPLICATION_SECRET")
+fi
+if [ -z "${OVH_CONSUMER_KEY:-}" ]; then
+    MISSING_OVH_VARS+=("OVH_CONSUMER_KEY")
+fi
+
+if [ ${#MISSING_OVH_VARS[@]} -eq 0 ]; then
+    echo -e "${GREEN}✓${NC}"
+else
+    echo -e "${YELLOW}⚠${NC} Missing environment variables"
+    echo "  Missing: ${MISSING_OVH_VARS[*]}"
+    echo "  These are needed for Let's Encrypt SSL certificates"
+    echo "  Export them before running deploy:"
+    echo "    export OVH_APPLICATION_KEY=<your-key>"
+    echo "    export OVH_APPLICATION_SECRET=<your-secret>"
+    echo "    export OVH_CONSUMER_KEY=<your-consumer-key>"
+fi
+
 echo ""
 echo "==============================="
 
