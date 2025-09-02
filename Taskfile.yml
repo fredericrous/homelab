@@ -186,6 +186,15 @@ tasks:
       - |
         # Bootstrap secrets for cert-manager and other services
         echo "🔐 Bootstrapping placeholder secrets..."
+        export KUBECONFIG="{{.KUBECONFIG}}"
+        
+        # Verify kubeconfig is accessible
+        if ! kubectl cluster-info &>/dev/null; then
+          echo "❌ Cannot connect to Kubernetes cluster"
+          echo "   KUBECONFIG: $KUBECONFIG"
+          exit 1
+        fi
+        
         kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
         
         if ! kubectl get secret ovh-credentials -n cert-manager &>/dev/null; then
