@@ -15,7 +15,18 @@ helmCharts:
   valuesInline:
     crds:
       enabled: true
-    # CSI Settings for 2-node cluster
+    # Disable monitoring to reduce etcd usage
+    monitoring:
+      enabled: false
+    # Log level
+    logLevel: INFO
+    # Disable discovery daemon logging
+    discover:
+      toleration: |
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    # CSI Settings for 3-node cluster
     csi:
       provisionerReplicas: 2
       enableRbdDriver: true
@@ -46,6 +57,16 @@ helmCharts:
       osd_pool_default_size = 2
       osd_pool_default_min_size = 1
       mon_warn_on_pool_no_redundancy = false
+      # Reduce mon database size
+      mon_data_size_warn = 1073741824  # 1GB warning
+      mon_data_size_crit = 2147483648  # 2GB critical
+      # Reduce recovery operations
+      osd_recovery_max_active = 1
+      osd_max_backfills = 1
+      # Memory target for OSDs
+      osd_memory_target = 1073741824  # 1GB
+      # Reduce cache sizes
+      bluestore_cache_size = 536870912  # 512MB
     cephClusterSpec:
       cephVersion:
         image: quay.io/ceph/ceph:v18.2.4
@@ -66,14 +87,32 @@ helmCharts:
       mon:
         count: 3
         allowMultiplePerNode: true
+        # Reduce mon database size
+        volumeClaimTemplate:
+          spec:
+            resources:
+              requests:
+                storage: 5Gi  # Reduced from default 10Gi
       mgr:
-        count: 2
+        count: 1  # Single mgr for homelab
         allowMultiplePerNode: false
+        modules:
+        - name: rook
+          enabled: true
       dashboard:
-        enabled: true
+        enabled: false  # Disable to save resources
         ssl: false
       crashCollector:
-        disable: false
+        disable: true  # Disable to reduce etcd objects
+      # Disable log collector
+      logCollector:
+        enabled: false
+      # Monitoring
+      monitoring:
+        enabled: false
+      # Clean up policy
+      cleanupPolicy:
+        deleteDataDirOnHosts: ""
       resources:
         mgr:
           limits:
@@ -123,6 +162,10 @@ helmCharts:
         replicated:
           size: 2
           requireSafeReplicaSize: false
+        # CRITICAL: Reduce PG count for small cluster
+        parameters:
+          pg_num: "32"  # Reduced from default 128
+          pgp_num: "32"
       storageClass:
         enabled: true
         name: rook-ceph-block
@@ -146,15 +189,26 @@ helmCharts:
           replicated:
             size: 2
             requireSafeReplicaSize: false
+          parameters:
+            pg_num: "16"  # Reduced for metadata pool
         dataPools:
         - name: replicated
           failureDomain: host
           replicated:
             size: 2
             requireSafeReplicaSize: false
+          parameters:
+            pg_num: "32"  # Reduced for data pool
         metadataServer:
           activeCount: 1
-          activeStandby: true
+          activeStandby: false  # Disable standby to save resources
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
       storageClass:
         enabled: true
         name: rook-cephfs

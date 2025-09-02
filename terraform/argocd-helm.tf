@@ -14,8 +14,20 @@ resource "null_resource" "argocd_install" {
       export KUBECONFIG=${abspath(local_file.kubeconfig[0].filename)}
       
       echo "🔍 Checking if ArgoCD is already installed..."
-      if kubectl get deployment -n argocd argocd-server >/dev/null 2>&1; then
-        echo "✅ ArgoCD already installed, skipping"
+      if helm list -n argocd | grep -q "^argocd"; then
+        echo "✅ ArgoCD Helm release already exists"
+        # Check if it's in a failed state
+        if helm status argocd -n argocd | grep -q "STATUS: failed"; then
+          echo "⚠️  ArgoCD is in failed state, upgrading..."
+          helm upgrade argocd argo/argo-cd \
+            --version 7.7.12 \
+            --namespace argocd \
+            --create-namespace \
+            --wait --timeout 10m \
+            --values ${path.module}/argocd-values.yaml
+        else
+          echo "✅ ArgoCD is already deployed and healthy"
+        fi
         exit 0
       fi
       
@@ -25,26 +37,7 @@ resource "null_resource" "argocd_install" {
         --namespace argocd \
         --create-namespace \
         --wait --timeout 10m \
-        --set server.extraArgs[0]="--insecure" \
-        --set redis.enabled=true \
-        --set server.resources.limits.cpu=500m \
-        --set server.resources.limits.memory=512Mi \
-        --set server.resources.requests.cpu=250m \
-        --set server.resources.requests.memory=256Mi \
-        --set controller.resources.limits.cpu=1000m \
-        --set controller.resources.limits.memory=1Gi \
-        --set controller.resources.requests.cpu=500m \
-        --set controller.resources.requests.memory=512Mi \
-        --set repoServer.resources.limits.cpu=500m \
-        --set repoServer.resources.limits.memory=512Mi \
-        --set repoServer.resources.requests.cpu=250m \
-        --set repoServer.resources.requests.memory=256Mi \
-        --set dex.enabled=false \
-        --set applicationSet.enabled=true \
-        --set applicationSet.resources.limits.cpu=500m \
-        --set applicationSet.resources.limits.memory=512Mi \
-        --set applicationSet.resources.requests.cpu=250m \
-        --set applicationSet.resources.requests.memory=256Mi
+        --values ${path.module}/argocd-values.yaml
       
       echo "✅ ArgoCD installed successfully"
     EOT

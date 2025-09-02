@@ -1,15 +1,26 @@
-# Cilium day-0 on Talos (Services via kube-proxy, datapath via eBPF)
+# Cilium optimized for Talos homelab
+# Features: BBR, Hubble, Bandwidth Manager, DNS Proxy
 
-kubeProxyReplacement: false   # IMPORTANT - let kube-proxy handle services
-tunnelProtocol: "vxlan"            # reliable in virtualized L2
+# Since Talos doesn't use kube-proxy, enable full eBPF replacement
+kubeProxyReplacement: true
+# Use tunnel mode for stability
 routingMode: "tunnel"
+tunnelProtocol: "vxlan"
+
+# 1. Enable BBR Congestion Control & 5. Bandwidth Manager
+bandwidthManager:
+  enabled: true
+  bbr: true
 
 ipam:
   mode: "kubernetes"
+  operator:
+    clusterPoolIPv4PodCIDRList: ["10.244.0.0/16"]
+    clusterPoolIPv4MaskSize: 24
 
-# Talos KubePrism configuration
-k8sServiceHost: localhost
-k8sServicePort: 7445
+# 6. Optimize for Talos - explicit API server endpoint
+k8sServiceHost: "192.168.1.67"
+k8sServicePort: 6443
 
 # Talos specifics (immutable host)
 securityContext:
@@ -48,25 +59,52 @@ hostServices:
 enableHostFirewall: false
 enableL7Proxy: false
 
-# Hubble (optional but handy)
+# 3. Enable Hubble (Observability) with resource limits
 hubble:
   enabled: true
   relay:
     enabled: true
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
   ui:
-    enabled: false
+    enabled: true  # Enable UI for better observability
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  metrics:
+    enabled:
+      - dns:query
+      - drop
+      - tcp
+      - flow
+      - http
+      - icmp
+    serviceMonitor:
+      enabled: false  # Enable if you have Prometheus
 
-# Resources
+# 7. Resource Limits for homelab (conservative)
 operator:
   replicas: 1
   resources:
+    limits:
+      cpu: 300m
+      memory: 512Mi
     requests:
-      cpu: 50m
-      memory: 50Mi
+      cpu: 100m
+      memory: 128Mi
 
 resources:
   limits:
-    cpu: 1000m
+    cpu: 500m
     memory: 512Mi
   requests:
     cpu: 100m
@@ -74,4 +112,59 @@ resources:
 
 # Tolerations for control plane
 tolerations:
-  - operator: "Exists"
+  - operator: Exists
+
+# Ensure Cilium can run on control plane if needed
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - topologyKey: kubernetes.io/hostname
+      labelSelector:
+        matchLabels:
+          k8s-app: cilium
+
+# 8. DNS Policy - Enable DNS proxy for caching
+dnsProxy:
+  enabled: true
+  minTTL: 3600   # Cache DNS entries for 1 hour minimum
+  maxTTL: 86400  # Cache DNS entries for 24 hours maximum
+  preCache: ""  # Helm 1.18.1 expects string, not object
+
+# Additional optimizations for homelab
+# With native routing mode, direct routes are automatic
+endpointRoutes:
+  enabled: true
+
+# Identity allocation mode to reduce etcd pressure
+identityAllocationMode: crd
+identityChangeGracePeriod: 50s
+
+# BPF settings
+bpf:
+  preallocateMaps: true
+  masquerade: true
+  clockProbe: true
+
+# Enable socket-based load balancing
+socketLB:
+  enabled: true
+
+# Health checking
+healthChecking: true
+healthPort: 9879
+
+# Prometheus metrics (if you add monitoring later)
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: false  # Enable when you have Prometheus operator
+
+# Ensure proper communication in Talos environment
+hostServices:
+  enabled: true
+  protocols: tcp,udp
+
+# Debug options (disabled by default)
+debug:
+  enabled: false
+  # verbose: flow  # Uncomment and set to string like "flow" or "datapath" when debugging

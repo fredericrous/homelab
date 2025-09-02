@@ -1,0 +1,213 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: rook-ceph
+
+resources:
+- namespace.yaml
+
+helmCharts:
+# Operator only - minimal configuration
+- name: rook-ceph
+  repo: https://charts.rook.io/release
+  version: v1.15.5
+  releaseName: rook-ceph
+  namespace: rook-ceph
+  valuesInline:
+    # Enable CRDs
+    crds:
+      enabled: true
+    
+    # Monitoring - DISABLE to save resources and reduce etcd usage
+    monitoring:
+      enabled: false
+    
+    # Reduce operator resources
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    
+    # CSI Settings - CRITICAL for homelab
+    csi:
+      # Single provisioner replica
+      provisionerReplicas: 1
+      
+      # Enable drivers
+      enableRbdDriver: true
+      enableCephfsDriver: false  # Disable CephFS to save resources
+      
+      # Reduce CSI resources significantly
+      csiRBDProvisionerResource: |
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      
+      # Reduce plugin resources
+      csiRBDPluginResource: |
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+    
+    # Disable features we don't need
+    enableDiscoveryDaemon: true
+    enableAdmissionController: false
+    
+    # Log level
+    logLevel: INFO
+
+# Cluster configuration - separate for easier management
+- name: rook-ceph-cluster
+  repo: https://charts.rook.io/release
+  version: v1.15.5
+  releaseName: rook-ceph-cluster
+  namespace: rook-ceph
+  valuesInline:
+    operatorNamespace: rook-ceph
+    
+    # CRITICAL: Pool configuration for 3 nodes
+    configOverride: |
+      [global]
+      osd_pool_default_size = 2
+      osd_pool_default_min_size = 1
+      mon_warn_on_pool_no_redundancy = false
+      # Reduce recovery operations to minimize impact
+      osd_recovery_max_active = 1
+      osd_max_backfills = 1
+      # Reduce memory usage
+      osd_memory_target = 1073741824  # 1GB
+      
+    cephClusterSpec:
+      cephVersion:
+        image: quay.io/ceph/ceph:v18.2.4
+      
+      dataDirHostPath: /var/lib/rook
+      
+      # CRITICAL: Only 1 mon for homelab (3 mons create too many objects)
+      mon:
+        count: 1
+        allowMultiplePerNode: false
+      
+      # Single mgr
+      mgr:
+        count: 1
+        allowMultiplePerNode: false
+        modules:
+        - name: rook
+          enabled: true
+      
+      # DISABLE dashboard - saves resources
+      dashboard:
+        enabled: false
+      
+      # DISABLE crash collector - reduces etcd objects
+      crashCollector:
+        disable: true
+      
+      # DISABLE log collector
+      logCollector:
+        enabled: false
+      
+      # Network - use host network
+      network:
+        provider: host
+      
+      # Placement
+      placement:
+        all:
+          tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+      
+      # CRITICAL: Reduce resource usage
+      resources:
+        mgr:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        mon:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        osd:
+          limits:
+            cpu: 1
+            memory: 2Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+            
+      # Storage configuration
+      storage:
+        useAllNodes: true
+        useAllDevices: false
+        deviceFilter: "sdb"
+        config:
+          osdsPerDevice: "1"
+          encryptedDevice: "false"
+          # Reduce BlueStore cache
+          bluestore_cache_size: "536870912"  # 512MB
+    
+    # Single block pool only - no CephFS
+    cephBlockPools:
+    - name: replicapool
+      spec:
+        failureDomain: host
+        replicated:
+          size: 2
+          requireSafeReplicaSize: false
+        # Reduce PG count for small cluster
+        parameters:
+          pg_num: "32"  # Reduced from default
+      storageClass:
+        enabled: true
+        name: rook-ceph-block
+        isDefault: true
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true
+        parameters:
+          imageFormat: "2"
+          imageFeatures: layering
+          csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+          csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+          csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+          csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+          csi.storage.k8s.io/fstype: ext4
+    
+    # DISABLE CephFS - significant resource savings
+    cephFileSystems: []
+    
+    # DISABLE object store
+    cephObjectStores: []
+    
+    # Monitoring - disabled
+    monitoring:
+      enabled: false
+
+patches:
+- target:
+    kind: Namespace
+    name: rook-ceph
+  patch: |-
+    - op: add
+      path: /metadata/annotations
+      value:
+        argocd.argoproj.io/sync-wave: "-5"

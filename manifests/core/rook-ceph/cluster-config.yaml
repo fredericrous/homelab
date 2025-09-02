@@ -1,0 +1,129 @@
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph
+spec:
+  # Use specific Ceph version
+  cephVersion:
+    image: quay.io/ceph/ceph:v18.2.4
+    allowUnsupported: false
+  
+  # Single mon for homelab (reduces etcd usage)
+  mon:
+    count: 1  # Minimal for homelab, use 3 for production
+    allowMultiplePerNode: false
+    
+  # Single mgr is sufficient for homelab
+  mgr:
+    count: 1
+    modules:
+      - name: rook
+        enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  
+  # Disable dashboard to save resources
+  dashboard:
+    enabled: false
+    
+  # Disable crash collector for homelab
+  crashCollector:
+    disable: true
+    
+  # Disable log collector to save resources  
+  logCollector:
+    enabled: false
+    
+  # Disable monitoring
+  monitoring:
+    enabled: false
+    
+  # Network settings
+  network:
+    provider: host  # Use host network for simplicity
+    
+  # Resource limits for all Ceph daemons
+  resources:
+    mon:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    osd:
+      requests:
+        cpu: 100m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 2Gi
+    mgr:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+        
+  # Placement - use all 3 nodes
+  placement:
+    all:
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+        
+  # Storage configuration
+  storage:
+    # Use all available devices
+    useAllNodes: true
+    useAllDevices: true
+    
+    # Storage configuration
+    config:
+      # Reduce metadata overhead
+      osdsPerDevice: "1"
+      
+    # Node-specific configuration if needed
+    # nodes:
+    # - name: "talos-cp-1"
+    #   devices:
+    #   - name: "sdb"  # Adjust based on your setup
+    # - name: "talos-wk-1-gpu"
+    #   devices:
+    #   - name: "sdb"
+    # - name: "talos-wk-2"
+    #   devices:
+    #   - name: "sdb"
+    
+  # Health check settings
+  healthCheck:
+    daemonHealth:
+      mon:
+        disabled: false
+        interval: 45s
+      osd:
+        disabled: false
+        interval: 60s
+      status:
+        disabled: false
+        interval: 120s
+        
+  # Priority classes
+  priorityClassNames:
+    all: system-cluster-critical
+    
+  # Disruption management
+  disruptionManagement:
+    managePodBudgets: false  # Disable for homelab
+    
+  # Cleanup policy
+  cleanupPolicy:
+    deleteDataDirOnHosts: ""  # Keep data on host removal

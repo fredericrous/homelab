@@ -72,7 +72,8 @@ locals {
   node_patches = merge(
     {
       controlplane = [
-        file("${path.module}/patch/controlplane-ips-patch.yaml")
+        file("${path.module}/patch/controlplane-ips-patch.yaml"),
+        file("${path.module}/patch/etcd-quota-patch.yaml")
       ]
     },
     {
