@@ -107,9 +107,6 @@ helmCharts:
       # Disable log collector
       logCollector:
         enabled: false
-      # Monitoring
-      monitoring:
-        enabled: false
       # Clean up policy
       cleanupPolicy:
         deleteDataDirOnHosts: ""
