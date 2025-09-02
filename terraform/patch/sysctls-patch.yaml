@@ -1,6 +1,9 @@
 machine:
   sysctls:
-    # eBPF settings (removed kernel.unprivileged_bpf_disabled and kernel.kptr_restrict due to KSPP conflicts)
+    # Required for eBPF datapath (Cilium CNI)
+    # Note: These trigger KSPP warnings but are necessary
+    kernel.unprivileged_bpf_disabled: "0"
+    kernel.kptr_restrict: "0"
     net.core.bpf_jit_harden: "1"
     
     # Fix service-IP UDP (DNS) path on Talos/virt

@@ -44,6 +44,16 @@ helmCharts:
       osd_pool_default_min_size = 1
       mon_warn_on_pool_no_redundancy = false
     cephClusterSpec:
+      cephVersion:
+        image: quay.io/ceph/ceph:v18.2.4
+      dataDirHostPath: /var/lib/rook
+      cleanupPolicy:
+        confirmation: ""
+        sanitizeDisks:
+          method: complete
+          dataSource: zero
+          iteration: 1
+        allowUninstallWithVolumes: false
       placement:
         all:
           tolerations:
@@ -52,7 +62,7 @@ helmCharts:
             effect: NoSchedule
       mon:
         count: 3
-        allowMultiplePerNode: false
+        allowMultiplePerNode: true
       mgr:
         count: 2
         allowMultiplePerNode: false
@@ -61,19 +71,48 @@ helmCharts:
         ssl: false
       crashCollector:
         disable: false
+      resources:
+        mgr:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+        mon:
+          limits:
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        osd:
+          limits:
+            memory: 4Gi
+          requests:
+            cpu: 500m
+            memory: 2Gi
       storage:
         useAllNodes: false
         useAllDevices: false
+        deviceFilter: "sdb"
+        config:
+          osdsPerDevice: "1"
+          encryptedDevice: "false"
         nodes:
         - name: "talos-cp-1"
           devices:
           - name: "sdb"
+            config:
+              deviceClass: hdd
         - name: "talos-wk-1-gpu"
           devices:
           - name: "sdb"
+            config:
+              deviceClass: hdd
         - name: "talos-wk-2"
           devices:
           - name: "sdb"
+            config:
+              deviceClass: hdd
     cephBlockPools:
     - name: replicapool
       spec:
