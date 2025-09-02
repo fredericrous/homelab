@@ -99,13 +99,14 @@ fi
 if [ ${#MISSING_OVH_VARS[@]} -eq 0 ]; then
     echo -e "${GREEN}✓${NC}"
 else
-    echo -e "${YELLOW}⚠${NC} Missing environment variables"
+    echo -e "${RED}✗${NC} Missing required environment variables"
     echo "  Missing: ${MISSING_OVH_VARS[*]}"
-    echo "  These are needed for Let's Encrypt SSL certificates"
+    echo "  These are REQUIRED for Let's Encrypt SSL certificates"
     echo "  Export them before running deploy:"
     echo "    export OVH_APPLICATION_KEY=<your-key>"
     echo "    export OVH_APPLICATION_SECRET=<your-secret>"
     echo "    export OVH_CONSUMER_KEY=<your-consumer-key>"
+    CHECKS_PASSED=false
 fi
 
 echo ""
