@@ -67,7 +67,7 @@ fi
 echo "🔍 Checking if Ceph cluster is ready to provision volumes..."
 
 # Wait for OSDs to be running
-timeout 300s sh -c 'while true; do
+timeout 300s bash -c 'while true; do
   # Check if any Ceph OSD pods are running
   osd_count=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c "Running" || echo "0")
   if [ "$osd_count" -gt 0 ]; then
@@ -80,7 +80,7 @@ done'
 
 # Wait for Ceph health to be OK
 echo "🔍 Checking Ceph cluster health..."
-timeout 300s sh -c 'while true; do
+timeout 300s bash -c 'while true; do
   # Check Ceph health using the toolbox or operator
   ceph_health=$(kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph health 2>/dev/null || \
                 kubectl exec -n rook-ceph -l app=rook-ceph-operator -- ceph status -f json-pretty 2>/dev/null | jq -r .health.status 2>/dev/null || \
@@ -120,7 +120,7 @@ spec:
 EOF
 
 # Wait for test PVC to be bound
-timeout 60s sh -c 'while true; do
+timeout 60s bash -c 'while true; do
   pvc_status=$(kubectl get pvc test-ceph-pvc -n default -o jsonpath="{.status.phase}" 2>/dev/null || echo "Unknown")
   if [ "$pvc_status" = "Bound" ]; then
     echo "✅ Test PVC successfully bound - storage is working"
