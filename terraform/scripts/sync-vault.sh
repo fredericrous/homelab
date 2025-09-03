@@ -116,7 +116,7 @@ fi
 unset K8S_VAULT_TRANSIT_TOKEN
 
 echo "🔐 Waiting for Vault application to be created by ApplicationSet..."
-timeout 150s bash -c 'until kubectl get app -n argocd vault >/dev/null 2>&1; do
+timeout 150s sh -c 'until kubectl get app -n argocd vault >/dev/null 2>&1; do
   echo "Waiting for Vault application..."
   sleep 5
 done'
@@ -134,7 +134,7 @@ kubectl patch app -n argocd vault --type merge -p '{"operation":{"initiatedBy":{
 
 # Wait for sync to complete
 echo "⏳ Waiting for Vault sync to complete..."
-timeout 600s bash -c 'while true; do
+timeout 600s sh -c 'while true; do
   sync_status=$(kubectl get app -n argocd vault -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
   health_status=$(kubectl get app -n argocd vault -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
   
@@ -164,7 +164,7 @@ fi
 
 # Wait for Vault namespace and PVC
 echo "⏳ Waiting for Vault PVC to be bound..."
-timeout 300s bash -c 'while true; do
+timeout 300s sh -c 'while true; do
   pvc_status=$(kubectl get pvc -n vault vault-data -o jsonpath="{.status.phase}" 2>/dev/null || echo "NotFound")
   if [ "$pvc_status" = "Bound" ]; then
     echo "✅ Vault PVC is bound"
@@ -205,7 +205,7 @@ kubectl wait --for=jsonpath='{.status.phase}'=Running --timeout=300s pod -n vaul
 # Check if Vault is initialized
 echo "🔍 Checking Vault initialization status..."
 
-timeout 300s bash -c 'while true; do
+timeout 300s sh -c 'while true; do
   # Check if initialization secrets exist
   if kubectl get secret -n vault vault-keys >/dev/null 2>&1 && kubectl get secret -n vault vault-admin-token >/dev/null 2>&1; then
     echo "✅ Vault initialization secrets found"
