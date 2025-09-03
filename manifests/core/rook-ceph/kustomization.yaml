@@ -84,9 +84,18 @@ helmCharts:
           - key: node-role.kubernetes.io/control-plane
             operator: Exists
             effect: NoSchedule
+        # Allow MGR to run on any node including workers
+        mgr:
+          tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+        # Allow OSD to run only on worker nodes to save control plane resources
+        osd:
+          tolerations: []
       mon:
-        count: 3
-        allowMultiplePerNode: true
+        count: 3  # Ceph requires 3 monitors for quorum
+        allowMultiplePerNode: true  # Will put 2 on one node, 1 on the other
       mgr:
         count: 2  # Minimum 2 mgr for Rook-Ceph to function
         allowMultiplePerNode: true
@@ -101,27 +110,24 @@ helmCharts:
       # Disable log collector
       logCollector:
         enabled: false
-      # Clean up policy
-      cleanupPolicy:
-        deleteDataDirOnHosts: ""
       resources:
         mgr:
           limits:
             memory: 1Gi
           requests:
-            cpu: 500m
+            cpu: 100m  # Reduced from 500m
             memory: 512Mi
         mon:
           limits:
             memory: 2Gi
           requests:
-            cpu: 500m
+            cpu: 100m  # Reduced from 500m
             memory: 1Gi
         osd:
           limits:
             memory: 4Gi
           requests:
-            cpu: 500m
+            cpu: 200m  # Reduced from 500m
             memory: 2Gi
       storage:
         useAllNodes: false
@@ -131,11 +137,6 @@ helmCharts:
           osdsPerDevice: "1"
           encryptedDevice: "false"
         nodes:
-        - name: "talos-cp-1"
-          devices:
-          - name: "sdb"
-            config:
-              deviceClass: hdd
         - name: "talos-wk-1-gpu"
           devices:
           - name: "sdb"

@@ -76,13 +76,12 @@ variable "nodes" {
   description = "Node configurations - values will be merged with defaults in locals.tf"
   type = object({
     controlplane = object({
-      ip             = string
-      mac_address    = optional(string, "")
-      cores          = optional(number)
-      memory         = optional(number)
-      os_disk_size   = optional(number)
-      data_disk_size = optional(number)
-      labels         = optional(map(string), {})
+      ip           = string
+      mac_address  = optional(string, "")
+      cores        = optional(number)
+      memory       = optional(number)
+      os_disk_size = optional(number)
+      labels       = optional(map(string), {})
     })
     workers = list(object({
       name            = string
@@ -100,10 +99,9 @@ variable "nodes" {
 
   default = {
     controlplane = {
-      ip             = "192.168.1.67"
-      mac_address    = ""
-      labels         = {}
-      data_disk_size = 491
+      ip          = "192.168.1.67"
+      mac_address = ""
+      labels      = {}
     }
     workers = [
       {
@@ -114,7 +112,7 @@ variable "nodes" {
         cores           = 12
         memory          = 48128
         os_disk_size    = 128
-        data_disk_size  = 491
+        data_disk_size  = 800
         gpu_passthrough = "0000:01:00"
         labels          = {}
       },
@@ -126,7 +124,7 @@ variable "nodes" {
         cores           = 10
         memory          = 37888
         os_disk_size    = 96
-        data_disk_size  = 491
+        data_disk_size  = 673
         gpu_passthrough = null
         labels          = {}
       }
