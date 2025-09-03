@@ -65,6 +65,8 @@ fi
 
 # Wait for Ceph cluster to be ready to provision volumes
 echo "🔍 Checking if Ceph cluster is ready to provision volumes..."
+
+# Wait for OSDs to be running
 timeout 300s bash -c 'while true; do
   # Check if any Ceph OSD pods are running
   osd_count=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c "Running" || echo "0")
@@ -76,8 +78,57 @@ timeout 300s bash -c 'while true; do
   sleep 10
 done'
 
-# Give Ceph a moment to stabilize
-echo "⏳ Waiting for Ceph to stabilize..."
-sleep 10
+# Wait for Ceph health to be OK
+echo "🔍 Checking Ceph cluster health..."
+timeout 300s bash -c 'while true; do
+  # Check Ceph health using the toolbox or operator
+  ceph_health=$(kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph health 2>/dev/null || \
+                kubectl exec -n rook-ceph -l app=rook-ceph-operator -- ceph status -f json-pretty 2>/dev/null | jq -r .health.status 2>/dev/null || \
+                echo "UNKNOWN")
+  
+  if [[ "$ceph_health" == "HEALTH_OK" ]] || [[ "$ceph_health" == "HEALTH_WARN" ]]; then
+    echo "✅ Ceph cluster health: $ceph_health"
+    break
+  fi
+  
+  # Alternative: Check if CephCluster CR shows ready
+  cluster_ready=$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+  if [[ "$cluster_ready" == "Ready" ]]; then
+    echo "✅ CephCluster resource shows Ready"
+    break
+  fi
+  
+  echo "Ceph health: $ceph_health, Cluster phase: $cluster_ready"
+  sleep 5
+done'
+
+# Test that we can actually create a PVC
+echo "🧪 Testing PVC creation..."
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-ceph-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+
+# Wait for test PVC to be bound
+timeout 60s bash -c 'while true; do
+  pvc_status=$(kubectl get pvc test-ceph-pvc -n default -o jsonpath="{.status.phase}" 2>/dev/null || echo "Unknown")
+  if [ "$pvc_status" = "Bound" ]; then
+    echo "✅ Test PVC successfully bound - storage is working"
+    kubectl delete pvc test-ceph-pvc -n default --wait=false
+    break
+  fi
+  echo "Test PVC status: $pvc_status"
+  sleep 5
+done'
 
 echo "✅ Rook-Ceph storage is ready"
