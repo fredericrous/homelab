@@ -279,8 +279,23 @@ timeout 300s bash -c 'while true; do
       exit 1
     else
       echo "⏳ Vault init job is running..."
+      # Show more detailed job status
+      job_active=$(kubectl get job -n vault vault-init -o jsonpath="{.status.active}" 2>/dev/null || echo "0")
+      echo "   Active pods: $job_active"
+      
       # Show last few log lines to see progress
-      kubectl logs -n vault job/vault-init --tail=5 2>/dev/null || true
+      echo "   Recent logs:"
+      kubectl logs -n vault job/vault-init --tail=10 2>/dev/null || echo "   (no logs yet)"
+      
+      # Check for common issues
+      init_pod=$(kubectl get pods -n vault -l job-name=vault-init -o name | head -1)
+      if [ -n "$init_pod" ]; then
+        pod_status=$(kubectl get $init_pod -n vault -o jsonpath="{.status.phase}")
+        if [ "$pod_status" = "Pending" ]; then
+          echo "   ⚠️  Init pod is pending. Events:"
+          kubectl describe $init_pod -n vault | grep -A5 Events: | tail -5
+        fi
+      fi
 
       # Check if the logs show Vault is already initialized (auto-init issue)
       if kubectl logs -n vault job/vault-init 2>/dev/null | grep -q "WARNING: Vault is already initialized"; then

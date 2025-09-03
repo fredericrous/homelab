@@ -24,8 +24,20 @@ spec:
           
           export VAULT_ADDR=http://vault:8200
           
-          # Install jq
-          apk add --no-cache jq
+          # Install jq (with timeout to prevent hanging)
+          timeout 30 apk add --no-cache jq || {
+            echo "❌ Failed to install jq, continuing without it"
+            # Define a basic jq replacement for simple cases
+            jq() {
+              if [ "$1" = "-r" ] && [ "$2" = ".root_token" ]; then
+                grep -o '"root_token":"[^"]*"' | cut -d'"' -f4
+              elif [ "$1" = "-r" ] && [ "$2" = ".recovery_keys_b64[]" ]; then
+                grep -o '"recovery_keys_b64":\[[^]]*\]' | sed 's/.*\[//' | sed 's/\]//' | tr ',' '\n' | tr -d '"'
+              else
+                cat
+              fi
+            }
+          }
           
           # Wait for Vault to be ready
           echo "⏳ Waiting for Vault to be ready..."
