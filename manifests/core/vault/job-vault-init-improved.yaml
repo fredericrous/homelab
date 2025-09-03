@@ -19,8 +19,12 @@ spec:
         - |
           set -e
           
-          # Install jq - alpine vault image doesn't include it
-          apk add --no-cache jq
+          # Install bash and jq
+          apk add --no-cache bash jq
+          
+          # Now switch to bash for better scripting
+          exec bash << 'BASHSCRIPT'
+          set -e
           
           echo "🔐 Initializing Vault with Transit Unseal"
           echo "========================================"
@@ -29,17 +33,24 @@ spec:
           
           # Wait for Vault to be ready
           echo "⏳ Waiting for Vault to be ready..."
-          for i in {1..60}; do
+          i=1
+          while [ $i -le 60 ]; do
               if vault status >/dev/null 2>&1; then
                   echo "✅ Vault is responding"
                   break
               fi
               echo "Waiting... ($i/60)"
               sleep 2
+              i=$((i + 1))
           done
           
-          if ! vault status >/dev/null 2>&1; then
+          if [ $i -gt 60 ]; then
               echo "❌ Vault is not responding after 120 seconds"
+              # Show more debugging info
+              echo "Vault pod status:"
+              kubectl get pod vault-0 -n vault -o wide || true
+              echo "Vault pod logs (last 20 lines):"
+              kubectl logs vault-0 -n vault --tail=20 || true
               exit 1
           fi
           
@@ -169,6 +180,7 @@ spec:
           echo "   - No manual unseal keys are needed"
           echo "   - Vault will auto-unseal using QNAP Vault"
           echo "   - The root token is stored in the vault-admin-token secret"
+          BASHSCRIPT
         env:
         - name: VAULT_SKIP_VERIFY
           value: "true"
