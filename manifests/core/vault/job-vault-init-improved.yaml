@@ -12,7 +12,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: init-vault
-        image: hashicorp/vault:1.20.1
+        image: hashicorp/vault:1.20.1-alpine
         command:
         - /bin/sh
         - -c
@@ -24,15 +24,24 @@ spec:
           
           export VAULT_ADDR=http://vault:8200
           
+          # Install jq
+          apk add --no-cache jq
+          
           # Wait for Vault to be ready
           echo "⏳ Waiting for Vault to be ready..."
-          for i in {1..30}; do
+          for i in {1..60}; do
               if vault status >/dev/null 2>&1; then
+                  echo "✅ Vault is responding"
                   break
               fi
-              echo "Attempt $i/30..."
+              echo "Waiting... ($i/60)"
               sleep 2
           done
+          
+          if ! vault status >/dev/null 2>&1; then
+              echo "❌ Vault is not responding after 120 seconds"
+              exit 1
+          fi
           
           # Check if already initialized
           if vault status 2>/dev/null | grep -q "Initialized.*true"; then
@@ -99,17 +108,39 @@ spec:
               exit 0
           fi
           
-          # Initialize Vault (no need for unseal keys with transit)
+          # Initialize Vault with transit unseal
           echo "🎲 Initializing Vault..."
           
-          # With transit unseal, we don't need recovery shares
+          # Check if transit token is configured
+          if ! kubectl get secret vault-transit-token -n vault &>/dev/null; then
+              echo "❌ Transit token secret missing! Cannot initialize with transit unseal."
+              exit 1
+          fi
+          
+          # With transit unseal, we need recovery shares for emergency access
+          # Using -key-shares and -key-threshold would create unseal keys, which we don't want
           init_output=$(vault operator init \
-              -recovery-shares=1 \
-              -recovery-threshold=1 \
-              -format=json)
+              -recovery-shares=5 \
+              -recovery-threshold=3 \
+              -format=json 2>&1) || {
+              echo "❌ Initialization failed: $init_output"
+              
+              # Check if it's the auto-initialization issue
+              if echo "$init_output" | grep -q "already initialized"; then
+                  echo "⚠️  Vault auto-initialized without providing keys!"
+                  echo "    This is a known issue with Vault 1.20.1"
+                  echo "    Manual intervention required to get root token"
+              fi
+              exit 1
+          }
           
           # Extract root token
-          root_token=$(echo "$init_output" | jq -r '.root_token')
+          root_token=$(echo "$init_output" | jq -r '.root_token // empty')
+          if [ -z "$root_token" ]; then
+              echo "❌ Failed to extract root token from init output"
+              echo "Debug output: $init_output"
+              exit 1
+          fi
           
           # Store root token in secret
           kubectl create secret generic vault-admin-token \
@@ -117,12 +148,13 @@ spec:
               --from-literal=token="$root_token" \
               --dry-run=client -o yaml | kubectl apply -f -
           
-          # Also store the recovery key for emergency use
-          recovery_key=$(echo "$init_output" | jq -r '.recovery_keys_b64[0]')
+          # Store all recovery keys for emergency use
+          echo "$init_output" | jq -r '.recovery_keys_b64[]' > /tmp/recovery-keys.txt
           kubectl create secret generic vault-recovery-keys \
               --namespace=vault \
-              --from-literal=recovery-key="$recovery_key" \
+              --from-file=recovery-keys=/tmp/recovery-keys.txt \
               --dry-run=client -o yaml | kubectl apply -f -
+          rm -f /tmp/recovery-keys.txt
           
           # Also save to recovery location if mounted
           if [ -d /recovery ] && [ -w /recovery ]; then
