@@ -14,3 +14,5 @@ provider "helm" {
   }
 }
 
+provider "deepmerge" {}
+

@@ -1,36 +1,63 @@
 locals {
+  # Default configurations
+  controlplane_defaults = {
+    cores           = 2
+    memory          = 12288
+    os_disk_size    = 32
+    data_disk_size  = 491
+    gpu_passthrough = null
+    labels          = {}
+  }
+
+  worker_defaults = {
+    cores           = 4
+    memory          = 8192
+    os_disk_size    = 64
+    data_disk_size  = 200
+    gpu_passthrough = null
+    labels          = {}
+  }
+
+  # Filter out null values from user input
+  controlplane_user_values = {
+    for k, v in var.nodes.controlplane : k => v
+    if v != null
+  }
+
+  # Merge user-provided values with defaults using deepmerge
+  controlplane_config = provider::deepmerge::mergo(
+    local.controlplane_defaults,
+    local.controlplane_user_values,
+    "override"
+  )
+
+  # Build the complete nodes structure
   all_nodes = merge(
     {
-      controlplane = {
-        vmid            = 100
-        hostname        = "talos-cp-1"
-        ip              = var.nodes.controlplane.ip
-        mac_address     = var.nodes.controlplane.mac_address
-        cores           = 2
-        memory          = 12288
-        os_disk_size    = 32
-        data_disk_size  = null
-        gpu_passthrough = null
-        machine_type    = "controlplane"
-        talos_image     = var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${local.base_schematic_id}:${local.talos_version}"
-        labels          = var.nodes.controlplane.labels
-      }
+      controlplane = merge(local.controlplane_config, {
+        vmid         = 100
+        hostname     = "talos-cp-1"
+        machine_type = "controlplane"
+        talos_image  = var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${local.base_schematic_id}:${local.talos_version}"
+      })
     },
     {
-      for idx, worker in var.nodes.workers : "worker${idx + 1}" => {
-        vmid            = worker.vmid
-        hostname        = worker.name
-        ip              = worker.ip
-        mac_address     = worker.mac_address
-        cores           = worker.cores
-        memory          = worker.memory
-        os_disk_size    = worker.os_disk_size
-        data_disk_size  = worker.data_disk_size
-        gpu_passthrough = worker.gpu_passthrough
-        machine_type    = "worker"
-        talos_image     = worker.gpu_passthrough != null ? (var.talos_install_image_gpu != "" ? var.talos_install_image_gpu : "factory.talos.dev/nocloud-installer/${local.gpu_schematic_id}:${local.talos_version}") : (var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${local.base_schematic_id}:${local.talos_version}")
-        labels          = worker.labels
-      }
+      for idx, worker in var.nodes.workers : "worker${idx + 1}" => merge(
+        provider::deepmerge::mergo(
+          local.worker_defaults,
+          {
+            for k, v in worker : k => v
+            if v != null
+          },
+          "override"
+        ),
+        {
+          vmid         = worker.vmid
+          hostname     = worker.name
+          machine_type = "worker"
+          talos_image  = lookup(worker, "gpu_passthrough", null) != null ? (var.talos_install_image_gpu != "" ? var.talos_install_image_gpu : "factory.talos.dev/nocloud-installer/${local.gpu_schematic_id}:${local.talos_version}") : (var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${local.base_schematic_id}:${local.talos_version}")
+        }
+      )
     }
   )
 

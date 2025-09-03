@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0.0"
+  required_version = ">= 1.8.0"
   
   required_providers {
     proxmox = {
@@ -13,6 +13,10 @@ terraform {
     helm = {
       source  = "hashicorp/helm"
       version = "~> 2.0"
+    }
+    deepmerge = {
+      source  = "isometry/deepmerge"
+      version = "1.1.0"
     }
   }
 }

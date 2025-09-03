@@ -73,21 +73,25 @@ variable "cluster_endpoint" {
 
 # Node configuration
 variable "nodes" {
-  description = "Node configurations"
+  description = "Node configurations - values will be merged with defaults in locals.tf"
   type = object({
     controlplane = object({
-      ip          = string
-      mac_address = optional(string, "")
-      labels      = optional(map(string), {})
+      ip             = string
+      mac_address    = optional(string, "")
+      cores          = optional(number)
+      memory         = optional(number)
+      os_disk_size   = optional(number)
+      data_disk_size = optional(number)
+      labels         = optional(map(string), {})
     })
     workers = list(object({
       name            = string
       vmid            = number
       ip              = string
       mac_address     = optional(string, "")
-      cores           = number
-      memory          = number
-      os_disk_size    = number
+      cores           = optional(number)
+      memory          = optional(number)
+      os_disk_size    = optional(number)
       data_disk_size  = optional(number)
       gpu_passthrough = optional(string)
       labels          = optional(map(string), {})
@@ -96,9 +100,10 @@ variable "nodes" {
 
   default = {
     controlplane = {
-      ip          = "192.168.1.67"
-      mac_address = ""
-      labels      = {}
+      ip             = "192.168.1.67"
+      mac_address    = ""
+      labels         = {}
+      data_disk_size = 491
     }
     workers = [
       {
@@ -109,7 +114,7 @@ variable "nodes" {
         cores           = 12
         memory          = 48128
         os_disk_size    = 128
-        data_disk_size  = 800
+        data_disk_size  = 491
         gpu_passthrough = "0000:01:00"
         labels          = {}
       },
@@ -121,7 +126,7 @@ variable "nodes" {
         cores           = 10
         memory          = 37888
         os_disk_size    = 96
-        data_disk_size  = 673
+        data_disk_size  = 491
         gpu_passthrough = null
         labels          = {}
       }
