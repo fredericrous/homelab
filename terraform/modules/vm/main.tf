@@ -119,9 +119,26 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   # Timeout configurations for various operations
   timeout_create      = 600   # 10 minutes for creation
-  timeout_stop_vm     = 300   # 5 minutes for stopping
-  timeout_shutdown_vm = 300   # 5 minutes for shutdown
+  timeout_stop_vm     = 60    # 1 minute for stopping (reduced for faster destroy)
+  timeout_shutdown_vm = 60    # 1 minute for shutdown (Talos doesn't respond to ACPI)
   timeout_reboot      = 300   # 5 minutes for reboot
+
+  # Force stop on destroy since Talos doesn't respond to graceful shutdown
+  stop_on_destroy = true
+
+  # Try to shutdown Talos gracefully before Proxmox force stops it
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      # Try talosctl shutdown if available (ignore errors)
+      if command -v talosctl >/dev/null 2>&1 && [ -n "${var.ip_address}" ]; then
+        echo "Attempting graceful Talos shutdown for ${var.name} (${var.ip_address})..."
+        talosctl shutdown --nodes ${var.ip_address} --wait=false 2>/dev/null || true
+        sleep 5
+      fi
+    EOT
+    on_failure = continue
+  }
 
   lifecycle {
     ignore_changes = [
