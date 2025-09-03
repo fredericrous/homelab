@@ -214,6 +214,37 @@ helmCharts:
           csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
           csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
           csi.storage.k8s.io/fstype: ext4
+    # Object store configuration for 2-node cluster
+    cephObjectStores:
+    - name: ceph-objectstore
+      spec:
+        metadataPool:
+          failureDomain: host
+          replicated:
+            size: 2  # Reduced from default 3 for 2-node cluster
+            requireSafeReplicaSize: false
+          parameters:
+            pg_num: "16"
+        dataPool:
+          failureDomain: osd  # Changed from host to osd since we only have 2 hosts
+          replicated:
+            size: 2  # Use replication instead of erasure coding for 2 nodes
+            requireSafeReplicaSize: false
+          parameters:
+            pg_num: "32"
+        preservePoolsOnDelete: false
+        gateway:
+          instances: 1  # Only 1 RGW instance to save resources
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 512Mi
+      storageClass:
+        enabled: true
+        name: ceph-bucket
+        reclaimPolicy: Delete
 
 patches:
 - target:
