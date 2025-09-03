@@ -21,9 +21,9 @@ helmCharts:
   releaseName: vault-secrets-operator
   includeCRDs: true  # Helm v3 - include CRDs in the installation
   valuesInline:
-    # Enable CRD upgrades
-    crds:
-      upgradeCRDs: true
+    # Disable the pre-upgrade hook for CRDs to avoid conflicts with ArgoCD
+    upgradeCRDs:
+      enabled: false
     # Add sync-wave annotation to all Helm resources (including CRDs)
     # This ensures they are created before any VSO custom resources
     commonAnnotations:
@@ -33,6 +33,9 @@ helmCharts:
         image:
           repository: hashicorp/vault-secrets-operator
           tag: 0.10.0
+    # For ArgoCD compatibility - disable tests
+    tests:
+      enabled: false
 
 patches:
   # Add sync-wave to all VSO custom resources to ensure they're created after Helm chart

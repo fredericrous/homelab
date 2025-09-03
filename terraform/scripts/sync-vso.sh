@@ -1,4 +1,14 @@
 #!/bin/bash
+# sync-vso.sh - Idempotent Vault Secrets Operator deployment sync script
+#
+# This script ensures VSO is deployed and synced via ArgoCD.
+# It handles common issues like:
+# - Conflicting upgrade-crds hooks from previous installations
+# - OutOfSync status due to configuration jobs
+# - Retries with different sync strategies if needed
+#
+# The script is idempotent - it can be run multiple times safely
+#
 set -e
 
 # Parameters
@@ -22,7 +32,16 @@ echo "🔒 Syncing Vault Secrets Operator..."
 # Create namespace if it doesn't exist
 kubectl create namespace vault-secrets-operator --dry-run=client -o yaml | kubectl apply -f -
 
+# Check if we have sync errors due to existing hooks
+if kubectl get app -n argocd vault-secrets-operator -o jsonpath='{.status.conditions[?(@.type=="SyncError")].message}' 2>/dev/null | grep -q "vault-secrets-operator-upgrade-crds.*already exists"; then
+  echo "⚠️  Detected conflicting upgrade-crds hooks, cleaning up..."
+  kubectl delete clusterrole vault-secrets-operator-upgrade-crds --ignore-not-found=true
+  kubectl delete clusterrolebinding vault-secrets-operator-upgrade-crds --ignore-not-found=true
+  sleep 2
+fi
+
 # Force sync VSO app - Helm will handle CRDs with installCRDs=true
+echo "🔄 Initiating VSO sync..."
 kubectl patch app -n argocd vault-secrets-operator --type merge -p '{"operation":{"initiatedBy":{"username":"terraform"},"sync":{"prune":true,"syncStrategy":{"hook":{}}}}}'
 
 # Wait for sync to complete
@@ -30,23 +49,42 @@ echo "⏳ Waiting for VSO sync to complete..."
 timeout 600s bash -c 'while true; do
   sync_status=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
   health_status=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
+  operation_phase=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.operationState.phase}" 2>/dev/null || echo "Unknown")
+  
+  # Check if we have sync errors
+  sync_error=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.conditions[?(@.type==\"SyncError\")].message}" 2>/dev/null || echo "")
+  
+  # If sync failed due to hooks, retry with different strategy
+  if [ "$operation_phase" = "Failed" ] && echo "$sync_error" | grep -q "upgrade-crds.*already exists"; then
+    echo "⚠️  Sync failed due to hook conflicts, cleaning and retrying with Replace strategy..."
+    # Delete the conflicting resources
+    kubectl delete clusterrole vault-secrets-operator-upgrade-crds --ignore-not-found=true
+    kubectl delete clusterrolebinding vault-secrets-operator-upgrade-crds --ignore-not-found=true
+    # Retry with Replace to force recreation
+    kubectl patch app -n argocd vault-secrets-operator --type merge -p "{\"operation\":{\"initiatedBy\":{\"username\":\"terraform-retry\"},\"sync\":{\"prune\":true,\"syncOptions\":[\"Replace=true\",\"ServerSideApply=true\"]}}}"
+    sleep 10
+    continue
+  fi
   
   # Check if VSO deployment exists (even if health is Missing due to config jobs)
   vso_deployment=$(kubectl get deployment -n vault-secrets-operator vault-secrets-operator-controller-manager 2>/dev/null || echo "NotFound")
+  
+  # Check if CRDs exist
+  crd_count=$(kubectl get crd | grep -c secrets.hashicorp.com || echo "0")
   
   if [ "$sync_status" = "Synced" ]; then
     echo "✅ VSO synced (Health: $health_status)"
     exit 0
   fi
   
-  # If OutOfSync but deployment exists, that is progress
-  if [ "$sync_status" = "OutOfSync" ] && [ "$vso_deployment" != "NotFound" ]; then
-    echo "✅ VSO deployment exists (Health: $health_status)"
-    echo "   Note: Health may show as Missing due to pending configuration jobs"
+  # If deployment and CRDs exist, consider it successful even if OutOfSync
+  if [ "$vso_deployment" != "NotFound" ] && [ "$crd_count" -gt "0" ]; then
+    echo "✅ VSO deployment and CRDs exist (Sync: $sync_status, Health: $health_status)"
+    echo "   Note: OutOfSync status may be due to configuration jobs"
     exit 0
   fi
   
-  echo "Sync status: $sync_status, Health: $health_status"
+  echo "Sync status: $sync_status, Health: $health_status, Phase: $operation_phase"
   sleep 5
 done'
 
