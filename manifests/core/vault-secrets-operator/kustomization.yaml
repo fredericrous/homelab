@@ -11,6 +11,7 @@ resources:
   - job-configure-default-vault-access.yaml  # Configure default namespace access
   - smb-credentials-vso.yaml  # VSO resource for SMB credentials
   - vault-auth-global.yaml
+  - fix-vault-config-rbac.yaml  # Additional RBAC for vault-config to access Vault pods
 
 # Install Vault Secrets Operator via Helm
 helmCharts:

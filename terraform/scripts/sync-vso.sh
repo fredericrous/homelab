@@ -54,9 +54,10 @@ timeout 600s bash -c 'while true; do
   # Check if we have sync errors
   sync_error=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.conditions[?(@.type==\"SyncError\")].message}" 2>/dev/null || echo "")
   
-  # If sync failed due to hooks, retry with different strategy
+  # Workaround for VSO Helm chart v0.10.0 bug where upgradeCRDs.enabled=false doesn't prevent hook creation
+  # TODO: Remove this when the Helm chart is fixed or we find a better solution
   if [ "$operation_phase" = "Failed" ] && echo "$sync_error" | grep -q "upgrade-crds.*already exists"; then
-    echo "⚠️  Sync failed due to hook conflicts, cleaning and retrying with Replace strategy..."
+    echo "⚠️  Sync failed due to VSO Helm chart hook conflicts (known issue), applying workaround..."
     # Delete the conflicting resources
     kubectl delete clusterrole vault-secrets-operator-upgrade-crds --ignore-not-found=true
     kubectl delete clusterrolebinding vault-secrets-operator-upgrade-crds --ignore-not-found=true
