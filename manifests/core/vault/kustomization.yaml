@@ -3,7 +3,14 @@ kind: Kustomization
 
 namespace: vault
 
-# ConfigMaps no longer needed with simplified init
+# ConfigMaps for scripts
+configMapGenerator:
+  - name: vault-init-script
+    namespace: vault
+    files:
+      - scripts/vault-init.sh
+    options:
+      disableNameSuffixHash: true
 
 resources:
   # Include base resources

@@ -19,176 +19,30 @@ spec:
         - |
           set -e
           
-          # Install bash and jq
-          apk add --no-cache bash jq
+          # Install bash, jq and kubectl
+          echo "📦 Installing required tools..."
+          apk add --no-cache bash jq kubectl
           
-          # Now switch to bash for better scripting
-          exec bash << 'BASHSCRIPT'
-          set -e
+          # Make script executable
+          chmod +x /scripts/vault-init.sh
           
-          echo "🔐 Initializing Vault with Transit Unseal"
-          echo "========================================"
-          
-          export VAULT_ADDR=http://vault:8200
-          
-          # Wait for Vault to be ready
-          echo "⏳ Waiting for Vault to be ready..."
-          i=1
-          while [ $i -le 60 ]; do
-              if vault status >/dev/null 2>&1; then
-                  echo "✅ Vault is responding"
-                  break
-              fi
-              echo "Waiting... ($i/60)"
-              sleep 2
-              i=$((i + 1))
-          done
-          
-          if [ $i -gt 60 ]; then
-              echo "❌ Vault is not responding after 120 seconds"
-              # Show more debugging info
-              echo "Vault pod status:"
-              kubectl get pod vault-0 -n vault -o wide || true
-              echo "Vault pod logs (last 20 lines):"
-              kubectl logs vault-0 -n vault --tail=20 || true
-              exit 1
-          fi
-          
-          # Check if already initialized
-          if vault status 2>/dev/null | grep -q "Initialized.*true"; then
-              echo "✅ Vault is already initialized"
-              
-              # Check if sealed
-              if vault status 2>/dev/null | grep -q "Sealed.*false"; then
-                  echo "✅ Vault is unsealed"
-              else
-                  echo "⚠️  Vault is sealed - attempting to unseal..."
-                  
-                  # For transit unseal, this should happen automatically
-                  # Just wait a bit for auto-unseal to kick in
-                  sleep 5
-                  
-                  if vault status 2>/dev/null | grep -q "Sealed.*false"; then
-                      echo "✅ Vault auto-unsealed via transit"
-                  else
-                      echo "❌ Vault remains sealed - check transit configuration"
-                      exit 1
-                  fi
-              fi
-              
-              # Check if admin token exists
-              if ! kubectl get secret vault-admin-token -n vault &>/dev/null; then
-                  echo "⚠️  Admin token secret missing - attempting recovery..."
-                  
-                  # Try to login with existing root token if available from recovery
-                  if [ -f /recovery/root-token ]; then
-                      echo "📂 Found recovery token file"
-                      root_token=$(cat /recovery/root-token)
-                      
-                      # Test if token is valid
-                      export VAULT_TOKEN="$root_token"
-                      if vault token lookup &>/dev/null; then
-                          echo "✅ Recovery token is valid"
-                          
-                          # Store in secret
-                          kubectl create secret generic vault-admin-token \
-                              --namespace=vault \
-                              --from-literal=token="$root_token" \
-                              --dry-run=client -o yaml | kubectl apply -f -
-                          
-                          echo "✅ Admin token secret created from recovery"
-                      else
-                          echo "❌ Recovery token is invalid"
-                          exit 1
-                      fi
-                  else
-                      echo "❌ No recovery token available"
-                      echo ""
-                      echo "Manual recovery required:"
-                      echo "1. If you have the root token, create the secret manually:"
-                      echo "   kubectl create secret generic vault-admin-token -n vault --from-literal=token=<your-root-token>"
-                      echo ""
-                      echo "2. Or generate a new root token (requires unseal key):"
-                      echo "   vault operator generate-root"
-                      exit 1
-                  fi
-              else
-                  echo "✅ Admin token secret exists"
-              fi
-              
-              exit 0
-          fi
-          
-          # Initialize Vault with transit unseal
-          echo "🎲 Initializing Vault..."
-          
-          # Check if transit token is configured
-          if ! kubectl get secret vault-transit-token -n vault &>/dev/null; then
-              echo "❌ Transit token secret missing! Cannot initialize with transit unseal."
-              exit 1
-          fi
-          
-          # With transit unseal, we need recovery shares for emergency access
-          # Using -key-shares and -key-threshold would create unseal keys, which we don't want
-          init_output=$(vault operator init \
-              -recovery-shares=5 \
-              -recovery-threshold=3 \
-              -format=json 2>&1) || {
-              echo "❌ Initialization failed: $init_output"
-              
-              # Check if it's the auto-initialization issue
-              if echo "$init_output" | grep -q "already initialized"; then
-                  echo "⚠️  Vault auto-initialized without providing keys!"
-                  echo "    This is a known issue with Vault 1.20.1"
-                  echo "    Manual intervention required to get root token"
-              fi
-              exit 1
-          }
-          
-          # Extract root token
-          root_token=$(echo "$init_output" | jq -r '.root_token // empty')
-          if [ -z "$root_token" ]; then
-              echo "❌ Failed to extract root token from init output"
-              echo "Debug output: $init_output"
-              exit 1
-          fi
-          
-          # Store root token in secret
-          kubectl create secret generic vault-admin-token \
-              --namespace=vault \
-              --from-literal=token="$root_token" \
-              --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Store all recovery keys for emergency use
-          echo "$init_output" | jq -r '.recovery_keys_b64[]' > /tmp/recovery-keys.txt
-          kubectl create secret generic vault-recovery-keys \
-              --namespace=vault \
-              --from-file=recovery-keys=/tmp/recovery-keys.txt \
-              --dry-run=client -o yaml | kubectl apply -f -
-          rm -f /tmp/recovery-keys.txt
-          
-          # Also save to recovery location if mounted
-          if [ -d /recovery ] && [ -w /recovery ]; then
-              echo "$root_token" > /recovery/root-token
-              echo "📋 Root token saved to recovery location"
-          fi
-          
-          echo "✅ Vault initialized successfully!"
-          echo "✅ Root token stored in vault-admin-token secret"
-          echo ""
-          echo "📋 Note: With transit auto-unseal:"
-          echo "   - No manual unseal keys are needed"
-          echo "   - Vault will auto-unseal using QNAP Vault"
-          echo "   - The root token is stored in the vault-admin-token secret"
-          BASHSCRIPT
+          # Execute the initialization script
+          echo "🚀 Running Vault initialization script..."
+          exec /scripts/vault-init.sh
         env:
         - name: VAULT_SKIP_VERIFY
           value: "true"
         volumeMounts:
         - name: recovery
           mountPath: /recovery
+        - name: init-script
+          mountPath: /scripts
       volumes:
       - name: recovery
         configMap:
           name: vault-recovery
           optional: true
+      - name: init-script
+        configMap:
+          name: vault-init-script
+          defaultMode: 0755
