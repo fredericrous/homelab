@@ -126,20 +126,6 @@ resource "proxmox_virtual_environment_vm" "vm" {
   # Force stop on destroy since Talos doesn't respond to graceful shutdown
   stop_on_destroy = true
 
-  # Try to shutdown Talos gracefully before Proxmox force stops it
-  provisioner "local-exec" {
-    when    = destroy
-    command = <<-EOT
-      # Try talosctl shutdown if available (ignore errors)
-      if command -v talosctl >/dev/null 2>&1 && [ -n "${var.ip_address}" ]; then
-        echo "Attempting graceful Talos shutdown for ${var.name} (${var.ip_address})..."
-        talosctl shutdown --nodes ${var.ip_address} --wait=false 2>/dev/null || true
-        sleep 5
-      fi
-    EOT
-    on_failure = continue
-  }
-
   lifecycle {
     ignore_changes = [
       network_device,
