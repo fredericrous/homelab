@@ -63,4 +63,21 @@ else
   exit 1
 fi
 
+# Wait for Ceph cluster to be ready to provision volumes
+echo "🔍 Checking if Ceph cluster is ready to provision volumes..."
+timeout 300s bash -c 'while true; do
+  # Check if any Ceph OSD pods are running
+  osd_count=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c "Running" || echo "0")
+  if [ "$osd_count" -gt 0 ]; then
+    echo "✅ Found $osd_count running OSD pods"
+    break
+  fi
+  echo "Waiting for Ceph OSDs to be ready..."
+  sleep 10
+done'
+
+# Give Ceph a moment to stabilize
+echo "⏳ Waiting for Ceph to stabilize..."
+sleep 10
+
 echo "✅ Rook-Ceph storage is ready"
