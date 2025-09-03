@@ -3,6 +3,16 @@ kind: Kustomization
 
 namespace: vault-secrets-operator
 
+# ConfigMaps for scripts
+configMapGenerator:
+  - name: vso-config-scripts
+    namespace: vault-secrets-operator
+    files:
+      - scripts/configure-vault-for-vso.sh
+      - scripts/configure-default-namespace-access.sh
+    options:
+      disableNameSuffixHash: true
+
 resources:
   # Include shared vault auth base (for vault-config service account)
   - ../../base/vault-auth

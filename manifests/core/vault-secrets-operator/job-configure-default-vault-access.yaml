@@ -23,41 +23,27 @@ spec:
         - -c
         - |
           set -e
-
-          # Wait for Vault to be ready
-          until vault status; do
-            echo "Waiting for Vault to be ready..."
-            sleep 5
-          done
-
-          # Login with admin token
-          if [ -f /vault/admin-token/token ]; then
-            export VAULT_TOKEN=$(cat /vault/admin-token/token)
-          else
-            echo "Admin token not found!"
-            exit 1
-          fi
-
-          # Create policy for default namespace to read SMB credentials
-          vault policy write default-policy - <<EOF
-          path "secret/data/smb" {
-            capabilities = ["read"]
-          }
-          EOF
-
-          # Create Kubernetes auth role for default namespace
-          vault write auth/kubernetes/role/default \
-            bound_service_account_names=default \
-            bound_service_account_namespaces=default \
-            policies=default-policy \
-            ttl=24h
-
-          echo "✅ Default namespace configured for SMB access"
+          
+          # Install bash if needed (vault:1.20.1 is alpine-based)
+          apk add --no-cache bash
+          
+          # Make script executable
+          chmod +x /scripts/configure-default-namespace-access.sh
+          
+          # Execute the configuration script
+          echo "🚀 Running default namespace configuration script..."
+          exec /scripts/configure-default-namespace-access.sh
         volumeMounts:
         - name: admin-token
           mountPath: /vault/admin-token
           readOnly: true
+        - name: config-scripts
+          mountPath: /scripts
       volumes:
       - name: admin-token
         secret:
           secretName: vault-admin-token
+      - name: config-scripts
+        configMap:
+          name: vso-config-scripts
+          defaultMode: 0755
