@@ -24,7 +24,8 @@ resources:
   - rbac-vault-secret-manager.yaml
   - vault-transit-token-secret-placeholder.yaml  # Placeholder to prevent ArgoCD from pruning the secret
   # - job-configure-transit-token.yaml  # Not needed - terraform creates the secret
-  - job-vault-init-simplified.yaml  # Simplified init for transit unseal
+  # - job-vault-init-simplified.yaml  # Simplified init for transit unseal
+  - job-vault-init-improved.yaml  # Improved init that handles missing admin token
   - vault-configure-argocd-job.yaml  # Configure Vault for ArgoCD after initialization
   - job-configure-app-ovh-access.yaml  # Configure OVH access for apps
   - job-configure-cert-manager-vault-access.yaml  # Configure cert-manager Vault access
