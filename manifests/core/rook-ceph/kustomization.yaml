@@ -45,8 +45,12 @@ helmCharts:
           cpu: 10m
           memory: 128Mi
 
-# Note: rook-ceph-cluster is deployed separately to ensure proper ordering
-# The operator must be fully deployed before the cluster can be created
+- name: rook-ceph-cluster
+  repo: https://charts.rook.io/release
+  version: v1.15.5
+  releaseName: rook-ceph-cluster
+  namespace: rook-ceph
+  valuesInline:
     operatorNamespace: rook-ceph
     configOverride: |
       [global]
