@@ -24,5 +24,5 @@ While `applicationKey` and `consumerKey` are in the ClusterIssuer manifest, the 
 ## Files
 
 - `clusterissuer-letsencrypt-ovh-webhook-secure.yaml`: Ideal configuration (doesn't work with v0.3.2)
-- `clusterissuer-letsencrypt-ovh-webhook-final.yaml`: Old approach with placeholders (deprecated)
+- `clusterissuer-letsencrypt-ovh-webhook.yaml`: Old approach with placeholders (deprecated)
 - `patch-clusterissuer-ovh-credentials.yaml`: Current solution patch

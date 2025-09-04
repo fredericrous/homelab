@@ -7,7 +7,7 @@ SSL certificates are automatically managed by cert-manager using Let's Encrypt w
 
 ### Components
 - **Webhook**: cert-manager-webhook-ovh v0.7.5
-- **ClusterIssuer**: letsencrypt-ovh-webhook-final
+- **ClusterIssuer**: letsencrypt-ovh-webhook
 - **OVH Credentials**: Stored in secret `ovh-credentials` in cert-manager namespace
 
 ### How it Works
@@ -30,7 +30,7 @@ Add these annotations and TLS section to your Ingress:
 ```yaml
 metadata:
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
     haproxy.org/ssl-redirect: "true"
 spec:
   tls:
@@ -57,5 +57,5 @@ For testing, create a staging ClusterIssuer with the same configuration but poin
 
 ## Configuration Files
 - `ovh-credentials-secret.yaml`: OVH API credentials secret
-- `clusterissuer-letsencrypt-ovh-webhook-final.yaml`: Production ClusterIssuer
+- `clusterissuer-letsencrypt-ovh-webhook.yaml`: Production ClusterIssuer
 - `webhook-ovh-manifests.yaml`: OVH webhook deployment (generated from Helm)

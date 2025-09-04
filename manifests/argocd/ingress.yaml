@@ -6,9 +6,9 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
     haproxy.org/ssl-redirect: "false"
-    # Temporarily disabled for troubleshooting
-    # haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
-    # haproxy.org/auth-tls-verify-client: "required"
+    # mTLS client certificate verification
+    haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+    haproxy.org/auth-tls-verify-client: "required"
     # ArgoCD specific settings for gRPC
     haproxy.org/backend-server-proto: "h2"
     haproxy.org/check: "true"

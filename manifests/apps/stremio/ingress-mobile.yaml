@@ -4,7 +4,7 @@ metadata:
   name: stremio-mobile
   namespace: stremio
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
     haproxy.org/ssl-redirect: "true"
     # WebSocket support for streaming
     haproxy.org/timeout-client: "3600s"

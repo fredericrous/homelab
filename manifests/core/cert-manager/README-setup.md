@@ -15,7 +15,7 @@ This setup provides automatic SSL certificate management using Let's Encrypt wit
 - `ovh-credentials-secret.yaml` - OVH API credentials (applicationKey, applicationSecret, consumerKey)
 - `ovh-webhook-rbac-fix.yaml` - RBAC to allow webhook to read the ovh-credentials secret
 - `ovh-credentials-copy-job.yaml` - Copies credentials to all namespaces (webhook limitation - it looks for secrets in the same namespace as the Certificate)
-- `clusterissuer-letsencrypt-ovh-webhook-final.yaml` - ClusterIssuer for Let's Encrypt
+- `clusterissuer-letsencrypt-ovh-webhook.yaml` - ClusterIssuer for Let's Encrypt
 - `cainjector-leader-election-fix.yaml` & `cert-manager-leader-election-fix.yaml` - Fix leader election to use cert-manager namespace instead of kube-system
 - `cainjector-patch.yaml` & `cert-manager-controller-patch.yaml` - Patches to change leader election namespace
 

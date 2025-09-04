@@ -115,6 +115,7 @@ tasks:
     desc: Post-deployment configuration
     cmds:
       - task: create-aws-secret
+      - task: vault-pki
       - task: show-info
 
   create-aws-secret:
@@ -408,6 +409,54 @@ tasks:
         echo "Or retrieve it later:"
         echo "   export K8S_VAULT_TRANSIT_TOKEN=\$(vault kv get -field=token secret/k8s-transit)"
 
+  vault-pki:
+    desc: Setup PKI for mTLS certificates
+    preconditions:
+      - sh: vault status &>/dev/null
+        msg: |
+          Vault is not accessible at {{.VAULT_ADDR}}
+          Make sure Vault is initialized and unsealed
+      - sh: vault token lookup &>/dev/null
+        msg: |
+          Not authenticated to Vault
+          Run: vault login <root-token>
+    cmds:
+      - echo "🔐 Setting up PKI for mTLS certificates..."
+      - chmod +x {{.TASK_DIR}}/scripts/generate-pki.sh
+      - {{.TASK_DIR}}/scripts/generate-pki.sh
+    status:
+      - vault kv get secret/pki/ca &>/dev/null
+
+  generate-client-cert:
+    desc: Generate a client certificate
+    vars:
+      USERNAME: '{{index .CLI_ARGS 0}}'
+      EMAIL: '{{index .CLI_ARGS 1}}'
+    preconditions:
+      - sh: test -n "{{.USERNAME}}"
+        msg: "Usage: task nas:generate-client-cert -- <username> <email>"
+      - sh: test -n "{{.EMAIL}}"
+        msg: "Usage: task nas:generate-client-cert -- <username> <email>"
+    cmds:
+      - |
+        export VAULT_ADDR={{.VAULT_ADDR}}
+        if ! vault token lookup &>/dev/null; then
+          echo "Not authenticated to Vault. Run: vault login"
+          exit 1
+        fi
+        
+        # Source the functions from generate-pki.sh
+        source {{.TASK_DIR}}/scripts/generate-pki.sh
+        
+        # Generate the certificate
+        generate_client_cert "{{.USERNAME}}" "{{.EMAIL}}"
+        
+        echo ""
+        echo "📥 Download command:"
+        echo "export VAULT_ADDR={{.VAULT_ADDR}}"
+        echo "vault login"
+        echo "vault kv get -field=p12 secret/pki/clients/{{.USERNAME}} | base64 -d > {{.USERNAME}}.p12"
+
   show-info:
     desc: Show deployment information
     vars:
@@ -437,6 +486,27 @@ tasks:
           echo ""
           echo "🔐 Next step: Initialize Vault"
           echo "  task nas:vault-init"
+        else
+          # Check PKI status
+          echo ""
+          if vault kv get secret/pki/ca &>/dev/null 2>&1; then
+            echo "🔒 PKI Status: ✅ Initialized"
+            if vault kv get secret/tokens/eso-pki &>/dev/null 2>&1; then
+              ESO_TOKEN=$(vault kv get -field=token secret/tokens/eso-pki 2>/dev/null || echo "<error>")
+              echo "   ESO Sync Token: $ESO_TOKEN"
+            fi
+            echo ""
+            echo "📥 Download client certificates:"
+            echo "   export VAULT_ADDR={{.VAULT_ADDR}}"
+            echo "   vault login"
+            echo "   vault kv get -field=p12 secret/pki/clients/admin | base64 -d > admin.p12"
+            echo ""
+            echo "🆕 Generate new certificates:"
+            echo "   task nas:generate-client-cert -- <username> <email>"
+          else
+            echo "🔒 PKI Status: ❌ Not initialized"
+            echo "   Run: task nas:vault-pki"
+          fi
         fi
 
   status:

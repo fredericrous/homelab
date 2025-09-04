@@ -4,7 +4,7 @@ metadata:
   name: plex
   namespace: plex
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
     haproxy.org/ssl-redirect: "true"
     haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
     haproxy.org/auth-tls-verify-client: "required"

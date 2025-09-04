@@ -4,7 +4,7 @@ metadata:
   name: harbor-registry-ingress
   namespace: harbor
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-ovh-webhook-final
+    cert-manager.io/cluster-issuer: letsencrypt-ovh-webhook
 spec:
   ingressClassName: haproxy
   tls:

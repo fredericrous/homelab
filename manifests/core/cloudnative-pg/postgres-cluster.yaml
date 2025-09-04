@@ -34,22 +34,7 @@ spec:
       owner: postgres
       secret:
         name: postgres-superuser-secret
-      postInitSQL:
-        - "CREATE USER harbor WITH PASSWORD 'HarborDB123'"
-        - "CREATE DATABASE registry OWNER harbor"
-        - "CREATE DATABASE core OWNER harbor"
-        - "CREATE DATABASE notary_signer OWNER harbor"
-        - "CREATE DATABASE notary_server OWNER harbor"
-        - "GRANT ALL PRIVILEGES ON DATABASE registry TO harbor"
-        - "GRANT ALL PRIVILEGES ON DATABASE core TO harbor"
-        - "GRANT ALL PRIVILEGES ON DATABASE notary_signer TO harbor"
-        - "GRANT ALL PRIVILEGES ON DATABASE notary_server TO harbor"
-        - "CREATE USER lldap WITH PASSWORD 'lldap-db-password'"
-        - "CREATE DATABASE lldap OWNER lldap"
-        - "GRANT ALL PRIVILEGES ON DATABASE lldap TO lldap"
-        - "CREATE USER authelia WITH PASSWORD 'authelia-db-password'"
-        - "CREATE DATABASE authelia OWNER authelia"
-        - "GRANT ALL PRIVILEGES ON DATABASE authelia TO authelia"
+      # Initial databases and users will be created by individual apps
   
   # Storage configuration
   storage:

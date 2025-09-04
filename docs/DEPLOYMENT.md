@@ -102,7 +102,7 @@ After deployment:
 
 3. Check ClusterIssuer:
    ```bash
-   kubectl describe clusterissuer letsencrypt-ovh-webhook-final
+   kubectl describe clusterissuer letsencrypt-ovh-webhook
    ```
 
 ### Vault Issues

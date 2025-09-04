@@ -2,81 +2,17 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  # Include shared vault auth base (for cnpg-system namespace)
-  - ../../base/vault-auth
-  # Include job templates
-  - ../../base/job-templates
   # CloudNative-PG operator
   - https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.21/releases/cnpg-1.21.0.yaml
   # Vault configuration
   # - job-vault-configure-cnpg.yaml  # Replaced by job template
   # - vault-connection.yaml  # Now provided by base/vault-auth
   # - vault-auth-cnpg.yaml  # Now provided by base/vault-auth
+  # External Secrets
+  - postgres-superuser-externalsecret.yaml
   # Init SQL ConfigMap
   - init-sql-configmap.yaml
   # PostgreSQL cluster for apps
   - postgres-cluster.yaml
-  # Secrets (update passwords before deploying!)
-  - postgres-secrets.yaml
 
-patches:
-  # Customize the vault auth from base
-  - target:
-      kind: VaultAuth
-      name: vault-auth
-    patch: |-
-      apiVersion: secrets.hashicorp.com/v1beta1
-      kind: VaultAuth
-      metadata:
-        name: cnpg-auth
-        namespace: cnpg-system
-      spec:
-        kubernetes:
-          role: cnpg
-          serviceAccount: cnpg-manager
-  
-  # Customize the RBAC for vault token reader
-  - target:
-      kind: RoleBinding
-      name: PLACEHOLDER-vault-admin-token-reader
-      namespace: vault
-    patch: |-
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: RoleBinding
-      metadata:
-        name: cnpg-vault-admin-token-reader
-        namespace: vault
-      subjects:
-      - kind: ServiceAccount
-        name: vault-config
-        namespace: cnpg-system
-  
-  # Patch vault configure job template
-  - target:
-      kind: Job
-      name: vault-configure
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-configure-cnpg
-        namespace: cnpg-system
-      spec:
-        template:
-          spec:
-            containers:
-            - name: vault-configure
-              env:
-              - name: VAULT_POLICY_NAME
-                value: "cnpg-policy"
-              - name: VAULT_POLICY_CONTENT
-                value: |
-                  path "secret/data/postgres/superuser" {
-                    capabilities = ["read"]
-                  }
-              - name: VAULT_ROLE_NAME
-                value: "cnpg"
-              - name: VAULT_ROLE_SERVICE_ACCOUNTS
-                value: "cnpg-manager"
-              - name: VAULT_ROLE_NAMESPACES
-                value: "cnpg-system"
+# Patches can be added here if needed

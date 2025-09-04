@@ -263,6 +263,17 @@ tasks:
       OVH_CONSUMER_KEY: '{{.OVH_CONSUMER_KEY}}'
     cmds:
       - 'echo "🔧 Stage 11: Running post-deployment fixes..."'
+      - |
+        # Configure NAS ESO sync if token is available
+        if [ -n "$NAS_ESO_TOKEN" ]; then
+          echo "🔄 Configuring NAS Vault sync..."
+          ./scripts/configure-nas-eso-sync.sh "{{.KUBECONFIG}}" "$NAS_ESO_TOKEN"
+        else
+          echo "⚠️  NAS_ESO_TOKEN not set. To sync CA from NAS:"
+          echo "   1. Deploy NAS: task nas:deploy"
+          echo "   2. Get ESO token: task nas:show-eso-token"
+          echo "   3. Run: NAS_ESO_TOKEN=<token> task configure-nas-sync"
+        fi
       - './scripts/post-deployment-fixes.sh "{{.KUBECONFIG}}"'
       - |
         echo ""
@@ -280,6 +291,17 @@ tasks:
         echo "  URL: https://argocd.daddyshome.fr"
         echo "  Username: admin"
         echo "  Password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+        echo ""
+        echo "🔒 mTLS Client Certificates:"
+        if [ -n "$NAS_ESO_TOKEN" ]; then
+          echo "  ✅ CA synced from NAS Vault"
+        else
+          echo "  ⚠️  Using local CA (migrate to NAS-based PKI)"
+        fi
+        echo "  Download certificates from NAS Vault:"
+        echo "    export VAULT_ADDR=http://192.168.1.42:61200"
+        echo "    vault login"
+        echo "    vault kv get -field=p12 secret/pki/clients/admin | base64 -d > admin.p12"
 
   # Helper tasks
   terraform-init:
@@ -421,3 +443,76 @@ tasks:
           argocd) kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server --tail=50;;
           *) echo "Usage: task logs -- [vault|argocd]";;
         esac
+
+  # NAS PKI Integration tasks
+  configure-nas-sync:
+    desc: Configure External Secrets to sync CA from NAS Vault
+    dir: '{{.TERRAFORM_DIR}}'
+    preconditions:
+      - sh: 'test -f {{.KUBECONFIG}}'
+        msg: "Kubeconfig not found"
+    vars:
+      TOKEN: '{{.CLI_ARGS}}'
+    cmds:
+      - |
+        if [ -z "{{.TOKEN}}" ] && [ -z "$NAS_ESO_TOKEN" ]; then
+          echo "❌ No ESO token provided"
+          echo ""
+          echo "Usage: task configure-nas-sync -- <token>"
+          echo "   or: NAS_ESO_TOKEN=<token> task configure-nas-sync"
+          echo ""
+          echo "Get token from NAS: task nas:show-eso-token"
+          exit 1
+        fi
+        
+        TOKEN="{{.TOKEN}}"
+        if [ -z "$TOKEN" ]; then
+          TOKEN="$NAS_ESO_TOKEN"
+        fi
+        
+        ./scripts/configure-nas-eso-sync.sh "{{.KUBECONFIG}}" "$TOKEN"
+
+  nas:show-eso-token:
+    desc: Show ESO token from NAS Vault
+    dir: nas
+    cmds:
+      - |
+        export VAULT_ADDR=http://192.168.1.42:61200
+        if ! vault token lookup &>/dev/null 2>&1; then
+          echo "❌ Not authenticated to NAS Vault"
+          echo "   Run: export VAULT_ADDR=http://192.168.1.42:61200"
+          echo "        vault login"
+          exit 1
+        fi
+        
+        echo "🎫 ESO Token for CA sync:"
+        vault kv get -field=token secret/tokens/eso-pki || echo "Token not found - run 'task nas:vault-pki' first"
+        echo ""
+        echo "Use this token:"
+        echo "  NAS_ESO_TOKEN=<token> task deploy"
+        echo "  or: task configure-nas-sync -- <token>"
+
+  check-ca-sync:
+    desc: Check if CA is properly synced from NAS
+    preconditions:
+      - sh: 'test -f {{.KUBECONFIG}}'
+        msg: "Kubeconfig not found"
+    cmds:
+      - |
+        echo "🔍 Checking CA synchronization status..."
+        echo ""
+        
+        echo "1️⃣ NAS ClusterSecretStore:"
+        kubectl get clustersecretstore nas-vault-backend -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Not found"
+        echo ""
+        
+        echo "2️⃣ CA sync ExternalSecret:"
+        kubectl get externalsecret sync-ca-from-nas -n vault 2>/dev/null || echo "Not found"
+        echo ""
+        
+        echo "3️⃣ CA in main Vault:"
+        kubectl exec -n vault vault-0 -- vault kv get -field=ca.crt secret/client-ca 2>/dev/null | head -n 3 || echo "Not found"
+        echo ""
+        
+        echo "4️⃣ HAProxy CA secret:"
+        kubectl get secret client-ca-cert -n haproxy-controller -o jsonpath='{.data.ca\.crt}' | base64 -d | head -n 3 || echo "Not found"

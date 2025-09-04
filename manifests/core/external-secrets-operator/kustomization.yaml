@@ -6,6 +6,7 @@ namespace: external-secrets
 resources:
   - namespace.yaml
   - cluster-secret-store.yaml  # Global Vault configuration
+  - clustersecretstore-nas-vault.yaml  # NAS Vault for PKI sync
   - job-vault-configure-eso.yaml  # Configure Vault access for ESO
 
 # Install External Secrets Operator via Helm

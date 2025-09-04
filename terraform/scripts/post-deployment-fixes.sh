@@ -11,13 +11,14 @@ echo "🔧 Running post-deployment fixes..."
 echo "🔐 Checking HAProxy client CA certificate..."
 if ! kubectl get secret client-ca-cert -n haproxy-controller >/dev/null 2>&1; then
   echo "⚠️  Client CA certificate secret missing"
-  
+
   # Check if it exists in the repository
   CA_CERT_PATH="../manifests/core/client-ca/ca/ca.crt"
   if [ -f "$CA_CERT_PATH" ]; then
     echo "📤 Creating client CA secret from file..."
+    # HAProxy expects the CA cert to be in 'ca.crt' key, not 'tls.crt'
     kubectl create secret generic client-ca-cert \
-      --from-file=tls.crt="$CA_CERT_PATH" \
+      --from-file=ca.crt="$CA_CERT_PATH" \
       -n haproxy-controller || true
     echo "✅ Client CA secret created"
   else
@@ -34,7 +35,7 @@ if kubectl get secret ovh-credentials -n cert-manager >/dev/null 2>&1; then
   APP_KEY=$(kubectl get secret ovh-credentials -n cert-manager -o jsonpath='{.data.applicationKey}' | base64 -d)
   if [ "$APP_KEY" = "placeholder" ] || [ "$APP_KEY" = "YOUR_APPLICATION_KEY" ]; then
     echo "⚠️  OVH credentials are placeholders"
-    
+
     if [ -n "$OVH_APPLICATION_KEY" ] && [ -n "$OVH_APPLICATION_SECRET" ] && [ -n "$OVH_CONSUMER_KEY" ]; then
       echo "📤 Updating OVH credentials..."
       kubectl create secret generic ovh-credentials -n cert-manager \
@@ -67,7 +68,7 @@ echo "🔑 Checking cert-manager webhook permissions..."
 if ! kubectl get role cert-manager-webhook-ovh:extension-apiserver-authentication-reader -n kube-system >/dev/null 2>&1; then
   echo "⚠️  Webhook permissions missing, applying fix..."
   kubectl apply -f ../manifests/core/cert-manager/ovh-webhook-kube-system-fix.yaml || true
-  
+
   # Restart webhook pod
   kubectl delete pod -n cert-manager -l app.kubernetes.io/name=cert-manager-webhook-ovh || true
   echo "✅ Webhook permissions fixed"
@@ -80,10 +81,10 @@ echo "📜 Checking certificate status..."
 PENDING_CERTS=$(kubectl get certificate -A --no-headers | grep -v "True" | wc -l)
 if [ "$PENDING_CERTS" -gt 0 ]; then
   echo "⚠️  Found $PENDING_CERTS pending certificates"
-  
+
   # Check if ClusterIssuer is ready
-  if kubectl get clusterissuer letsencrypt-ovh-webhook-final >/dev/null 2>&1; then
-    ISSUER_READY=$(kubectl get clusterissuer letsencrypt-ovh-webhook-final -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+  if kubectl get clusterissuer letsencrypt-ovh-webhook >/dev/null 2>&1; then
+    ISSUER_READY=$(kubectl get clusterissuer letsencrypt-ovh-webhook -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
     if [ "$ISSUER_READY" != "True" ]; then
       echo "❌ ClusterIssuer not ready. Check OVH credentials and webhook status"
     else
@@ -105,7 +106,7 @@ if kubectl get ingress argocd-server -n argocd >/dev/null 2>&1; then
     echo "⚠️  ArgoCD ingress missing TLS configuration"
   else
     echo "✅ ArgoCD configured with TLS for $TLS_HOST"
-    
+
     # Check certificate
     if kubectl get certificate argocd-server-tls -n argocd >/dev/null 2>&1; then
       CERT_READY=$(kubectl get certificate argocd-server-tls -n argocd -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')

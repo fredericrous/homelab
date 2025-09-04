@@ -62,32 +62,14 @@ fi
 echo "🔍 Checking for client CA in Vault..."
 if vault kv get secret/client-ca >/dev/null 2>&1; then
   echo "✅ Client CA already exists in Vault"
+  echo "   ⚠️  Note: CA should now be synced from NAS Vault via External Secrets"
 else
-  echo "📤 Uploading client CA to Vault..."
-  
-  # Check if the CA cert file exists
-  # Try to find the CA cert relative to the script location or from repo root
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-  CA_CERT_PATH="$REPO_ROOT/manifests/core/client-ca/ca/ca.crt"
-  
-  if [ ! -f "$CA_CERT_PATH" ]; then
-    echo "❌ Client CA certificate not found at $CA_CERT_PATH"
-    exit 1
-  fi
-  
-  # Read the certificate content
-  CA_CONTENT=$(cat "$CA_CERT_PATH")
-  
-  # Upload the certificate using KV v2 syntax
-  echo "   Uploading client CA certificate..."
-  vault kv put secret/client-ca ca.crt="$CA_CONTENT" || {
-    echo "❌ Failed to upload client CA to Vault"
-    echo "   Please ensure the KV v2 secret engine is enabled at secret/"
-    exit 1
-  }
-  
-  echo "✅ Client CA uploaded to Vault"
+  echo "⚠️  Client CA not found in Vault"
+  echo "   The CA will be synced from NAS Vault via External Secrets"
+  echo "   Make sure to:"
+  echo "   1. Deploy NAS cluster first: task nas:deploy"
+  echo "   2. Initialize PKI on NAS: task nas:vault-pki"
+  echo "   3. Configure ESO sync token in manifests/core/external-secrets-operator/clustersecretstore-nas-vault.yaml"
 fi
 
 # Create policies for services that need the client CA

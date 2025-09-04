@@ -4,7 +4,7 @@ metadata:
   name: nextcloud-mobile
   namespace: nextcloud
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-ovh-webhook-final
+    cert-manager.io/cluster-issuer: letsencrypt-ovh-webhook
     haproxy.org/ssl-redirect: "true"
     # No client certificate verification for mobile access
     haproxy.org/client-ca-file: ""
