@@ -276,8 +276,18 @@ timeout 300s bash -c 'while true; do
 
   # Check init job status
   if kubectl get job -n vault vault-init >/dev/null 2>&1; then
-    init_job_status=$(kubectl get job -n vault vault-init -o jsonpath="{.status.conditions[?(@.type==\"Complete\")].status}" 2>/dev/null || echo "Running")
-    init_job_failed=$(kubectl get job -n vault vault-init -o jsonpath="{.status.conditions[?(@.type==\"Failed\")].status}" 2>/dev/null || echo "False")
+    echo "✅ Vault init job exists"
+    
+    # Get job details
+    job_details=$(kubectl get job -n vault vault-init -o json)
+    completions=$(echo "$job_details" | jq -r '.spec.completions // 1')
+    succeeded=$(echo "$job_details" | jq -r '.status.succeeded // 0')
+    failed=$(echo "$job_details" | jq -r '.status.failed // 0')
+    
+    echo "   Completions: $succeeded/$completions (Failed: $failed)"
+    
+    init_job_status=$(echo "$job_details" | jq -r '.status.conditions[]? | select(.type=="Complete") | .status' || echo "Running")
+    init_job_failed=$(echo "$job_details" | jq -r '.status.conditions[]? | select(.type=="Failed") | .status' || echo "False")
 
     if [ "$init_job_status" = "True" ]; then
       echo "✅ Vault init job completed successfully"
@@ -286,18 +296,36 @@ timeout 300s bash -c 'while true; do
       echo "❌ Vault init job failed. Checking logs..."
       # Get all pods for this job
       echo "Init job pods:"
-      kubectl get pods -n vault -l job-name=vault-init -o wide
+      pod_count=$(kubectl get pods -n vault -l job-name=vault-init --no-headers 2>/dev/null | wc -l)
       
-      # Get logs from the most recent pod
-      init_pod=$(kubectl get pods -n vault -l job-name=vault-init --sort-by=.metadata.creationTimestamp -o name | tail -1)
-      if [ -n "$init_pod" ]; then
-        echo "Logs from $init_pod:"
-        kubectl logs -n vault $init_pod --tail=50 || true
-        
-        # Check pod events
+      if [ "$pod_count" -eq 0 ]; then
+        echo "⚠️  No pods found for init job. This could mean:"
+        echo "   - Job failed to create pods (check job events)"
+        echo "   - Pods were already cleaned up"
         echo ""
-        echo "Pod events:"
-        kubectl describe $init_pod -n vault | grep -A10 Events: || true
+        echo "Job description:"
+        kubectl describe job -n vault vault-init | grep -A20 Events: || true
+        
+        # Check if there's a backoff limit issue
+        backoff_limit=$(echo "$job_details" | jq -r '.spec.backoffLimit // 6')
+        if [ "$failed" -ge "$backoff_limit" ]; then
+          echo ""
+          echo "❌ Job reached backoffLimit ($backoff_limit)"
+        fi
+      else
+        kubectl get pods -n vault -l job-name=vault-init -o wide
+        
+        # Get logs from the most recent pod
+        init_pod=$(kubectl get pods -n vault -l job-name=vault-init --sort-by=.metadata.creationTimestamp -o name | tail -1)
+        if [ -n "$init_pod" ]; then
+          echo "Logs from $init_pod:"
+          kubectl logs -n vault $init_pod --tail=50 || true
+          
+          # Check pod events
+          echo ""
+          echo "Pod events:"
+          kubectl describe $init_pod -n vault | grep -A10 Events: || true
+        fi
       fi
       exit 1
     else
@@ -336,6 +364,16 @@ timeout 300s bash -c 'while true; do
         exit 1
       fi
     fi
+  else
+    echo "⚠️  Vault init job does not exist yet"
+    echo "   This could mean:"
+    echo "   - ArgoCD hasn't created it yet (check sync status)"
+    echo "   - The job manifest has issues"
+    echo ""
+    echo "Checking ArgoCD app resources:"
+    kubectl get app -n argocd vault -o jsonpath='{.status.resources}' 2>/dev/null | \
+      jq '.[] | select(.kind=="Job" and .name=="vault-init")' 2>/dev/null || \
+      echo "   No init job found in ArgoCD resources"
   fi
 
   echo "Waiting for Vault initialization..."
