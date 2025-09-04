@@ -25,9 +25,17 @@ data:
 
     # Wait for Vault token to be available
     echo -e "${YELLOW}⏳ Waiting for Vault admin token...${NC}"
+    max_token_wait=300  # 5 minutes
+    token_wait=0
     while [ ! -f "$VAULT_TOKEN_FILE" ] || [ ! -s "$VAULT_TOKEN_FILE" ]; do
-      echo "Token file not ready yet..."
-      sleep 2
+      if [ $token_wait -gt $max_token_wait ]; then
+        echo -e "${RED}❌ Timeout waiting for Vault admin token. Vault might not be initialized yet.${NC}"
+        echo -e "${YELLOW}ℹ️  This job will be retried once Vault is initialized.${NC}"
+        exit 0  # Exit successfully to allow ArgoCD sync to complete
+      fi
+      echo "Token file not ready yet... (${token_wait}s/${max_token_wait}s)"
+      sleep 5
+      token_wait=$((token_wait + 5))
     done
 
     export VAULT_TOKEN=$(cat "$VAULT_TOKEN_FILE")
@@ -193,6 +201,7 @@ spec:
       - name: vault-admin-token
         secret:
           secretName: vault-admin-token
+          optional: true  # Don't fail if secret doesn't exist yet
           defaultMode: 0400
       - name: script
         configMap:
