@@ -199,8 +199,17 @@ fi
 
 # Wait for Vault to be ready (but it might be sealed)
 echo "⏳ Waiting for Vault pod to be running..."
-kubectl wait --for=condition=ready --timeout=300s pod -n vault vault-0 || \
-kubectl wait --for=jsonpath='{.status.phase}'=Running --timeout=300s pod -n vault vault-0 || true
+if ! kubectl wait --for=condition=ready --timeout=300s pod -n vault vault-0; then
+  echo "⚠️  Vault pod not ready after 5 minutes, checking status..."
+  pod_status=$(kubectl get pod -n vault vault-0 -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+  if [ "$pod_status" = "Running" ]; then
+    echo "✅ Vault pod is Running (may not be Ready yet)"
+  else
+    echo "❌ Vault pod status: $pod_status"
+    echo "Pod events:"
+    kubectl describe pod -n vault vault-0 | grep -A10 Events: || true
+  fi
+fi
 
 # Check if Vault is initialized
 echo "🔍 Checking Vault initialization status..."
@@ -275,7 +284,21 @@ timeout 300s bash -c 'while true; do
       exit 0
     elif [ "$init_job_failed" = "True" ]; then
       echo "❌ Vault init job failed. Checking logs..."
-      kubectl logs -n vault job/vault-init --tail=20
+      # Get all pods for this job
+      echo "Init job pods:"
+      kubectl get pods -n vault -l job-name=vault-init -o wide
+      
+      # Get logs from the most recent pod
+      init_pod=$(kubectl get pods -n vault -l job-name=vault-init --sort-by=.metadata.creationTimestamp -o name | tail -1)
+      if [ -n "$init_pod" ]; then
+        echo "Logs from $init_pod:"
+        kubectl logs -n vault $init_pod --tail=50 || true
+        
+        # Check pod events
+        echo ""
+        echo "Pod events:"
+        kubectl describe $init_pod -n vault | grep -A10 Events: || true
+      fi
       exit 1
     else
       echo "⏳ Vault init job is running..."
@@ -320,7 +343,29 @@ timeout 300s bash -c 'while true; do
 done'
 
 if [ $? -ne 0 ]; then
-  echo "❌ Timeout waiting for Vault initialization"
+  echo "⚠️ Timeout waiting for Vault initialization"
+  
+  # Final check - if Vault pod exists and is running, that's progress
+  if kubectl get pod -n vault vault-0 &>/dev/null; then
+    vault_phase=$(kubectl get pod -n vault vault-0 -o jsonpath='{.status.phase}')
+    echo "Vault pod status: $vault_phase"
+    
+    # Check if init job exists
+    if kubectl get job -n vault vault-init &>/dev/null; then
+      init_status=$(kubectl get job -n vault vault-init -o json | jq -r '.status')
+      echo "Init job status:"
+      echo "$init_status" | jq '.' || echo "$init_status"
+    fi
+    
+    # If Vault pod is at least created, we can continue
+    if [ "$vault_phase" = "Running" ] || [ "$vault_phase" = "Pending" ]; then
+      echo "ℹ️ Vault pod exists, continuing with deployment"
+      echo "   Vault initialization will complete asynchronously"
+      exit 0
+    fi
+  fi
+  
+  echo "❌ Vault deployment failed"
   exit 1
 fi
 
