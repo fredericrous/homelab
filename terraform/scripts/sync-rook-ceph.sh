@@ -6,10 +6,11 @@ KUBECONFIG="${1:?Error: KUBECONFIG path required as first argument}"
 export KUBECONFIG
 
 echo "💾 Waiting for Rook-Ceph application to be created by ApplicationSet..."
-timeout 150s sh -c 'until kubectl get app -n argocd rook-ceph >/dev/null 2>&1; do
-  echo "Waiting for Rook-Ceph application..."
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 150s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get app -n argocd rook-ceph >/dev/null 2>&1; do
+  echo \"Waiting for Rook-Ceph application...\"
   sleep 5
-done'
+done"
 
 if [ $? -eq 0 ]; then
   echo "✅ Rook-Ceph application found"
@@ -110,10 +111,11 @@ done
 
 # Wait for storage class to be available
 echo "🔍 Waiting for rook-ceph-block storage class..."
-timeout 600s sh -c 'until kubectl get storageclass rook-ceph-block >/dev/null 2>&1; do
-  echo "Waiting for storage class..."
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 600s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get storageclass rook-ceph-block >/dev/null 2>&1; do
+  echo \"Waiting for storage class...\"
   sleep 10
-done'
+done"
 
 if [ $? -eq 0 ]; then
   echo "✅ Storage class rook-ceph-block is available"
@@ -131,40 +133,42 @@ fi
 echo "🔍 Checking if Ceph cluster is ready to provision volumes..."
 
 # Wait for OSDs to be running
-timeout 300s sh -c 'while true; do
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 300s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
   # Check if any Ceph OSD pods are running
-  osd_count=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c "Running" || echo "0")
-  if [ "$osd_count" -gt 0 ]; then
-    echo "✅ Found $osd_count running OSD pods"
+  osd_count=\$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c \"Running\" || echo \"0\")
+  if [ \"\$osd_count\" -gt 0 ]; then
+    echo \"✅ Found \$osd_count running OSD pods\"
     break
   fi
-  echo "Waiting for Ceph OSDs to be ready..."
+  echo \"Waiting for Ceph OSDs to be ready...\"
   sleep 10
-done'
+done"
 
 # Wait for Ceph health to be OK
 echo "🔍 Checking Ceph cluster health..."
-timeout 300s sh -c 'while true; do
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 300s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
   # Check Ceph health using the toolbox or operator
-  ceph_health=$(kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph health 2>/dev/null || \
-                kubectl exec -n rook-ceph -l app=rook-ceph-operator -- ceph status -f json-pretty 2>/dev/null | jq -r .health.status 2>/dev/null || \
-                echo "UNKNOWN")
+  ceph_health=\$(kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph health 2>/dev/null || \\
+                kubectl exec -n rook-ceph -l app=rook-ceph-operator -- ceph status -f json-pretty 2>/dev/null | jq -r .health.status 2>/dev/null || \\
+                echo \"UNKNOWN\")
   
-  if [[ "$ceph_health" == "HEALTH_OK" ]] || [[ "$ceph_health" == "HEALTH_WARN" ]]; then
-    echo "✅ Ceph cluster health: $ceph_health"
+  if [[ \"\$ceph_health\" == \"HEALTH_OK\" ]] || [[ \"\$ceph_health\" == \"HEALTH_WARN\" ]]; then
+    echo \"✅ Ceph cluster health: \$ceph_health\"
     break
   fi
   
   # Alternative: Check if CephCluster CR shows ready
-  cluster_ready=$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
-  if [[ "$cluster_ready" == "Ready" ]]; then
-    echo "✅ CephCluster resource shows Ready"
+  cluster_ready=\$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.phase}' 2>/dev/null || echo \"Unknown\")
+  if [[ \"\$cluster_ready\" == \"Ready\" ]]; then
+    echo \"✅ CephCluster resource shows Ready\"
     break
   fi
   
-  echo "Ceph health: $ceph_health, Cluster phase: $cluster_ready"
+  echo \"Ceph health: \$ceph_health, Cluster phase: \$cluster_ready\"
   sleep 5
-done'
+done"
 
 # Test that we can actually create a PVC
 echo "🧪 Testing PVC creation..."
@@ -184,15 +188,16 @@ spec:
 EOF
 
 # Wait for test PVC to be bound
-timeout 60s sh -c 'while true; do
-  pvc_status=$(kubectl get pvc test-ceph-pvc -n default -o jsonpath="{.status.phase}" 2>/dev/null || echo "Unknown")
-  if [ "$pvc_status" = "Bound" ]; then
-    echo "✅ Test PVC successfully bound - storage is working"
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 60s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
+  pvc_status=\$(kubectl get pvc test-ceph-pvc -n default -o jsonpath=\"{.status.phase}\" 2>/dev/null || echo \"Unknown\")
+  if [ \"\$pvc_status\" = \"Bound\" ]; then
+    echo \"✅ Test PVC successfully bound - storage is working\"
     kubectl delete pvc test-ceph-pvc -n default --wait=false
     break
   fi
-  echo "Test PVC status: $pvc_status"
+  echo \"Test PVC status: \$pvc_status\"
   sleep 5
-done'
+done"
 
 echo "✅ Rook-Ceph storage is ready"

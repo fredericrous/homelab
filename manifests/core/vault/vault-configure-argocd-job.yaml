@@ -35,7 +35,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: vault-configure
-        image: hashicorp/vault:1.15
+        image: hashicorp/vault:1.20.1
         env:
         - name: VAULT_ADDR
           value: "http://vault.vault.svc.cluster.local:8200"
@@ -54,6 +54,23 @@ spec:
           
           # Get Vault admin token
           export VAULT_TOKEN=$(cat /vault-admin-token/token)
+          
+          # Enable Kubernetes auth if not already enabled
+          if ! vault auth list | grep -q "^kubernetes/"; then
+            echo "Enabling Kubernetes auth method..."
+            vault auth enable kubernetes || {
+              echo "Failed to enable Kubernetes auth"
+              exit 1
+            }
+            echo "Configuring Kubernetes auth..."
+            vault write auth/kubernetes/config \
+              kubernetes_host="https://kubernetes.default.svc:443" || {
+              echo "Failed to configure Kubernetes auth"
+              exit 1
+            }
+          else
+            echo "Kubernetes auth already enabled"
+          fi
           
           # Check if secrets already exist
           if vault kv get secret/argocd/ldap 2>/dev/null; then

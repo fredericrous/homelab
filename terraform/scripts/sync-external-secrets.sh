@@ -11,10 +11,11 @@ KUBECONFIG="${1:?Error: KUBECONFIG path required as first argument}"
 export KUBECONFIG
 
 echo "🔐 Waiting for External Secrets Operator application to be created by ApplicationSet..."
-timeout 150s bash -c 'until kubectl get app -n argocd external-secrets-operator >/dev/null 2>&1; do
-  echo "Waiting for ESO application..."
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 150s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get app -n argocd external-secrets-operator >/dev/null 2>&1; do
+  echo \"Waiting for ESO application...\"
   sleep 5
-done'
+done"
 
 if [ $? -eq 0 ]; then
   echo "✅ ESO application found"
@@ -33,35 +34,36 @@ kubectl patch app -n argocd external-secrets-operator --type merge -p '{"operati
 
 # Wait for sync to complete
 echo "⏳ Waiting for ESO sync to complete..."
-timeout 300s bash -c 'while true; do
-  sync_status=$(kubectl get app -n argocd external-secrets-operator -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
-  health_status=$(kubectl get app -n argocd external-secrets-operator -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 300s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
+  sync_status=\$(kubectl get app -n argocd external-secrets-operator -o jsonpath=\"{.status.sync.status}\" 2>/dev/null || echo \"Unknown\")
+  health_status=\$(kubectl get app -n argocd external-secrets-operator -o jsonpath=\"{.status.health.status}\" 2>/dev/null || echo \"Unknown\")
   
-  if [ "$sync_status" = "Synced" ]; then
-    echo "✅ ESO synced (Health: $health_status)"
+  if [ \"\$sync_status\" = \"Synced\" ]; then
+    echo \"✅ ESO synced (Health: \$health_status)\"
     exit 0
   fi
   
   # Check if deployment exists
   if kubectl get deployment -n external-secrets external-secrets >/dev/null 2>&1; then
-    echo "✅ ESO deployment exists (Sync: $sync_status, Health: $health_status)"
+    echo \"✅ ESO deployment exists (Sync: \$sync_status, Health: \$health_status)\"
     exit 0
   fi
   
   # For initial deployment, Progressing is acceptable if resources are being created
-  if [ "$health_status" = "Progressing" ] || [ "$health_status" = "Healthy" ]; then
+  if [ \"\$health_status\" = \"Progressing\" ] || [ \"\$health_status\" = \"Healthy\" ]; then
     # Check if core ESO resources exist
-    if kubectl get deployment -n external-secrets external-secrets >/dev/null 2>&1 && \
-       kubectl get deployment -n external-secrets external-secrets-webhook >/dev/null 2>&1 && \
+    if kubectl get deployment -n external-secrets external-secrets >/dev/null 2>&1 && \\
+       kubectl get deployment -n external-secrets external-secrets-webhook >/dev/null 2>&1 && \\
        kubectl get deployment -n external-secrets external-secrets-cert-controller >/dev/null 2>&1; then
-      echo "✅ ESO core components deployed (Sync: $sync_status, Health: $health_status)"
+      echo \"✅ ESO core components deployed (Sync: \$sync_status, Health: \$health_status)\"
       exit 0
     fi
   fi
   
-  echo "Sync status: $sync_status, Health: $health_status"
+  echo \"Sync status: \$sync_status, Health: \$health_status\"
   sleep 5
-done'
+done"
 
 if [ $? -ne 0 ]; then
   echo "❌ Timeout waiting for ESO sync"

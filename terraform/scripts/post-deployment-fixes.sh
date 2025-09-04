@@ -37,11 +37,11 @@ if kubectl get secret ovh-credentials -n cert-manager >/dev/null 2>&1; then
     
     if [ -n "$OVH_APPLICATION_KEY" ] && [ -n "$OVH_APPLICATION_SECRET" ] && [ -n "$OVH_CONSUMER_KEY" ]; then
       echo "📤 Updating OVH credentials..."
-      kubectl delete secret ovh-credentials -n cert-manager
       kubectl create secret generic ovh-credentials -n cert-manager \
         --from-literal=applicationKey="$OVH_APPLICATION_KEY" \
         --from-literal=applicationSecret="$OVH_APPLICATION_SECRET" \
-        --from-literal=consumerKey="$OVH_CONSUMER_KEY"
+        --from-literal=consumerKey="$OVH_CONSUMER_KEY" \
+        --dry-run=client -o yaml | kubectl apply -f -
       echo "✅ OVH credentials updated"
     else
       echo "❌ OVH credentials not provided. Set OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, and OVH_CONSUMER_KEY"
@@ -56,7 +56,8 @@ else
     kubectl create secret generic ovh-credentials -n cert-manager \
       --from-literal=applicationKey="$OVH_APPLICATION_KEY" \
       --from-literal=applicationSecret="$OVH_APPLICATION_SECRET" \
-      --from-literal=consumerKey="$OVH_CONSUMER_KEY"
+      --from-literal=consumerKey="$OVH_CONSUMER_KEY" \
+      --dry-run=client -o yaml | kubectl apply -f -
     echo "✅ OVH credentials created"
   fi
 fi

@@ -4,7 +4,7 @@ metadata:
   name: argocd-server
   namespace: argocd
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook-final"
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
     haproxy.org/ssl-redirect: "false"
     # Temporarily disabled for troubleshooting
     # haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"

@@ -49,6 +49,15 @@ trap "kill $PF_PID 2>/dev/null || true" EXIT
 export VAULT_ADDR=http://127.0.0.1:8200
 export VAULT_TOKEN
 
+# Ensure the KV secret engine is enabled
+echo "🔍 Checking secret mount configuration..."
+if ! vault secrets list | grep -q "^secret/"; then
+  echo "❌ KV secret engine not found at secret/"
+  echo "   This should have been enabled by the vault-configure-kv job"
+  echo "   Running: kubectl apply -k manifests/core/vault/"
+  exit 1
+fi
+
 # Check if client CA already exists
 echo "🔍 Checking for client CA in Vault..."
 if vault kv get secret/client-ca >/dev/null 2>&1; then
@@ -57,15 +66,24 @@ else
   echo "📤 Uploading client CA to Vault..."
   
   # Check if the CA cert file exists
-  CA_CERT_PATH="manifests/core/client-ca/ca/ca.crt"
+  # Try to find the CA cert relative to the script location or from repo root
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+  CA_CERT_PATH="$REPO_ROOT/manifests/core/client-ca/ca/ca.crt"
+  
   if [ ! -f "$CA_CERT_PATH" ]; then
     echo "❌ Client CA certificate not found at $CA_CERT_PATH"
     exit 1
   fi
   
-  # Upload only the certificate (not the key for security)
-  vault kv put secret/client-ca "ca.crt=@${CA_CERT_PATH}" || {
+  # Read the certificate content
+  CA_CONTENT=$(cat "$CA_CERT_PATH")
+  
+  # Upload the certificate using KV v2 syntax
+  echo "   Uploading client CA certificate..."
+  vault kv put secret/client-ca ca.crt="$CA_CONTENT" || {
     echo "❌ Failed to upload client CA to Vault"
+    echo "   Please ensure the KV v2 secret engine is enabled at secret/"
     exit 1
   }
   

@@ -11,10 +11,11 @@ KUBECONFIG="${1:?Error: KUBECONFIG path required as first argument}"
 export KUBECONFIG
 
 echo "🔄 Waiting for Stakater Reloader application to be created by ApplicationSet..."
-timeout 150s bash -c 'until kubectl get app -n argocd stakater-reloader >/dev/null 2>&1; do
-  echo "Waiting for Reloader application..."
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 150s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get app -n argocd stakater-reloader >/dev/null 2>&1; do
+  echo \"Waiting for Reloader application...\"
   sleep 5
-done'
+done"
 
 if [ $? -eq 0 ]; then
   echo "✅ Reloader application found"
@@ -33,24 +34,24 @@ kubectl patch app -n argocd stakater-reloader --type merge -p '{"operation":{"in
 
 # Wait for sync to complete
 echo "⏳ Waiting for Reloader sync to complete..."
-timeout 300s bash -c 'while true; do
-  sync_status=$(kubectl get app -n argocd stakater-reloader -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
-  health_status=$(kubectl get app -n argocd stakater-reloader -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
+timeout 300s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
+  sync_status=\$(kubectl get app -n argocd stakater-reloader -o jsonpath=\"{.status.sync.status}\" 2>/dev/null || echo \"Unknown\")
+  health_status=\$(kubectl get app -n argocd stakater-reloader -o jsonpath=\"{.status.health.status}\" 2>/dev/null || echo \"Unknown\")
   
-  if [ "$sync_status" = "Synced" ]; then
-    echo "✅ Reloader synced (Health: $health_status)"
+  if [ \"\$sync_status\" = \"Synced\" ]; then
+    echo \"✅ Reloader synced (Health: \$health_status)\"
     break
   fi
   
   # Check if deployment exists
   if kubectl get deployment -n stakater-reloader reloader-reloader >/dev/null 2>&1; then
-    echo "✅ Reloader deployment exists (Sync: $sync_status, Health: $health_status)"
+    echo \"✅ Reloader deployment exists (Sync: \$sync_status, Health: \$health_status)\"
     break
   fi
   
-  echo "Sync status: $sync_status, Health: $health_status"
+  echo \"Sync status: \$sync_status, Health: \$health_status\"
   sleep 5
-done'
+done"
 
 if [ $? -ne 0 ]; then
   echo "❌ Timeout waiting for Reloader sync"

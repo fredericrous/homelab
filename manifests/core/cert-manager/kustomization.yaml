@@ -31,3 +31,8 @@ patches:
   - path: cainjector-patch.yaml
   - path: cert-manager-controller-patch.yaml
   - path: webhook-security-patch.yaml
+  # Patch to handle OVH webhook v0.3.2 limitation with credentials
+  - path: patch-clusterissuer-ovh-credentials.yaml
+    target:
+      kind: ClusterIssuer
+      name: letsencrypt-ovh-webhook

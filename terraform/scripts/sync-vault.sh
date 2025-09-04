@@ -116,10 +116,11 @@ fi
 unset K8S_VAULT_TRANSIT_TOKEN
 
 echo "🔐 Waiting for Vault application to be created by ApplicationSet..."
-timeout 150s bash -c 'until kubectl get app -n argocd vault >/dev/null 2>&1; do
-  echo "Waiting for Vault application..."
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 150s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get app -n argocd vault >/dev/null 2>&1; do
+  echo \"Waiting for Vault application...\"
   sleep 5
-done'
+done"
 
 if [ $? -eq 0 ]; then
   echo "✅ Vault application found"
@@ -134,28 +135,29 @@ kubectl patch app -n argocd vault --type merge -p '{"operation":{"initiatedBy":{
 
 # Wait for sync to complete
 echo "⏳ Waiting for Vault sync to complete..."
-timeout 600s bash -c 'while true; do
-  sync_status=$(kubectl get app -n argocd vault -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
-  health_status=$(kubectl get app -n argocd vault -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 600s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
+  sync_status=\$(kubectl get app -n argocd vault -o jsonpath=\"{.status.sync.status}\" 2>/dev/null || echo \"Unknown\")
+  health_status=\$(kubectl get app -n argocd vault -o jsonpath=\"{.status.health.status}\" 2>/dev/null || echo \"Unknown\")
   
   # Check if vault pod exists and what state it is in
-  vault_pod_status=$(kubectl get pod -n vault vault-0 -o jsonpath="{.status.phase}" 2>/dev/null || echo "NotFound")
+  vault_pod_status=\$(kubectl get pod -n vault vault-0 -o jsonpath=\"{.status.phase}\" 2>/dev/null || echo \"NotFound\")
   
-  if [ "$sync_status" = "Synced" ]; then
-    echo "✅ Vault synced (Health: $health_status)"
+  if [ \"\$sync_status\" = \"Synced\" ]; then
+    echo \"✅ Vault synced (Health: \$health_status)\"
     exit 0
   fi
   
   # If sync is OutOfSync but vault pod exists, that is progress
-  if [ "$sync_status" = "OutOfSync" ] && [ "$vault_pod_status" != "NotFound" ]; then
-    echo "✅ Vault pod exists (Status: $vault_pod_status, Health: $health_status)"
-    echo "   Note: Health may show as Missing due to pending sync-wave jobs"
+  if [ \"\$sync_status\" = \"OutOfSync\" ] && [ \"\$vault_pod_status\" != \"NotFound\" ]; then
+    echo \"✅ Vault pod exists (Status: \$vault_pod_status, Health: \$health_status)\"
+    echo \"   Note: Health may show as Missing due to pending sync-wave jobs\"
     exit 0
   fi
   
-  echo "Sync status: $sync_status, Health: $health_status, Pod: $vault_pod_status"
+  echo \"Sync status: \$sync_status, Health: \$health_status, Pod: \$vault_pod_status\"
   sleep 5
-done'
+done"
 
 if [ $? -ne 0 ]; then
   echo "❌ Timeout waiting for Vault sync"
@@ -164,19 +166,20 @@ fi
 
 # Wait for Vault namespace and PVC
 echo "⏳ Waiting for Vault PVC to be bound..."
-timeout 300s bash -c 'while true; do
-  pvc_status=$(kubectl get pvc -n vault vault-data -o jsonpath="{.status.phase}" 2>/dev/null || echo "NotFound")
-  if [ "$pvc_status" = "Bound" ]; then
-    echo "✅ Vault PVC is bound"
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 300s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
+  pvc_status=\$(kubectl get pvc -n vault vault-data -o jsonpath=\"{.status.phase}\" 2>/dev/null || echo \"NotFound\")
+  if [ \"\$pvc_status\" = \"Bound\" ]; then
+    echo \"✅ Vault PVC is bound\"
     exit 0
-  elif [ "$pvc_status" = "Pending" ]; then
+  elif [ \"\$pvc_status\" = \"Pending\" ]; then
     # Get more details about why it is pending
-    echo "PVC is Pending. Recent events:"
-    kubectl get events -n vault --field-selector involvedObject.name=vault-data --sort-by=".lastTimestamp" | tail -5
+    echo \"PVC is Pending. Recent events:\"
+    kubectl get events -n vault --field-selector involvedObject.name=vault-data --sort-by=\".lastTimestamp\" | tail -5
   fi
-  echo "PVC status: $pvc_status"
+  echo \"PVC status: \$pvc_status\"
   sleep 5
-done'
+done"
 
 if [ $? -ne 0 ]; then
   echo "❌ Timeout waiting for Vault PVC"
@@ -185,10 +188,11 @@ fi
 
 # Wait for Vault pod to exist
 echo "⏳ Waiting for Vault pod to be created..."
-timeout 300s bash -c 'until kubectl get pod -n vault vault-0 >/dev/null 2>&1; do
-  echo "Waiting for Vault pod..."
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 300s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get pod -n vault vault-0 >/dev/null 2>&1; do
+  echo \"Waiting for Vault pod...\"
   sleep 5
-done'
+done"
 
 if [ $? -eq 0 ]; then
   echo "✅ Vault pod exists"
@@ -214,63 +218,40 @@ fi
 # Check if Vault is initialized
 echo "🔍 Checking Vault initialization status..."
 
-timeout 300s bash -c 'while true; do
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 300s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
   # Check if initialization secrets exist
   if kubectl get secret -n vault vault-keys >/dev/null 2>&1 && kubectl get secret -n vault vault-admin-token >/dev/null 2>&1; then
-    echo "✅ Vault initialization secrets found"
+    echo \"✅ Vault initialization secrets found\"
 
     # Check Vault health endpoint
-    vault_health=$(kubectl exec -n vault vault-0 -- sh -c "vault status -format=json 2>&1 || echo {}" 2>/dev/null || echo "{}")
-    if echo "$vault_health" | grep -q "initialized.*true" >/dev/null 2>&1; then
-      echo "✅ Vault is initialized"
-      if echo "$vault_health" | grep -q "sealed.*false" >/dev/null 2>&1; then
-        echo "✅ Vault is unsealed and ready (likely using transit auto-unseal)"
+    vault_health=\$(kubectl exec -n vault vault-0 -- sh -c \"vault status -format=json 2>&1 || echo {}\" 2>/dev/null || echo \"{}\")
+    if echo \"\$vault_health\" | grep -q \"initialized.*true\" >/dev/null 2>&1; then
+      echo \"✅ Vault is initialized\"
+      if echo \"\$vault_health\" | grep -q \"sealed.*false\" >/dev/null 2>&1; then
+        echo \"✅ Vault is unsealed and ready (likely using transit auto-unseal)\"
       else
-        echo "⚠️  Vault is sealed, checking transit unseal configuration..."
+        echo \"⚠️  Vault is sealed, checking transit unseal configuration...\"
         # Check if transit token secret exists and is not a placeholder
         if kubectl get secret -n vault vault-transit-token >/dev/null 2>&1; then
-          token_value=$(kubectl get secret vault-transit-token -n vault -o json | jq -r '.data.token' | base64 -d)
-          if [ "$token_value" = "PLACEHOLDER_WILL_BE_REPLACED_BY_TERRAFORM" ]; then
-            echo "❌ Transit token secret has placeholder value. Attempting to fix..."
-            # Re-read the transit token
-            TEMP_K8S_VAULT_TRANSIT_TOKEN=$(read_transit_token)
-            if [ -n "$TEMP_K8S_VAULT_TRANSIT_TOKEN" ]; then
-              kubectl delete secret vault-transit-token -n vault
-              kubectl create secret generic vault-transit-token \
-                --namespace=vault \
-                --from-literal=token="$TEMP_K8S_VAULT_TRANSIT_TOKEN"
-              echo "✅ Transit token secret updated"
-              # Restart Vault pod to pick up new token
-              echo "🔄 Restarting Vault pod to apply new transit token..."
-              kubectl delete pod vault-0 -n vault
-              sleep 10
-            else
-              echo "❌ Transit token not available to update the secret"
-              echo "   Please ensure QNAP_VAULT_TOKEN is set or transit token file exists"
-              exit 1
-            fi
+          token_value=\$(kubectl get secret vault-transit-token -n vault -o json | jq -r '.data.token' | base64 -d)
+          if [ \"\$token_value\" = \"PLACEHOLDER_WILL_BE_REPLACED_BY_TERRAFORM\" ]; then
+            echo \"❌ Transit token secret has placeholder value. Needs manual fix.\"
+            echo \"   (Cannot call read_transit_token from subshell)\"
+            exit 1
           else
-            echo "✅ Transit token secret exists, auto-unseal should work"
+            echo \"✅ Transit token secret exists, auto-unseal should work\"
           fi
         else
-          echo "❌ Transit token secret missing. Creating it now..."
-          TEMP_K8S_VAULT_TRANSIT_TOKEN=$(read_transit_token)
-          if [ -n "$TEMP_K8S_VAULT_TRANSIT_TOKEN" ]; then
-            kubectl create secret generic vault-transit-token \
-              --namespace=vault \
-              --from-literal=token="$TEMP_K8S_VAULT_TRANSIT_TOKEN"
-            echo "✅ Transit token secret created"
-          else
-            echo "❌ Transit token not available"
-            echo "   Please ensure QNAP_VAULT_TOKEN is set or transit token file exists"
-            exit 1
-          fi
+          echo \"❌ Transit token secret missing. Needs manual creation.\"
+          echo \"   (Cannot call read_transit_token from subshell)\"
+          exit 1
         fi
       fi
     fi
     # Exit successfully if secrets exist, even if they are placeholders
-    echo "ℹ️  Note: If these are placeholder secrets due to Vault 1.20.1 auto-initialization,"
-    echo "    Vault operations will fail until properly initialized with known keys."
+    echo \"ℹ️  Note: If these are placeholder secrets due to Vault 1.20.1 auto-initialization,\"
+    echo \"    Vault operations will fail until properly initialized with known keys.\"
     exit 0
   fi
 

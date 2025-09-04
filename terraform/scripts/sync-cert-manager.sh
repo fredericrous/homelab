@@ -6,10 +6,11 @@ KUBECONFIG="${1:?Error: KUBECONFIG path required as first argument}"
 export KUBECONFIG
 
 echo "📜 Waiting for cert-manager application to be created by ApplicationSet..."
-timeout 150s sh -c 'until kubectl get app -n argocd cert-manager >/dev/null 2>&1; do
-  echo "Waiting for cert-manager application..."
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 150s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get app -n argocd cert-manager >/dev/null 2>&1; do
+  echo \"Waiting for cert-manager application...\"
   sleep 5
-done'
+done"
 
 if [ $? -eq 0 ]; then
   echo "✅ cert-manager application found"
@@ -24,26 +25,26 @@ kubectl patch app -n argocd cert-manager --type merge -p '{"operation":{"initiat
 
 # Wait for sync to complete
 echo "⏳ Waiting for cert-manager sync to complete..."
-timeout 600s sh -c 'while true; do
-  sync_status=$(kubectl get app -n argocd cert-manager -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
-  health_status=$(kubectl get app -n argocd cert-manager -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
+timeout 600s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
+  sync_status=\$(kubectl get app -n argocd cert-manager -o jsonpath=\"{.status.sync.status}\" 2>/dev/null || echo \"Unknown\")
+  health_status=\$(kubectl get app -n argocd cert-manager -o jsonpath=\"{.status.health.status}\" 2>/dev/null || echo \"Unknown\")
   
-  if [ "$sync_status" = "Synced" ]; then
-    echo "✅ cert-manager synced (Health: $health_status)"
+  if [ \"\$sync_status\" = \"Synced\" ]; then
+    echo \"✅ cert-manager synced (Health: \$health_status)\"
     exit 0
   fi
   
   # For initial deployment, check if core deployments exist
-  if kubectl get deployment -n cert-manager cert-manager >/dev/null 2>&1 && \
-     kubectl get deployment -n cert-manager cert-manager-webhook >/dev/null 2>&1 && \
+  if kubectl get deployment -n cert-manager cert-manager >/dev/null 2>&1 && \\
+     kubectl get deployment -n cert-manager cert-manager-webhook >/dev/null 2>&1 && \\
      kubectl get deployment -n cert-manager cert-manager-cainjector >/dev/null 2>&1; then
-    echo "✅ cert-manager core components deployed (Sync: $sync_status, Health: $health_status)"
+    echo \"✅ cert-manager core components deployed (Sync: \$sync_status, Health: \$health_status)\"
     exit 0
   fi
   
-  echo "Sync status: $sync_status, Health: $health_status"
+  echo \"Sync status: \$sync_status, Health: \$health_status\"
   sleep 5
-done'
+done"
 
 if [ $? -ne 0 ]; then
   echo "❌ Timeout waiting for cert-manager sync"
@@ -64,7 +65,7 @@ fi
 echo "⏳ Waiting for cert-manager CRDs..."
 crds="certificates.cert-manager.io certificaterequests.cert-manager.io issuers.cert-manager.io clusterissuers.cert-manager.io"
 for crd in $crds; do
-  timeout 120s sh -c "until kubectl get crd $crd >/dev/null 2>&1; do
+  timeout 120s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get crd $crd >/dev/null 2>&1; do
     sleep 2
   done"
   
@@ -88,22 +89,24 @@ kubectl wait --for=condition=ready --timeout=300s pod -n cert-manager -l app.kub
 
 # Check if ClusterIssuer is created
 echo "🔍 Checking for Let's Encrypt ClusterIssuer..."
-timeout 60s sh -c 'while true; do
+KUBECONFIG_PATH="$KUBECONFIG"
+timeout 60s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
   if kubectl get clusterissuer letsencrypt-ovh-webhook >/dev/null 2>&1; then
-    issuer_ready=$(kubectl get clusterissuer letsencrypt-ovh-webhook -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null || echo "Unknown")
-    if [ "$issuer_ready" = "True" ]; then
-      echo "✅ ClusterIssuer is ready and configured"
+    issuer_ready=\$(kubectl get clusterissuer letsencrypt-ovh-webhook -o jsonpath=\"{.status.conditions[?(@.type=='Ready')].status}\" 2>/dev/null || echo \"Unknown\")
+    if [ \"\$issuer_ready\" = \"True\" ]; then
+      echo \"✅ ClusterIssuer is ready and configured\"
       exit 0
     else
-      echo "ClusterIssuer exists but not ready: $issuer_ready"
+      echo \"ClusterIssuer exists but not ready: \$issuer_ready\"
       # During initial deployment, existence is enough
-      echo "✅ ClusterIssuer created (will be ready once OVH credentials are in Vault)"
+      echo \"✅ ClusterIssuer created (will be ready once OVH credentials are in Vault)\"
       exit 0
     fi
+  else
+    echo \"Waiting for ClusterIssuer...\"
   fi
-  echo "Waiting for ClusterIssuer..."
   sleep 5
-done'
+done"
 
 if [ $? -ne 0 ]; then
   echo "⚠️  Warning: ClusterIssuer not created after timeout"
