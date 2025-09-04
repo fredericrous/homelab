@@ -161,8 +161,6 @@ metadata:
   namespace: external-secrets
   annotations:
     argocd.argoproj.io/sync-wave: "25"
-    argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   template:
     metadata:

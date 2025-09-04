@@ -70,6 +70,8 @@ spec:
     kind: '*'  # CloudNativePG
   - group: 'secrets.hashicorp.com'
     kind: '*'  # Vault Secrets Operator CRDs
+  - group: 'external-secrets.io'
+    kind: '*'  # External Secrets Operator CRDs
   
   # Allow all namespaced resources
   namespaceResourceWhitelist:
