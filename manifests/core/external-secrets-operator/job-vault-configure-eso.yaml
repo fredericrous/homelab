@@ -1,0 +1,202 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-configure-eso-script
+  namespace: external-secrets
+  annotations:
+    argocd.argoproj.io/sync-wave: "25"
+data:
+  configure-eso.sh: |
+    #!/bin/bash
+    set -e
+
+    # Colors for output
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
+
+    # Environment setup
+    export VAULT_ADDR=http://vault.vault.svc.cluster.local:8200
+    VAULT_TOKEN_FILE="/vault-admin-token/token"
+
+    echo -e "${BLUE}🔐 Starting ESO configuration for Vault...${NC}"
+
+    # Wait for Vault token to be available
+    echo -e "${YELLOW}⏳ Waiting for Vault admin token...${NC}"
+    while [ ! -f "$VAULT_TOKEN_FILE" ] || [ ! -s "$VAULT_TOKEN_FILE" ]; do
+      echo "Token file not ready yet..."
+      sleep 2
+    done
+
+    export VAULT_TOKEN=$(cat "$VAULT_TOKEN_FILE")
+    
+    # Wait for Vault to be ready
+    echo -e "${YELLOW}⏳ Waiting for Vault to be unsealed and ready...${NC}"
+    max_attempts=60
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+      if vault status >/dev/null 2>&1; then
+        if [ "$(vault status -format=json | jq -r '.sealed')" = "false" ]; then
+          echo -e "${GREEN}✅ Vault is unsealed and ready${NC}"
+          break
+        fi
+      fi
+      attempt=$((attempt + 1))
+      echo "Waiting for Vault to be unsealed... (${attempt}/${max_attempts})"
+      sleep 5
+    done
+
+    if [ $attempt -eq $max_attempts ]; then
+      echo -e "${RED}❌ Timeout waiting for Vault to be ready${NC}"
+      exit 1
+    fi
+
+    # Check if ESO already has access
+    echo -e "${BLUE}🔍 Checking if ESO is already configured...${NC}"
+    if vault auth list | grep -q "kubernetes-eso"; then
+      echo -e "${GREEN}✅ ESO already configured in Vault${NC}"
+      
+      # Verify the configuration
+      echo -e "${BLUE}📋 Current ESO configuration:${NC}"
+      vault read auth/kubernetes-eso/config || true
+      
+      # Check if role exists
+      if vault read auth/kubernetes-eso/role/eso-role >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ ESO role already exists${NC}"
+        vault read auth/kubernetes-eso/role/eso-role
+      fi
+      
+      exit 0
+    fi
+
+    echo -e "${BLUE}🚀 Configuring Vault for ESO...${NC}"
+
+    # Enable Kubernetes auth for ESO at a dedicated path
+    echo -e "${YELLOW}🔧 Enabling Kubernetes auth for ESO...${NC}"
+    vault auth enable -path=kubernetes-eso kubernetes || {
+      if [ $? -eq 2 ]; then
+        echo -e "${YELLOW}⚠️  Kubernetes auth already enabled at kubernetes-eso${NC}"
+      else
+        echo -e "${RED}❌ Failed to enable Kubernetes auth${NC}"
+        exit 1
+      fi
+    }
+
+    # Configure Kubernetes auth with in-cluster config
+    echo -e "${YELLOW}🔧 Configuring Kubernetes auth...${NC}"
+    vault write auth/kubernetes-eso/config \
+      kubernetes_host="https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT" \
+      kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+    # Create policy for ESO to read secrets
+    echo -e "${YELLOW}📝 Creating ESO policy...${NC}"
+    vault policy write eso-policy - <<EOF
+    # Allow ESO to read all secrets under secret/
+    path "secret/data/*" {
+      capabilities = ["read", "list"]
+    }
+    
+    # Allow ESO to read secret metadata
+    path "secret/metadata/*" {
+      capabilities = ["read", "list"]
+    }
+    
+    # Allow token renewal
+    path "auth/token/renew-self" {
+      capabilities = ["update"]
+    }
+    
+    # Allow looking up token info
+    path "auth/token/lookup-self" {
+      capabilities = ["read"]
+    }
+    EOF
+
+    # Create Kubernetes auth role for ESO
+    echo -e "${YELLOW}🔧 Creating ESO role...${NC}"
+    vault write auth/kubernetes-eso/role/eso-role \
+      bound_service_account_names=external-secrets \
+      bound_service_account_namespaces=external-secrets \
+      policies=eso-policy \
+      ttl=24h \
+      max_ttl=720h
+
+    # Verify configuration
+    echo -e "${BLUE}🔍 Verifying configuration...${NC}"
+    
+    # Check auth method
+    if vault auth list | grep -q "kubernetes-eso"; then
+      echo -e "${GREEN}✅ Kubernetes auth enabled at kubernetes-eso${NC}"
+    else
+      echo -e "${RED}❌ Kubernetes auth not found${NC}"
+      exit 1
+    fi
+    
+    # Check policy
+    if vault policy read eso-policy >/dev/null 2>&1; then
+      echo -e "${GREEN}✅ ESO policy created${NC}"
+    else
+      echo -e "${RED}❌ ESO policy not found${NC}"
+      exit 1
+    fi
+    
+    # Check role
+    if vault read auth/kubernetes-eso/role/eso-role >/dev/null 2>&1; then
+      echo -e "${GREEN}✅ ESO role created${NC}"
+      vault read auth/kubernetes-eso/role/eso-role
+    else
+      echo -e "${RED}❌ ESO role not found${NC}"
+      exit 1
+    fi
+
+    echo -e "${GREEN}✅ Vault successfully configured for External Secrets Operator!${NC}"
+    echo -e "${BLUE}ℹ️  ESO can now authenticate using the ServiceAccount 'external-secrets' in namespace 'external-secrets'${NC}"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-configure-eso
+  namespace: external-secrets
+  annotations:
+    argocd.argoproj.io/sync-wave: "25"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    metadata:
+      name: vault-configure-eso
+    spec:
+      serviceAccountName: external-secrets
+      restartPolicy: OnFailure
+      containers:
+      - name: configure
+        image: hashicorp/vault:1.17.6
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          # Install bash
+          echo "📦 Installing bash..."
+          apk add --no-cache bash
+          
+          # Execute the configuration script
+          exec /scripts/configure-eso.sh
+        volumeMounts:
+        - name: vault-admin-token
+          mountPath: /vault-admin-token
+          readOnly: true
+        - name: script
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: vault-admin-token
+        secret:
+          secretName: vault-admin-token
+          defaultMode: 0400
+      - name: script
+        configMap:
+          name: vault-configure-eso-script
+          defaultMode: 0755

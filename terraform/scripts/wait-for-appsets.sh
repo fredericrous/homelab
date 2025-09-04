@@ -8,7 +8,7 @@ export KUBECONFIG
 echo "⏳ Waiting for ApplicationSets to generate applications..."
 
 # Wait for specific apps to be created by ApplicationSets
-apps="vault cert-manager vault-secrets-operator rook-ceph"
+apps="vault cert-manager external-secrets-operator stakater-reloader rook-ceph"
 for app in $apps; do
   echo "🔍 Waiting for $app application..."
   timeout 120s sh -c "until kubectl get app -n argocd $app >/dev/null 2>&1; do

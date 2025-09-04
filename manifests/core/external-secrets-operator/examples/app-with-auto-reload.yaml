@@ -1,0 +1,81 @@
+# Example: Application that auto-reloads when secrets change
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-config
+  namespace: default
+type: Opaque
+stringData:
+  config.yaml: |
+    database:
+      host: postgres.default.svc.cluster.local
+      port: 5432
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: app-secrets
+  namespace: default
+spec:
+  refreshInterval: 5m  # Check for updates every 5 minutes
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: app-secrets
+    creationPolicy: Owner
+  
+  data:
+  - secretKey: db-password
+    remoteRef:
+      key: secret/data/myapp/database
+      property: password
+  - secretKey: api-key
+    remoteRef:
+      key: secret/data/myapp/api
+      property: key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: default
+  annotations:
+    # Tell Reloader to watch these resources
+    reloader.stakater.com/auto: "true"
+    # Or explicitly specify which secrets/configmaps to watch:
+    # configmap.reloader.stakater.com/reload: "app-config"
+    # secret.reloader.stakater.com/reload: "app-secrets"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - name: app
+        image: myapp:latest
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: db-password
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: api-key
+        volumeMounts:
+        - name: config
+          mountPath: /config
+      volumes:
+      - name: config
+        configMap:
+          name: app-config

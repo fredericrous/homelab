@@ -4,16 +4,12 @@ kind: Kustomization
 namespace: stremio
 
 resources:
-  # Include shared vault auth base
-  - ../../base/vault-auth
-  # Include job templates
-  - ../../base/job-templates
   # App-specific resources
   - namespace.yaml
   # - stremio-vault-auth.yaml  # Now provided by base/vault-auth
   # - job-vault-configure-stremio.yaml  # Now using job-templates base
-  - harbor-registry-secret.yaml
-  - harbor-registry-user-secret.yaml
+  - harbor-registry-externalsecret.yaml
+  - harbor-registry-user-externalsecret.yaml
   - pvc.yaml
   - pvc-web.yaml
   - build-workspace-pvc.yaml

@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: plex
   namespace: plex
+  annotations:
+    # Auto-reload when secrets change
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   selector:

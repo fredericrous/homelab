@@ -60,11 +60,13 @@ spec:
         kind: Certificate
         jsonPointers:
         - /status
-      # Vault Secrets Operator
-      - group: secrets.hashicorp.com
-        kind: VaultStaticSecret
+      # External Secrets Operator
+      - group: external-secrets.io
+        kind: ExternalSecret
         jsonPointers:
         - /status
+        - /status/refreshTime
+        - /status/syncedResourceVersion
       # Rook-Ceph
       - group: ceph.rook.io
         kind: CephCluster

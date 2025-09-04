@@ -1,7 +1,0 @@
-name: vault-secrets-operator
-project: core
-namespace: vault-secrets-operator
-path: manifests/core/vault-secrets-operator
-autoSync: "false"  # VSO is critical for secrets sync
-prune: "false"     # Never auto-prune VSO resources
-syncWave: "-15"

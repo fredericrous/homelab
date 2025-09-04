@@ -3,4 +3,4 @@ kind: Kustomization
 
 resources:
   - postgres-superuser-secret-template.yaml
-  - vaultstaticsecret-postgres-superuser.yaml
+  - externalsecret-postgres-superuser.yaml

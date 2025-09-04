@@ -1,0 +1,7 @@
+name: external-secrets-operator
+project: core
+namespace: external-secrets
+path: manifests/core/external-secrets-operator
+autoSync: "false"  # ESO is critical for secrets sync
+prune: "false"     # Never auto-prune ESO resources
+syncWave: "-15"    # Same priority as VSO (replacing it)

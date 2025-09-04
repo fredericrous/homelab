@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: lldap
   namespace: lldap
+  annotations:
+    # Auto-reload when secrets change
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   selector:

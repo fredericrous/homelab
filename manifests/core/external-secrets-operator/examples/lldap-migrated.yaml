@@ -1,0 +1,177 @@
+# Example: LLDAP migrated from VSO to ESO
+#
+# This shows how to migrate a typical app from Vault Secrets Operator
+# to External Secrets Operator with auto-reload support
+#
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lldap
+  namespace: lldap
+---
+# Main application secrets from Vault
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: lldap-secrets
+  namespace: lldap
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"  # Sync after namespace
+spec:
+  refreshInterval: 5m  # Check for updates every 5 minutes
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: lldap-secrets
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  
+  # Fetch all keys from the lldap path in Vault
+  dataFrom:
+  - extract:
+      key: secret/data/lldap
+---
+# OVH DNS credentials for cert-manager
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: ovh-credentials
+  namespace: lldap
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  refreshInterval: 30m  # DNS credentials don't change often
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: ovh-credentials
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  
+  data:
+  - secretKey: application_key
+    remoteRef:
+      key: secret/data/ovh-dns
+      property: application_key
+  - secretKey: application_secret
+    remoteRef:
+      key: secret/data/ovh-dns
+      property: application_secret
+  - secretKey: consumer_key
+    remoteRef:
+      key: secret/data/ovh-dns
+      property: consumer_key
+---
+# Database credentials from shared postgres secret
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: postgres-superuser
+  namespace: lldap
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  refreshInterval: 15m
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: postgres-superuser
+    creationPolicy: Owner
+  
+  data:
+  - secretKey: username
+    remoteRef:
+      key: secret/data/postgres/superuser
+      property: username
+  - secretKey: password
+    remoteRef:
+      key: secret/data/postgres/superuser
+      property: password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lldap
+  namespace: lldap
+  annotations:
+    # Enable auto-reload when secrets change
+    reloader.stakater.com/auto: "true"
+    # Or specify exactly which secrets to watch:
+    # secret.reloader.stakater.com/reload: "lldap-secrets,postgres-superuser"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lldap
+  template:
+    metadata:
+      labels:
+        app: lldap
+      annotations:
+        # Backup volume with Velero
+        backup.velero.io/backup-volumes: lldap-data
+    spec:
+      serviceAccountName: lldap
+      containers:
+      - name: lldap
+        image: lldap/lldap:latest
+        ports:
+        - containerPort: 3890
+          name: http
+        - containerPort: 6360
+          name: ldap
+        env:
+        # Database connection from postgres-superuser secret
+        - name: LLDAP_DATABASE_URL
+          value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres-rw.cloudnative-pg.svc.cluster.local:5432/lldap"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser
+              key: password
+        # LLDAP configuration from lldap-secrets
+        - name: LLDAP_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: lldap-secrets
+              key: jwt_secret
+        - name: LLDAP_LDAP_USER_PASS
+          valueFrom:
+            secretKeyRef:
+              name: lldap-secrets
+              key: user_password
+        - name: LLDAP_KEY_SEED
+          valueFrom:
+            secretKeyRef:
+              name: lldap-secrets
+              key: key_seed
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 10m
+            memory: 100Mi
+          limits:
+            memory: 200Mi
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: lldap-data
+---
+# Note: PVC, Service, and Ingress remain the same as before
+# Only the secret management has changed from VSO to ESO

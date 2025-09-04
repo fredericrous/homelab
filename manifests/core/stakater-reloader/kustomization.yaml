@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: stakater-reloader
+
+resources:
+  - namespace.yaml
+
+# Install Stakater Reloader via Helm
+helmCharts:
+- name: reloader
+  repo: https://stakater.github.io/stakater-charts
+  version: 1.1.0  # Latest stable version
+  namespace: stakater-reloader
+  releaseName: reloader
+  valuesInline:
+    reloader:
+      # Watch for changes in secrets and configmaps
+      watchGlobally: true
+      
+      # Resources
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+      
+      # Log level
+      logLevel: info
+      
+      # Enable leadership election for HA
+      enableHA: true
+      
+      # Reload strategy
+      reloadStrategy: default  # Can be: default, annotations, env-vars
+      
+      # Auto reload all resources by default
+      # Can be disabled per resource with annotation:
+      # reloader.stakater.com/auto: "false"
+      autoReloadAll: false  # We'll use annotations for explicit control

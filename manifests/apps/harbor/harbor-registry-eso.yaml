@@ -1,0 +1,28 @@
+# Harbor registry credentials from Vault using External Secrets Operator
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: harbor-registry
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  refreshInterval: 5m
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: harbor-registry-secret
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      data:
+        REGISTRY_HTPASSWD: "{{ .htpasswd }}"
+        REGISTRY_HTTP_SECRET: "{{ .http_secret }}"
+  
+  dataFrom:
+  - extract:
+      key: secret/data/harbor/registry

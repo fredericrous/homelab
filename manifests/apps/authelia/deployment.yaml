@@ -5,6 +5,9 @@ metadata:
   namespace: authelia
   labels:
     app: authelia
+  annotations:
+    # Auto-reload when secrets or config changes
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   selector:

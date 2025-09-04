@@ -3,13 +3,8 @@ kind: Kustomization
 
 namespace: nextcloud
 
-# Use shared bases
+# App-specific resources
 resources:
-  # Include shared vault auth base (provides vault-connection, vault-auth template, etc.)
-  - ../../base/vault-auth
-  # Include job templates
-  - ../../base/job-templates
-  # App-specific resources
   - namespace.yaml
   - serviceaccount.yaml
   - pvc.yaml
@@ -17,14 +12,14 @@ resources:
   # - job-vault-configure-nextcloud.yaml  # Replaced by job template
   # - nextcloud-vault-connection.yaml  # Now provided by base/vault-auth
   # - nextcloud-vault-auth.yaml  # Now provided by base/vault-auth
-  - nextcloud-vault-secret.yaml  # App-specific VaultStaticSecret
+  - nextcloud-externalsecret.yaml  # App-specific ExternalSecret
   - configmap.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
   - ingress-mobile.yaml
   # Database initialization (idempotent - safe to run multiple times)
-  - postgres-superuser-secret.yaml
+  - postgres-superuser-externalsecret.yaml
   - postgres-create-db-fixed.yaml
   # Vault secrets initialization (idempotent - only creates if missing)
   # - vault-populate-secrets-job.yaml  # Replaced by job template
@@ -33,39 +28,8 @@ resources:
   - job-configure-local-external-storage.yaml
   - job-configure-utf8-support.yaml
 
-# Patches to customize the shared bases
+# Patches
 patches:
-  # Customize the vault auth from base
-  - target:
-      kind: VaultAuth
-      name: vault-auth
-    patch: |-
-      apiVersion: secrets.hashicorp.com/v1beta1
-      kind: VaultAuth
-      metadata:
-        name: nextcloud-auth
-        namespace: nextcloud
-      spec:
-        kubernetes:
-          role: nextcloud
-          serviceAccount: nextcloud
-  
-  # Customize the RBAC for vault token reader
-  - target:
-      kind: RoleBinding
-      name: PLACEHOLDER-vault-admin-token-reader
-      namespace: vault
-    patch: |-
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: RoleBinding
-      metadata:
-        name: nextcloud-vault-admin-token-reader
-        namespace: vault
-      subjects:
-      - kind: ServiceAccount
-        name: vault-config
-        namespace: nextcloud
-  
   # Add backup annotations
   - target:
       kind: Deployment
@@ -95,75 +59,3 @@ patches:
   #     kind: Deployment
   #     name: nextcloud
   
-  # Patch vault configure job template
-  - target:
-      kind: Job
-      name: vault-configure
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-configure-nextcloud
-        namespace: nextcloud
-      spec:
-        template:
-          spec:
-            containers:
-            - name: vault-configure
-              env:
-              - name: VAULT_POLICY_NAME
-                value: "nextcloud-policy"
-              - name: VAULT_POLICY_CONTENT
-                value: |
-                  path "secret/data/nextcloud/*" {
-                    capabilities = ["read"]
-                  }
-                  path "secret/data/postgres/superuser" {
-                    capabilities = ["read"]
-                  }
-                  path "secret/data/nfs" {
-                    capabilities = ["read"]
-                  }
-              - name: VAULT_ROLE_NAME
-                value: "nextcloud"
-              - name: VAULT_ROLE_SERVICE_ACCOUNTS
-                value: "nextcloud"
-              - name: VAULT_ROLE_NAMESPACES
-                value: "nextcloud"
-  
-  # Patch vault populate secrets job template
-  - target:
-      kind: Job
-      name: vault-populate
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-populate-nextcloud-secrets
-        namespace: nextcloud
-      spec:
-        template:
-          spec:
-            containers:
-            - name: vault-populate
-              env:
-              - name: VAULT_SECRET_PATH
-                value: "secret/nextcloud"
-              - name: VAULT_SECRET_DATA
-                value: |
-                  database-host="postgres-apps-1.postgres.svc.cluster.local"
-                  database-name="nextcloud"
-                  database-user="nextcloud"
-                  database-password="$(openssl rand -base64 32 | tr -d '=+/' | cut -c1-32)"
-                  admin-username="admin"
-                  admin-password="$(openssl rand -base64 32 | tr -d '=+/' | cut -c1-32)"
-                  trusted-domains="drive.daddyshome.fr"
-                  redis-host="redis-standalone.ot-operators.svc.cluster.local"
-                  redis-port="6379"
-                  redis-password=""
-                  secret-key="$(openssl rand -base64 32 | tr -d '=+/' | cut -c1-32)"
-                  ldap-host="lldap.lldap.svc.cluster.local"
-                  ldap-port="389"
-                  ldap-base-dn="dc=daddyshome,dc=fr"
-                  ldap-bind-dn="uid=admin,ou=people,dc=daddyshome,dc=fr"
-                  ldap-bind-password="CHANGE_ME_LLDAP_PASSWORD"

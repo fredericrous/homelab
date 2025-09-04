@@ -1,0 +1,29 @@
+# Harbor database credentials from Vault using External Secrets Operator
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: harbor-database
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  refreshInterval: 5m
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: harbor-database-secret
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      data:
+        db-password: "{{ .password }}"
+  
+  data:
+  - secretKey: password
+    remoteRef:
+      key: secret/data/harbor/database
+      property: password

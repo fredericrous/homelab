@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: nextcloud
   namespace: nextcloud
+  annotations:
+    # Auto-reload when secrets or configmap changes
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   selector:

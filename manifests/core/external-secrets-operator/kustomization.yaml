@@ -1,0 +1,46 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: external-secrets
+
+resources:
+  - namespace.yaml
+  - cluster-secret-store.yaml  # Global Vault configuration
+  - job-vault-configure-eso.yaml  # Configure Vault access for ESO
+
+# Install External Secrets Operator via Helm
+helmCharts:
+- name: external-secrets
+  repo: https://charts.external-secrets.io
+  version: 0.10.5  # Latest stable version
+  namespace: external-secrets
+  releaseName: external-secrets
+  includeCRDs: true  # ESO handles CRDs better than VSO
+  valuesInline:
+    installCRDs: true
+    crds:
+      createClusterSecretStore: true
+      createClusterExternalSecret: true
+      createPushSecret: true
+    
+    # Set resource limits
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    
+    # Prometheus metrics
+    serviceMonitor:
+      enabled: false  # Enable if you have Prometheus
+    
+    # Number of concurrent reconcilers
+    concurrent: 5
+    
+    # Log level
+    extraArgs:
+      loglevel: info
+      
+    # Leader election for HA
+    leaderElect: true

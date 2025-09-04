@@ -4,9 +4,8 @@ kind: Kustomization
 namespace: argocd
 
 resources:
-  # Vault integration for ArgoCD
-  - vault-auth.yaml
-  - argocd-ldap-secret.yaml
+  # External Secrets for ArgoCD
+  - argocd-ldap-externalsecret.yaml
   
   # Any other ArgoCD configuration can be added here
   # Examples:

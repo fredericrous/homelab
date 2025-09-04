@@ -54,14 +54,14 @@ resource "null_resource" "vault_sync" {
   }
 }
 
-# Stage 2: Sync Vault Secrets Operator (depends on Vault)
-resource "null_resource" "vso_sync" {
+# Stage 2: Sync External Secrets Operator (depends on Vault)
+resource "null_resource" "eso_sync" {
   count = var.configure_talos ? 1 : 0
   
   depends_on = [null_resource.vault_sync]
 
   provisioner "local-exec" {
-    command = "${path.module}/scripts/sync-vso.sh '${abspath(local_file.kubeconfig[0].filename)}'"
+    command = "${path.module}/scripts/sync-external-secrets.sh '${abspath(local_file.kubeconfig[0].filename)}'"
   }
 
   triggers = {
@@ -69,11 +69,26 @@ resource "null_resource" "vso_sync" {
   }
 }
 
-# Stage 3: Sync cert-manager (depends on VSO)
+# Stage 2b: Sync Stakater Reloader (for auto-reloading on secret changes)
+resource "null_resource" "reloader_sync" {
+  count = var.configure_talos ? 1 : 0
+  
+  depends_on = [null_resource.eso_sync]
+
+  provisioner "local-exec" {
+    command = "${path.module}/scripts/sync-reloader.sh '${abspath(local_file.kubeconfig[0].filename)}'"
+  }
+
+  triggers = {
+    cluster_id = talos_machine_secrets.this.id
+  }
+}
+
+# Stage 3: Sync cert-manager (depends on ESO)
 resource "null_resource" "cert_manager_sync" {
   count = var.configure_talos ? 1 : 0
   
-  depends_on = [null_resource.vso_sync]
+  depends_on = [null_resource.reloader_sync]
 
   provisioner "local-exec" {
     command = "${path.module}/scripts/sync-cert-manager.sh '${abspath(local_file.kubeconfig[0].filename)}'"

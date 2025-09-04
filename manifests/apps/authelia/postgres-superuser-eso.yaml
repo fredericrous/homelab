@@ -1,0 +1,29 @@
+# PostgreSQL superuser credentials from Vault using External Secrets Operator
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: postgres-superuser-vault
+  namespace: authelia
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  refreshInterval: 15m
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: postgres-superuser-ref
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      data:
+        password: "{{ .password }}"
+  
+  data:
+  - secretKey: password
+    remoteRef:
+      key: secret/data/postgres/superuser
+      property: password

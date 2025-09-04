@@ -1,0 +1,7 @@
+name: stakater-reloader
+project: core
+namespace: stakater-reloader
+path: manifests/core/stakater-reloader
+autoSync: "true"   # Safe to auto-sync
+prune: "true"
+syncWave: "-10"    # After ESO, before apps that need it
