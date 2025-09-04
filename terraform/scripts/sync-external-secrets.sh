@@ -43,9 +43,20 @@ timeout 300s bash -c 'while true; do
   fi
   
   # Check if deployment exists
-  if kubectl get deployment -n external-secrets external-secrets-operator >/dev/null 2>&1; then
+  if kubectl get deployment -n external-secrets external-secrets >/dev/null 2>&1; then
     echo "✅ ESO deployment exists (Sync: $sync_status, Health: $health_status)"
     exit 0
+  fi
+  
+  # For initial deployment, Progressing is acceptable if resources are being created
+  if [ "$health_status" = "Progressing" ] || [ "$health_status" = "Healthy" ]; then
+    # Check if core ESO resources exist
+    if kubectl get deployment -n external-secrets external-secrets >/dev/null 2>&1 && \
+       kubectl get deployment -n external-secrets external-secrets-webhook >/dev/null 2>&1 && \
+       kubectl get deployment -n external-secrets external-secrets-cert-controller >/dev/null 2>&1; then
+      echo "✅ ESO core components deployed (Sync: $sync_status, Health: $health_status)"
+      exit 0
+    fi
   fi
   
   echo "Sync status: $sync_status, Health: $health_status"
@@ -54,7 +65,18 @@ done'
 
 if [ $? -ne 0 ]; then
   echo "❌ Timeout waiting for ESO sync"
-  exit 1
+  echo "This is expected during initial deployment if Vault is not yet initialized."
+  echo "Checking if ESO components are at least deployed..."
+  
+  # Even if sync didn't complete, check if the core components are there
+  if kubectl get deployment -n external-secrets external-secrets >/dev/null 2>&1 && \
+     kubectl get deployment -n external-secrets external-secrets-webhook >/dev/null 2>&1 && \
+     kubectl get deployment -n external-secrets external-secrets-cert-controller >/dev/null 2>&1; then
+    echo "✅ ESO core components are deployed despite sync timeout"
+  else
+    echo "❌ ESO core components not found"
+    exit 1
+  fi
 fi
 
 # Wait for ESO webhook to be ready
