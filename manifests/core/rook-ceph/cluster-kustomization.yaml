@@ -3,50 +3,16 @@ kind: Kustomization
 
 namespace: rook-ceph
 
-resources:
-- namespace.yaml
+# This is for the Ceph cluster deployment only
+# The operator must be deployed first via the main kustomization.yaml
 
 helmCharts:
-- name: rook-ceph
+- name: rook-ceph-cluster
   repo: https://charts.rook.io/release
   version: v1.15.5
-  releaseName: rook-ceph
+  releaseName: rook-ceph-cluster
   namespace: rook-ceph
   valuesInline:
-    crds:
-      enabled: true
-    # Disable monitoring to reduce etcd usage
-    monitoring:
-      enabled: false
-    # Log level
-    logLevel: INFO
-    # Disable discovery daemon logging
-    discover:
-      tolerations:
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
-    # CSI Settings for 3-node cluster
-    csi:
-      provisionerReplicas: 2
-      enableRbdDriver: true
-      enableCephfsDriver: true
-      # Set the CSI driver provisioner replicas to 2
-      csiRBDProvisionerResource: |
-        limits:
-          memory: 256Mi
-        requests:
-          cpu: 10m
-          memory: 128Mi
-      csiCephFSProvisionerResource: |
-        limits:
-          memory: 256Mi
-        requests:
-          cpu: 10m
-          memory: 128Mi
-
-# Note: rook-ceph-cluster is deployed separately to ensure proper ordering
-# The operator must be fully deployed before the cluster can be created
     operatorNamespace: rook-ceph
     configOverride: |
       [global]
@@ -241,13 +207,3 @@ helmCharts:
         enabled: true
         name: ceph-bucket
         reclaimPolicy: Delete
-
-patches:
-- target:
-    kind: Namespace
-    name: rook-ceph
-  patch: |-
-    - op: add
-      path: /metadata/annotations
-      value:
-        argocd.argoproj.io/sync-wave: "-5"

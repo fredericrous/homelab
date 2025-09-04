@@ -35,7 +35,7 @@ tasks:
       - task: stage9
       - task: stage10
       - task: stage11
-    
+
   prereq:
     desc: Pre-flight checks
     dir: '{{.TERRAFORM_DIR}}'
@@ -176,7 +176,7 @@ tasks:
         if [ -f /tmp/vault-transit-env ]; then
           source /tmp/vault-transit-env
         fi
-        
+
         # Setup transit token
         if [ -f "./scripts/deploy-vault-transit.sh" ]; then
           ./scripts/deploy-vault-transit.sh "{{.KUBECONFIG}}"
@@ -187,16 +187,16 @@ tasks:
         # Bootstrap secrets for cert-manager and other services
         echo "🔐 Bootstrapping placeholder secrets..."
         export KUBECONFIG="{{.KUBECONFIG}}"
-        
+
         # Verify kubeconfig is accessible
         if ! kubectl cluster-info &>/dev/null; then
           echo "❌ Cannot connect to Kubernetes cluster"
           echo "   KUBECONFIG: $KUBECONFIG"
           exit 1
         fi
-        
+
         kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-        
+
         if ! kubectl get secret ovh-credentials -n cert-manager &>/dev/null; then
           echo "📝 Creating placeholder OVH credentials for cert-manager..."
           kubectl create secret generic ovh-credentials \
@@ -215,7 +215,7 @@ tasks:
     deps: [stage7]
     cmds:
       - 'echo "🔐 Stage 8: Deploying core services..."'
-      - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.wait_for_appsets -target=null_resource.rook_ceph_sync -target=null_resource.vault_sync -target=null_resource.vso_sync -target=null_resource.cert_manager_sync'
+      - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.wait_for_appsets -target=null_resource.rook_ceph_sync -target=null_resource.vault_sync -target=null_resource.eso_sync -target=null_resource.cert_manager_sync'
     status:
       - 'kubectl get app -n argocd vault 2>/dev/null | grep -q "Synced"'
       - 'kubectl get app -n argocd rook-ceph 2>/dev/null | grep -q "Synced"'
@@ -341,10 +341,10 @@ tasks:
     cmds:
       - |
         echo "🔐 Bootstrapping secrets from QNAP Vault..."
-        
+
         # Create cert-manager namespace and OVH credentials
         kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-        
+
         # Check if placeholder secret exists
         if ! kubectl get secret ovh-credentials -n cert-manager &>/dev/null; then
           echo "📝 Creating placeholder OVH credentials..."
@@ -354,7 +354,7 @@ tasks:
             --from-literal=applicationSecret="placeholder" \
             --from-literal=consumerKey="placeholder"
         fi
-        
+
         echo "✅ Bootstrap secrets ready"
 
   configure-vault:
@@ -363,16 +363,16 @@ tasks:
     cmds:
       - |
         echo "🔐 Configuring Vault for services..."
-        
+
         # Wait for Vault to be ready
         kubectl wait --for=condition=Ready pod/vault-0 -n vault --timeout=300s || true
-        
+
         # Check if Vault is initialized
         if ! kubectl exec -n vault vault-0 -- vault status 2>&1 | grep -q "Initialized.*true"; then
           echo "⚠️  Vault not initialized yet"
           exit 1
         fi
-        
+
         # Unseal if needed
         if kubectl exec -n vault vault-0 -- vault status 2>&1 | grep -q "Sealed.*true"; then
           echo "🔓 Unsealing Vault..."
@@ -384,7 +384,7 @@ tasks:
             exit 1
           fi
         fi
-        
+
         # Run configuration script
         if [ -f ./configure-vault-services.sh ]; then
           ./configure-vault-services.sh

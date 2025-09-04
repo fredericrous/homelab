@@ -1,0 +1,58 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: rook-ceph
+
+resources:
+- namespace.yaml
+
+# Deploy only the Rook-Ceph operator first
+# The cluster resources should be deployed separately after operator is ready
+helmCharts:
+- name: rook-ceph
+  repo: https://charts.rook.io/release
+  version: v1.15.5
+  releaseName: rook-ceph
+  namespace: rook-ceph
+  valuesInline:
+    crds:
+      enabled: true
+    # Disable monitoring to reduce etcd usage
+    monitoring:
+      enabled: false
+    # Log level
+    logLevel: INFO
+    # Disable discovery daemon logging
+    discover:
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    # CSI Settings for 3-node cluster
+    csi:
+      provisionerReplicas: 2
+      enableRbdDriver: true
+      enableCephfsDriver: true
+      # Set the CSI driver provisioner replicas to 2
+      csiRBDProvisionerResource: |
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 10m
+          memory: 128Mi
+      csiCephFSProvisionerResource: |
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 10m
+          memory: 128Mi
+
+patches:
+- target:
+    kind: Namespace
+    name: rook-ceph
+  patch: |-
+    - op: add
+      path: /metadata/annotations
+      value:
+        argocd.argoproj.io/sync-wave: "-5"

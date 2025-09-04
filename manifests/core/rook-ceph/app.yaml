@@ -6,6 +6,13 @@ autoSync: "false"  # Storage control plane is critical
 prune: "false"     # Never auto-prune storage resources
 syncWave: "-22"
 serverSideApply: "true"
+syncOptions:
+  - CreateNamespace=true
+  - ServerSideApply=true
+  - Replace=true
+  - SkipDryRunOnMissingResource=true  # Skip CRD validation during dry-run
+retryLimit: 5
+syncTimeout: 600  # 10 minutes for Rook-Ceph
 ignoreDifferences:
   - group: ceph.rook.io
     kind: CephCluster
