@@ -38,6 +38,23 @@ while true; do
   # Get more details about the sync status
   operation_phase=$(kubectl get app -n argocd rook-ceph -o jsonpath="{.status.operationState.phase}" 2>/dev/null || echo "")
   
+  # If operation is in Error phase, show details and retry
+  if [ "$operation_phase" = "Error" ]; then
+    echo "❌ Sync operation failed. Getting error details..."
+    error_message=$(kubectl get app -n argocd rook-ceph -o jsonpath="{.status.operationState.message}" 2>/dev/null || echo "No error message")
+    echo "Error: $error_message"
+    
+    # Show sync result details
+    echo "Sync result:"
+    kubectl get app -n argocd rook-ceph -o jsonpath="{.status.operationState.syncResult}" | jq '.' 2>/dev/null || true
+    
+    # Retry the sync
+    echo "🔄 Retrying sync..."
+    kubectl patch app -n argocd rook-ceph --type merge -p '{"operation":{"initiatedBy":{"username":"terraform"},"sync":{"prune":true,"retry":{"limit":5}}}}'
+    sleep 10
+    continue
+  fi
+  
   # If OutOfSync but Healthy, check if resources are being created
   if [ "$sync_status" = "OutOfSync" ] && [ "$health_status" = "Healthy" ]; then
     # Check if this is the initial sync where resources don't exist yet
