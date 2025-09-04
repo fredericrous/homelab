@@ -35,20 +35,39 @@ log_error() {
 
 wait_for_vault() {
     echo "⏳ Waiting for Vault to be ready..."
-    local max_attempts=60
+    local max_attempts=90
     local attempt=1
     
+    # First check if we can reach the service
+    echo "Checking Vault connectivity at ${VAULT_ADDR}..."
+    
     while [ $attempt -le $max_attempts ]; do
+        # Try both vault status and a simple curl to the health endpoint
         if vault status >/dev/null 2>&1; then
             log_info "Vault is responding"
             return 0
+        elif curl -s "${VAULT_ADDR}/v1/sys/health" >/dev/null 2>&1; then
+            echo "Vault HTTP is reachable, waiting for full initialization..."
+            sleep 5
+            if vault status >/dev/null 2>&1; then
+                log_info "Vault is responding"
+                return 0
+            fi
         fi
+        
+        if [ $((attempt % 10)) -eq 0 ]; then
+            echo "Still waiting... ($attempt/$max_attempts) - checking connectivity"
+            # Debug DNS and network
+            nslookup vault.vault.svc.cluster.local || echo "DNS lookup failed"
+            curl -v --connect-timeout 2 "${VAULT_ADDR}/v1/sys/health" 2>&1 | grep -E "(Connected|Failed)" || true
+        fi
+        
         echo "Waiting... ($attempt/$max_attempts)"
         sleep 2
         ((attempt++))
     done
     
-    log_error "Vault is not responding after 120 seconds"
+    log_error "Vault is not responding after 180 seconds"
     echo "Vault pod status:"
     kubectl get pod vault-0 -n vault -o wide || true
     echo "Vault pod logs (last 20 lines):"

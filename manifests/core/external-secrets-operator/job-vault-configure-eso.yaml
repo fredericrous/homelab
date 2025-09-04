@@ -184,9 +184,9 @@ spec:
         - -c
         - |
           set -e
-          # Install bash
-          echo "📦 Installing bash..."
-          apk add --no-cache bash
+          # Install bash and jq
+          echo "📦 Installing bash and jq..."
+          apk add --no-cache bash jq
           
           # Execute the configuration script
           exec /scripts/configure-eso.sh
