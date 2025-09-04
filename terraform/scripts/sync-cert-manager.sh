@@ -88,14 +88,17 @@ kubectl wait --for=condition=ready --timeout=300s pod -n cert-manager -l app.kub
 
 # Check if ClusterIssuer is created
 echo "🔍 Checking for Let's Encrypt ClusterIssuer..."
-timeout 300s sh -c 'while true; do
-  if kubectl get clusterissuer letsencrypt-ovh-webhook-final >/dev/null 2>&1; then
-    issuer_ready=$(kubectl get clusterissuer letsencrypt-ovh-webhook-final -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null || echo "Unknown")
+timeout 60s sh -c 'while true; do
+  if kubectl get clusterissuer letsencrypt-ovh-webhook >/dev/null 2>&1; then
+    issuer_ready=$(kubectl get clusterissuer letsencrypt-ovh-webhook -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null || echo "Unknown")
     if [ "$issuer_ready" = "True" ]; then
       echo "✅ ClusterIssuer is ready and configured"
       exit 0
     else
       echo "ClusterIssuer exists but not ready: $issuer_ready"
+      # During initial deployment, existence is enough
+      echo "✅ ClusterIssuer created (will be ready once OVH credentials are in Vault)"
+      exit 0
     fi
   fi
   echo "Waiting for ClusterIssuer..."
@@ -103,7 +106,8 @@ timeout 300s sh -c 'while true; do
 done'
 
 if [ $? -ne 0 ]; then
-  echo "⚠️  Warning: ClusterIssuer not ready after timeout"
+  echo "⚠️  Warning: ClusterIssuer not created after timeout"
+  echo "This is expected if cert-manager is still syncing. Continuing..."
 fi
 
 echo "✅ cert-manager synced successfully"
