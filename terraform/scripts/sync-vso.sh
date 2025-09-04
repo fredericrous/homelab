@@ -46,7 +46,10 @@ kubectl patch app -n argocd vault-secrets-operator --type merge -p '{"operation"
 
 # Wait for sync to complete
 echo "⏳ Waiting for VSO sync to complete..."
-timeout 600s bash -c 'while true; do
+timeout 600s bash -c '
+retry_count=0
+max_retries=3
+while true; do
   sync_status=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
   health_status=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
   operation_phase=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.operationState.phase}" 2>/dev/null || echo "Unknown")
@@ -54,24 +57,37 @@ timeout 600s bash -c 'while true; do
   # Check if we have sync errors using jq to avoid jsonpath complexity
   sync_error=$(kubectl get app -n argocd vault-secrets-operator -o json 2>/dev/null | jq -r ".status.conditions[]? | select(.type==\"SyncError\") | .message // empty" || echo "")
   
+  # Check if CRDs exist (used in retry logic)
+  crd_count=$(kubectl get crd | grep -c secrets.hashicorp.com || echo "0")
+  
   # Workaround for VSO Helm chart v0.10.0 bug where upgradeCRDs.enabled=false doesn'"'"'t prevent hook creation
   # TODO: Remove this when the Helm chart is fixed or we find a better solution
   if [ "$operation_phase" = "Failed" ] && echo "$sync_error" | grep -q "upgrade-crds.*already exists"; then
-    echo "⚠️  Sync failed due to VSO Helm chart hook conflicts (known issue), applying workaround..."
-    # Delete the conflicting resources
-    kubectl delete clusterrole vault-secrets-operator-upgrade-crds --ignore-not-found=true
-    kubectl delete clusterrolebinding vault-secrets-operator-upgrade-crds --ignore-not-found=true
-    # Retry with Replace to force recreation
-    kubectl patch app -n argocd vault-secrets-operator --type merge -p '"'"'{"operation":{"initiatedBy":{"username":"terraform-retry"},"sync":{"prune":true,"syncOptions":["Replace=true","ServerSideApply=true"]}}}'"'"'
-    sleep 10
-    continue
+    if [ $retry_count -ge $max_retries ]; then
+      echo "❌ Max retries ($max_retries) reached for hook conflict workaround"
+      # Try to continue anyway if CRDs exist
+      if [ "$crd_count" -gt "0" ]; then
+        echo "   CRDs exist, attempting to continue..."
+      else
+        exit 1
+      fi
+    else
+      echo "⚠️  Sync failed due to VSO Helm chart hook conflicts (retry $((retry_count + 1))/$max_retries)..."
+      # Delete the conflicting resources
+      kubectl delete clusterrole vault-secrets-operator-upgrade-crds --ignore-not-found=true
+      kubectl delete clusterrolebinding vault-secrets-operator-upgrade-crds --ignore-not-found=true
+      # Retry with Replace to force recreation
+      kubectl patch app -n argocd vault-secrets-operator --type merge -p '"'"'{"operation":{"initiatedBy":{"username":"terraform-retry-'$retry_count'"},"sync":{"prune":true,"syncOptions":["Replace=true","ServerSideApply=true"]}}}'"'"'
+      ((retry_count++))
+      # Wait longer for ArgoCD to process the sync
+      echo "   Waiting 30s for ArgoCD to process the sync request..."
+      sleep 30
+      continue
+    fi
   fi
   
   # Check if VSO deployment exists (even if health is Missing due to config jobs)
   vso_deployment=$(kubectl get deployment -n vault-secrets-operator vault-secrets-operator-controller-manager 2>/dev/null || echo "NotFound")
-  
-  # Check if CRDs exist
-  crd_count=$(kubectl get crd | grep -c secrets.hashicorp.com || echo "0")
   
   if [ "$sync_status" = "Synced" ]; then
     echo "✅ VSO synced (Health: $health_status)"
