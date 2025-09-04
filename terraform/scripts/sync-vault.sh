@@ -42,21 +42,21 @@ read_transit_token() {
     
     # Priority 1: Read from secure file if exists
     if [ -f "$TRANSIT_TOKEN_FILE" ] && [ -r "$TRANSIT_TOKEN_FILE" ]; then
-        echo "📋 Reading transit token from secure file..."
+        echo "📋 Reading transit token from secure file..." >&2
         token=$(cat "$TRANSIT_TOKEN_FILE")
         # Ensure file has secure permissions
         chmod 600 "$TRANSIT_TOKEN_FILE" 2>/dev/null || true
     # Priority 2: Check environment file from Taskfile
     elif [ -f "$TRANSIT_ENV_FILE" ]; then
-        echo "📋 Loading transit token from Taskfile environment..."
+        echo "📋 Loading transit token from Taskfile environment..." >&2
         # Extract just the token value without sourcing
         token=$(grep "K8S_VAULT_TRANSIT_TOKEN=" "$TRANSIT_ENV_FILE" | cut -d'=' -f2- | tr -d '"')
     # Priority 3: Fall back to environment variable if provided by user
     elif [ -n "$QNAP_VAULT_TOKEN" ]; then
-        echo "🔑 Using QNAP_VAULT_TOKEN from environment..."
+        echo "🔑 Using QNAP_VAULT_TOKEN from environment..." >&2
         # Try to fetch from QNAP Vault if we have the vault CLI
         if command -v vault >/dev/null 2>&1; then
-            echo "🔄 Fetching transit token from QNAP Vault..."
+            echo "🔄 Fetching transit token from QNAP Vault..." >&2
             export VAULT_ADDR=http://192.168.1.42:61200
             export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
             token=$(vault kv get -field=token secret/k8s-transit 2>/dev/null || echo "")
@@ -65,11 +65,11 @@ read_transit_token() {
         
         # No fallback - must fetch from vault or use secure file
         if [ -z "$token" ]; then
-            echo "❌ Failed to fetch transit token from QNAP Vault"
-            echo "   Please ensure:"
-            echo "   1. The vault CLI is installed, OR"
-            echo "   2. The transit token exists in $TRANSIT_TOKEN_FILE, OR"
-            echo "   3. The Taskfile has already set up the token in $TRANSIT_ENV_FILE"
+            echo "❌ Failed to fetch transit token from QNAP Vault" >&2
+            echo "   Please ensure:" >&2
+            echo "   1. The vault CLI is installed, OR" >&2
+            echo "   2. The transit token exists in $TRANSIT_TOKEN_FILE, OR" >&2
+            echo "   3. The Taskfile has already set up the token in $TRANSIT_ENV_FILE" >&2
             return 1
         fi
     fi
