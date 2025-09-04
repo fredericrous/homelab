@@ -81,6 +81,8 @@ while true; do
   fi
   
   # Check timeout
+  current_time=$(date +%s)
+  elapsed=$((current_time - start_time))
   if [ $elapsed -gt 600 ]; then
     echo "❌ Timeout waiting for Rook-Ceph sync after 10 minutes"
     exit 1
