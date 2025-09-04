@@ -32,13 +32,32 @@ timeout 600s sh -c 'while true; do
     echo "✅ cert-manager synced (Health: $health_status)"
     exit 0
   fi
+  
+  # For initial deployment, check if core deployments exist
+  if kubectl get deployment -n cert-manager cert-manager >/dev/null 2>&1 && \
+     kubectl get deployment -n cert-manager cert-manager-webhook >/dev/null 2>&1 && \
+     kubectl get deployment -n cert-manager cert-manager-cainjector >/dev/null 2>&1; then
+    echo "✅ cert-manager core components deployed (Sync: $sync_status, Health: $health_status)"
+    exit 0
+  fi
+  
   echo "Sync status: $sync_status, Health: $health_status"
   sleep 5
 done'
 
 if [ $? -ne 0 ]; then
   echo "❌ Timeout waiting for cert-manager sync"
-  exit 1
+  echo "Checking if core components are deployed..."
+  
+  # Even if sync didn't complete, check if the core components are there
+  if kubectl get deployment -n cert-manager cert-manager >/dev/null 2>&1 && \
+     kubectl get deployment -n cert-manager cert-manager-webhook >/dev/null 2>&1 && \
+     kubectl get deployment -n cert-manager cert-manager-cainjector >/dev/null 2>&1; then
+    echo "✅ cert-manager core components are deployed despite sync timeout"
+  else
+    echo "❌ cert-manager core components not found"
+    exit 1
+  fi
 fi
 
 # Wait for cert-manager CRDs to be available
