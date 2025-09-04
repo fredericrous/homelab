@@ -46,18 +46,15 @@ kubectl patch app -n argocd vault-secrets-operator --type merge -p '{"operation"
 
 # Wait for sync to complete
 echo "⏳ Waiting for VSO sync to complete..."
-start_time=$(date +%s)
-max_wait=600
-
-while true; do
+timeout 600s bash -c 'while true; do
   sync_status=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
   health_status=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
   operation_phase=$(kubectl get app -n argocd vault-secrets-operator -o jsonpath="{.status.operationState.phase}" 2>/dev/null || echo "Unknown")
   
   # Check if we have sync errors using jq to avoid jsonpath complexity
-  sync_error=$(kubectl get app -n argocd vault-secrets-operator -o json 2>/dev/null | jq -r '.status.conditions[]? | select(.type=="SyncError") | .message // empty' || echo "")
+  sync_error=$(kubectl get app -n argocd vault-secrets-operator -o json 2>/dev/null | jq -r ".status.conditions[]? | select(.type==\"SyncError\") | .message // empty" || echo "")
   
-  # Workaround for VSO Helm chart v0.10.0 bug where upgradeCRDs.enabled=false doesn't prevent hook creation
+  # Workaround for VSO Helm chart v0.10.0 bug where upgradeCRDs.enabled=false doesn'"'"'t prevent hook creation
   # TODO: Remove this when the Helm chart is fixed or we find a better solution
   if [ "$operation_phase" = "Failed" ] && echo "$sync_error" | grep -q "upgrade-crds.*already exists"; then
     echo "⚠️  Sync failed due to VSO Helm chart hook conflicts (known issue), applying workaround..."
@@ -65,7 +62,7 @@ while true; do
     kubectl delete clusterrole vault-secrets-operator-upgrade-crds --ignore-not-found=true
     kubectl delete clusterrolebinding vault-secrets-operator-upgrade-crds --ignore-not-found=true
     # Retry with Replace to force recreation
-    kubectl patch app -n argocd vault-secrets-operator --type merge -p '{"operation":{"initiatedBy":{"username":"terraform-retry"},"sync":{"prune":true,"syncOptions":["Replace=true","ServerSideApply=true"]}}}'
+    kubectl patch app -n argocd vault-secrets-operator --type merge -p '"'"'{"operation":{"initiatedBy":{"username":"terraform-retry"},"sync":{"prune":true,"syncOptions":["Replace=true","ServerSideApply=true"]}}}'"'"'
     sleep 10
     continue
   fi
@@ -78,27 +75,24 @@ while true; do
   
   if [ "$sync_status" = "Synced" ]; then
     echo "✅ VSO synced (Health: $health_status)"
-    break
+    exit 0
   fi
   
   # If deployment and CRDs exist, consider it successful even if OutOfSync
   if [ "$vso_deployment" != "NotFound" ] && [ "$crd_count" -gt "0" ]; then
     echo "✅ VSO deployment and CRDs exist (Sync: $sync_status, Health: $health_status)"
     echo "   Note: OutOfSync status may be due to configuration jobs"
-    break
-  fi
-  
-  # Check timeout
-  current_time=$(date +%s)
-  elapsed=$((current_time - start_time))
-  if [ $elapsed -gt $max_wait ]; then
-    echo "❌ Timeout waiting for VSO sync after ${max_wait} seconds"
-    exit 1
+    exit 0
   fi
   
   echo "Sync status: $sync_status, Health: $health_status, Phase: $operation_phase"
   sleep 5
-done
+done'
+
+if [ $? -ne 0 ]; then
+  echo "❌ Timeout waiting for VSO sync"
+  exit 1
+fi
 
 # Wait for VSO CRDs to be available
 echo "⏳ Waiting for VSO CRDs..."
