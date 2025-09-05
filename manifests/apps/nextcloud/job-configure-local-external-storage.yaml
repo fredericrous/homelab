@@ -36,40 +36,40 @@ spec:
         - -c
         - |
           echo "🔧 Configuring local external storage in Nextcloud..."
-          
+
           # Enable external storage app
           echo "📦 Enabling external storage app..."
           su -s /bin/sh www-data -c "php occ app:enable files_external"
-          
+
           # Create Media mount pointing to local path
           echo "📁 Creating Media external storage (local)..."
           su -s /bin/sh www-data -c "php occ files_external:create 'Media' 'local' null::null -c datadir='/var/www/html/data/media'" || echo "Media mount might already exist"
-          
+
           # Create VMs mount pointing to local path
           echo "📁 Creating VMs external storage (local)..."
           su -s /bin/sh www-data -c "php occ files_external:create 'VMs' 'local' null::null -c datadir='/var/www/html/data/vms'" || echo "VMs mount might already exist"
-          
+
           # List all mounts
           echo "📋 Current external storage configuration:"
           su -s /bin/sh www-data -c "php occ files_external:list"
-          
+
           # Scan the external storage to make files visible
           echo "🔍 Scanning external storage..."
           su -s /bin/sh www-data -c "php occ files:scan --all" || echo "Scan might take a while for large shares"
         volumeMounts:
         - name: nextcloud-data
           mountPath: /var/www/html
-        - name: smb-media
+        - name: nfs-media
           mountPath: /var/www/html/data/media
-        - name: smb-vms
+        - name: nfs-vms
           mountPath: /var/www/html/data/vms
       volumes:
       - name: nextcloud-data
         persistentVolumeClaim:
           claimName: nextcloud-data
-      - name: smb-media
+      - name: nfs-media
         persistentVolumeClaim:
-          claimName: nextcloud-smb-media
-      - name: smb-vms
+          claimName: nextcloud-nfs-media
+      - name: nfs-vms
         persistentVolumeClaim:
-          claimName: nextcloud-smb-vms
+          claimName: nextcloud-nfs-vms

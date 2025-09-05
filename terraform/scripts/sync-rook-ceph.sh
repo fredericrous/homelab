@@ -83,13 +83,24 @@ while true; do
         kubectl get app -n argocd rook-ceph -o jsonpath="{.status.resources}" | jq '.[] | select(.status != "Synced") | {name: .name, kind: .kind, status: .status, health: .health}' 2>/dev/null || true
       fi
       
-      # If OutOfSync but Healthy for too long, consider it successful
-      if [ $outofsync_count -gt 20 ]; then
+      # If OutOfSync but Healthy for too long, check what's not synced
+      if [ $outofsync_count -gt 10 ]; then
         echo "⚠️  Rook-Ceph is OutOfSync but Healthy after multiple checks"
-        echo "   This is acceptable for initial deployment"
-        # Check if key resources exist
-        if kubectl get storageclass rook-ceph-block &>/dev/null; then
-          echo "✅ Storage class exists - considering sync successful"
+        
+        # Check if it's just CRDs waiting for the operator
+        unsynced_crds=$(kubectl get app -n argocd rook-ceph -o jsonpath="{.status.resources}" | \
+          jq -r '.[] | select(.status != "Synced") | select(.kind | test("^Ceph")) | .kind' 2>/dev/null | sort -u | tr '\n' ' ')
+        
+        if [ -n "$unsynced_crds" ]; then
+          echo "   Unsynced Ceph CRDs: $unsynced_crds"
+          echo "   These will sync once the Ceph operator processes them"
+        fi
+        
+        # Check if key resources exist and the operator is ready
+        if kubectl get storageclass rook-ceph-block &>/dev/null && \
+           kubectl get deployment -n rook-ceph rook-ceph-operator &>/dev/null; then
+          echo "✅ Storage class and operator exist - considering sync successful"
+          echo "   The Ceph CRs will be reconciled by the operator"
           break
         fi
       fi
@@ -137,7 +148,9 @@ KUBECONFIG_PATH="$KUBECONFIG"
 timeout 300s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
   # Check if any Ceph OSD pods are running
   osd_count=\$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c \"Running\" || echo \"0\")
-  if [ \"\$osd_count\" -gt 0 ]; then
+  # Trim any whitespace/newlines
+  osd_count=\$(echo \$osd_count | tr -d '[:space:]')
+  if [ \"\$osd_count\" -gt \"0\" ]; then
     echo \"✅ Found \$osd_count running OSD pods\"
     break
   fi

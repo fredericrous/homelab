@@ -4,7 +4,7 @@ This directory contains the Kubernetes manifests and scripts for deploying Nextc
 
 - PostgreSQL database integration
 - Redis caching
-- SMB storage support
+- NFS storage support
 - LLDAP authentication
 - HashiCorp Vault for secrets management
 - HAProxy with mTLS protection
@@ -19,7 +19,7 @@ This directory contains the Kubernetes manifests and scripts for deploying Nextc
   - HashiCorp Vault
   - cert-manager
   - HAProxy ingress controller
-  - SMB CSI driver (optional)
+  - NFS CSI driver (optional)
 
 ## Quick Start
 

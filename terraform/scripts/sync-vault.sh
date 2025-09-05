@@ -130,8 +130,29 @@ else
 fi
 
 echo "🔐 Syncing Vault application..."
-# Force sync Vault app
-kubectl patch app -n argocd vault --type merge -p '{"operation":{"initiatedBy":{"username":"terraform"},"sync":{"prune":true,"syncStrategy":{"hook":{}}}}}'
+# Force sync Vault app using ArgoCD CLI-compatible JSON
+kubectl patch app -n argocd vault --type merge -p '{
+  "operation": {
+    "initiatedBy": {"username": "terraform"},
+    "sync": {
+      "prune": true,
+      "syncStrategy": {"hook": {}},
+      "revision": "HEAD"
+    }
+  }
+}'
+
+# Give ArgoCD a moment to process the patch
+sleep 5
+
+# Check if sync operation was initiated
+op_phase=$(kubectl get app -n argocd vault -o jsonpath="{.status.operationState.phase}" 2>/dev/null || echo "")
+if [ -z "$op_phase" ]; then
+  echo "⚠️  Sync operation not started, triggering sync again..."
+  kubectl patch app -n argocd vault --type json -p '[{"op": "remove", "path": "/operation"}]' 2>/dev/null || true
+  sleep 2
+  kubectl patch app -n argocd vault --type merge -p '{"operation":{"sync":{}}}'
+fi
 
 # Wait for sync to complete
 echo "⏳ Waiting for Vault sync to complete..."
@@ -139,6 +160,7 @@ KUBECONFIG_PATH="$KUBECONFIG"
 timeout 600s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
   sync_status=\$(kubectl get app -n argocd vault -o jsonpath=\"{.status.sync.status}\" 2>/dev/null || echo \"Unknown\")
   health_status=\$(kubectl get app -n argocd vault -o jsonpath=\"{.status.health.status}\" 2>/dev/null || echo \"Unknown\")
+  op_phase=\$(kubectl get app -n argocd vault -o jsonpath=\"{.status.operationState.phase}\" 2>/dev/null || echo \"\")
   
   # Check if vault pod exists and what state it is in
   vault_pod_status=\$(kubectl get pod -n vault vault-0 -o jsonpath=\"{.status.phase}\" 2>/dev/null || echo \"NotFound\")
@@ -155,7 +177,22 @@ timeout 600s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
     exit 0
   fi
   
-  echo \"Sync status: \$sync_status, Health: \$health_status, Pod: \$vault_pod_status\"
+  # If sync hasn't started yet, check if we need to retry
+  if [ \"\$sync_status\" = \"Unknown\" ] && [ -z \"\$op_phase\" ]; then
+    echo \"⚠️  Sync not started yet, retrying...\"
+    kubectl patch app -n argocd vault --type merge -p '{\"operation\":{\"sync\":{\"prune\":true}}}'
+    sleep 5
+  elif [ \"\$op_phase\" = \"Failed\" ] || [ \"\$op_phase\" = \"Error\" ]; then
+    echo \"❌ Sync failed. Getting error details...\"
+    kubectl get app -n argocd vault -o jsonpath=\"{.status.operationState.message}\" 2>/dev/null || echo \"No error message\"
+    echo \"Retrying sync...\"
+    kubectl patch app -n argocd vault --type json -p '[{\"op\": \"remove\", \"path\": \"/operation\"}]' 2>/dev/null || true
+    sleep 2
+    kubectl patch app -n argocd vault --type merge -p '{\"operation\":{\"sync\":{\"prune\":true}}}'
+  else
+    echo \"Sync status: \$sync_status, Health: \$health_status, Phase: \$op_phase, Pod: \$vault_pod_status\"
+  fi
+  
   sleep 5
 done"
 
