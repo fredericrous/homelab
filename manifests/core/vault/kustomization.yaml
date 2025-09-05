@@ -26,12 +26,11 @@ configMapGenerator:
       disableNameSuffixHash: true
 
 resources:
-  # Include base resources
-  # NOTE: Vault doesn't use vault-auth base because:
+  # NOTE: Vault doesn't use base templates because:
   # 1. It doesn't need VSO to manage its own secrets
   # 2. This avoids circular dependency (VSO needs Vault, Vault needs VSO CRDs)
   # 3. Vault uses direct secret mounts and init containers
-  - ../../base/job-templates
+  # 4. It has its own specific job implementations
   # App-specific resources
   - namespace.yaml
   - vault-config.yaml
