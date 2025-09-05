@@ -46,7 +46,7 @@ resource "null_resource" "vault_sync" {
   ]
 
   provisioner "local-exec" {
-    command = "${path.module}/scripts/sync-vault.sh '${abspath(local_file.kubeconfig[0].filename)}'"
+    command = "${path.module}/scripts/sync-vault-v2.sh '${abspath(local_file.kubeconfig[0].filename)}'"
   }
 
   triggers = {

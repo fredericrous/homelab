@@ -130,6 +130,12 @@ else
 fi
 
 echo "🔐 Syncing Vault application..."
+
+# First, try to force a hard refresh to clear any cached manifests
+echo "🔄 Forcing manifest refresh..."
+kubectl patch app -n argocd vault --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' || true
+sleep 3
+
 # Force sync Vault app using ArgoCD CLI-compatible JSON
 kubectl patch app -n argocd vault --type merge -p '{
   "operation": {
@@ -137,7 +143,8 @@ kubectl patch app -n argocd vault --type merge -p '{
     "sync": {
       "prune": true,
       "syncStrategy": {"hook": {}},
-      "revision": "HEAD"
+      "revision": "HEAD",
+      "syncOptions": ["Replace=true"]
     }
   }
 }'
@@ -184,11 +191,53 @@ timeout 600s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
     sleep 5
   elif [ \"\$op_phase\" = \"Failed\" ] || [ \"\$op_phase\" = \"Error\" ]; then
     echo \"❌ Sync failed. Getting error details...\"
-    kubectl get app -n argocd vault -o jsonpath=\"{.status.operationState.message}\" 2>/dev/null || echo \"No error message\"
-    echo \"Retrying sync...\"
-    kubectl patch app -n argocd vault --type json -p '[{\"op\": \"remove\", \"path\": \"/operation\"}]' 2>/dev/null || true
-    sleep 2
-    kubectl patch app -n argocd vault --type merge -p '{\"operation\":{\"sync\":{\"prune\":true}}}'
+    error_msg=\$(kubectl get app -n argocd vault -o jsonpath=\"{.status.operationState.message}\" 2>/dev/null || echo \"No error message\")
+    echo \"\$error_msg\"
+    
+    # Check if it's a manifest generation error (cached)
+    if echo \"\$error_msg\" | grep -q \"Manifest generation error (cached)\"; then
+      echo \"🔄 Aggressive cache clearing needed...\"
+      
+      # Clear the operation first
+      kubectl patch app -n argocd vault --type json -p '[{\"op\": \"remove\", \"path\": \"/operation\"}]' 2>/dev/null || true
+      sleep 2
+      
+      # Option 1: Try to restart the repo-server to clear cache
+      echo \"🔄 Restarting ArgoCD repo-server to clear cache...\"
+      kubectl rollout restart deployment/argocd-repo-server -n argocd
+      
+      # Wait for repo-server to be ready
+      echo \"⏳ Waiting for repo-server to restart...\"
+      kubectl rollout status deployment/argocd-repo-server -n argocd --timeout=120s || true
+      
+      # Option 2: Delete the application and recreate it
+      if kubectl get app -n argocd vault -o jsonpath=\"{.status.operationState.message}\" 2>/dev/null | grep -q \"namespace transformation produces ID conflict\"; then
+        echo \"🗑️  Deleting and recreating Vault application to force clean state...\"
+        # Save the app spec
+        kubectl get app -n argocd vault -o json > /tmp/vault-app.json
+        
+        # Delete the app (non-cascading to preserve resources)
+        kubectl delete app -n argocd vault --cascade=orphan || true
+        
+        # Wait a moment
+        sleep 5
+        
+        # Recreate the app
+        kubectl apply -f /tmp/vault-app.json || {
+          echo \"❌ Failed to recreate app, waiting for ApplicationSet to recreate it...\"
+          sleep 30
+        }
+      fi
+      
+      # Force a sync with replace
+      sleep 10
+      kubectl patch app -n argocd vault --type merge -p '{\"operation\":{\"sync\":{\"prune\":true,\"syncOptions\":[\"Replace=true\"]}}}'
+    else
+      echo \"Retrying sync...\"
+      kubectl patch app -n argocd vault --type json -p '[{\"op\": \"remove\", \"path\": \"/operation\"}]' 2>/dev/null || true
+      sleep 2
+      kubectl patch app -n argocd vault --type merge -p '{\"operation\":{\"sync\":{\"prune\":true}}}'
+    fi
   else
     echo \"Sync status: \$sync_status, Health: \$health_status, Phase: \$op_phase, Pod: \$vault_pod_status\"
   fi
@@ -302,7 +351,7 @@ timeout 300s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
     succeeded=$(echo "$job_details" | jq -r '.status.succeeded // 0')
     failed=$(echo "$job_details" | jq -r '.status.failed // 0')
     
-    echo "   Completions: $succeeded/$completions (Failed: $failed)"
+    echo "   Completions: $succeeded/$completions - Failed: $failed"
     
     init_job_status=$(echo "$job_details" | jq -r '.status.conditions[]? | select(.type=="Complete") | .status' || echo "Running")
     init_job_failed=$(echo "$job_details" | jq -r '.status.conditions[]? | select(.type=="Failed") | .status' || echo "False")

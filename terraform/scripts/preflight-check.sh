@@ -46,17 +46,34 @@ else
     CHECKS_PASSED=false
 fi
 
-# Check 4: QNAP Vault Token
-echo -n "Checking QNAP Vault token... "
-if [ -z "${QNAP_VAULT_TOKEN:-}" ]; then
-    echo -e "${RED}✗${NC} Missing QNAP_VAULT_TOKEN"
-    echo "  This is REQUIRED for Vault transit unseal"
-    echo "  Export it before running deploy:"
-    echo "    export QNAP_VAULT_TOKEN=<your-qnap-vault-root-token>"
-    CHECKS_PASSED=false
+# Check 4: QNAP Vault Authentication
+echo -n "Checking QNAP Vault authentication... "
+# Check if we can access Vault (either via existing auth or QNAP_VAULT_TOKEN)
+export VAULT_ADDR=http://192.168.1.42:61200
+if vault token lookup &>/dev/null 2>&1; then
+    # Already authenticated
+    echo -e "${GREEN}✓${NC} (authenticated)"
+elif [ -n "${QNAP_VAULT_TOKEN:-}" ]; then
+    # Have token, test it
+    export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
+    if vault token lookup &>/dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} (using QNAP_VAULT_TOKEN)"
+    else
+        echo -e "${RED}✗${NC} Invalid QNAP_VAULT_TOKEN"
+        CHECKS_PASSED=false
+    fi
+    unset VAULT_TOKEN
 else
-    echo -e "${GREEN}✓${NC}"
+    echo -e "${RED}✗${NC} Not authenticated to Vault"
+    echo "  Either:"
+    echo "  1. Authenticate to Vault:"
+    echo "     export VAULT_ADDR=http://192.168.1.42:61200"
+    echo "     vault login"
+    echo "  2. Or export the token:"
+    echo "     export QNAP_VAULT_TOKEN=<your-qnap-vault-root-token>"
+    CHECKS_PASSED=false
 fi
+unset VAULT_ADDR
 
 # Check 5: Proxmox credentials
 echo -n "Checking terraform.tfvars... "

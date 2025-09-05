@@ -105,12 +105,12 @@ vault kv get -field=admin-password secret/nextcloud
 ### Required Secrets in Vault
 
 Before deployment, ensure these secrets are properly set in Vault:
-- `smb-password`: Password for SMB storage access
+- `nfs-password`: Password for nfs storage access
 - `ldap-bind-password`: Password for LLDAP bind user
 
 Update them with:
 ```bash
-vault kv patch secret/nextcloud smb-password='your-smb-password'
+vault kv patch secret/nextcloud nfs-password='your-nfs-password'
 vault kv patch secret/nextcloud ldap-bind-password='your-lldap-password'
 ```
 
@@ -149,7 +149,7 @@ Certificates are managed using Let's Encrypt with OVH DNS-01 challenges:
 
 - **Storage:**
   - Local storage: 50GB for Nextcloud data (rook-ceph-block)
-  - SMB storage: 100GB mounted at `/mnt/smb` (currently disabled)
+  - nfs storage: 100GB mounted at `/mnt/nfs` (currently disabled)
   
 - **Performance:**
   - Redis caching for distributed cache and locking
@@ -190,7 +190,7 @@ kubectl exec -n nextcloud $POD -c nextcloud -- php occ status
 
 ### Common Issues
 
-1. **SMB Mount**: Currently disabled due to credential mounting issues. Uncomment in `deployment.yaml` after fixing SMB credentials.
+1. **nfs Mount**: Currently disabled due to credential mounting issues. Uncomment in `deployment.yaml` after fixing nfs credentials.
 
 2. **Certificate Issuance**: If mTLS is set to "required", cert-manager cannot complete ACME challenges. The ingress is configured with "optional" to allow initial certificate issuance.
 
