@@ -3,6 +3,10 @@ kind: Job
 metadata:
   name: configure-utf8-support
   namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "20"
 spec:
   template:
     metadata:
@@ -83,10 +87,4 @@ spec:
           echo "   1. Rename files on the SMB server to use standard characters"
           echo "   2. Use a tool like 'convmv' to convert filenames to UTF-8"
           echo "   3. Set the SMB mount options to use UTF-8 encoding"
-        volumeMounts:
-        - name: nextcloud-data
-          mountPath: /var/www/html
-      volumes:
-      - name: nextcloud-data
-        persistentVolumeClaim:
-          claimName: nextcloud-data
+        # No volume mount needed - configuration via occ commands

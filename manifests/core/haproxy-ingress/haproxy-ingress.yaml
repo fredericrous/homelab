@@ -121,6 +121,8 @@ subjects:
   namespace: haproxy-controller
 
 ---
+# HAProxy Ingress Controller Configuration
+# For subdomain-based architecture (<app>.daddyshome.fr)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -128,6 +130,12 @@ metadata:
   namespace: haproxy-controller
 data:
   ssl-redirect-port: "443"
+  # Enable strict SNI to ensure correct certificate matching for subdomains
+  strict-sni: "true"
+  # Default wildcard certificate for *.daddyshome.fr (fallback for missing certs)
+  ssl-certificate: "haproxy-controller/haproxy-default-ssl-tls"
+  # Client CA for mTLS authentication on *.daddyshome.fr domains
+  client-ca: "haproxy-controller/client-ca-cert"
 
 ---
 apiVersion: apps/v1

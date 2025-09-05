@@ -1,0 +1,79 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-postsync-configure
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      serviceAccountName: nextcloud
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-nextcloud
+        image: curlimages/curl:8.5.0
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Nextcloud deployment to be ready..."
+          # Wait for the service endpoint to respond
+          until curl -f http://nextcloud.nextcloud.svc.cluster.local/status.php 2>/dev/null | grep -q "installed"; do
+            echo "Nextcloud not ready yet..."
+            sleep 10
+          done
+          echo "Nextcloud is ready!"
+      containers:
+      - name: configure
+        image: bitnami/kubectl:1.28
+        command:
+        - sh
+        - -c
+        - |
+          echo "🔧 Running Nextcloud post-deployment configuration..."
+          
+          # No volume mount needed - we'll use kubectl exec to run commands in the running pod
+          
+          # Get the running Nextcloud pod
+          POD=$(kubectl get pod -n nextcloud -l app=nextcloud -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [ -z "$POD" ]; then
+            echo "❌ No Nextcloud pod found"
+            exit 1
+          fi
+          
+          echo "Found Nextcloud pod: $POD"
+          
+          # Configure trusted domains
+          echo "🌐 Configuring trusted domains..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/sh www-data -c "
+            php occ config:system:set trusted_domains 0 --value='drive.daddyshome.fr' &&
+            php occ config:system:set trusted_domains 1 --value='drive-mobile.daddyshome.fr' &&
+            php occ config:system:set trusted_domains 2 --value='nextcloud.nextcloud.svc.cluster.local'
+          "
+          
+          # Configure external storage if not already done
+          echo "📁 Checking external storage configuration..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/sh www-data -c "
+            php occ app:enable files_external || true
+          "
+          
+          # Configure background jobs
+          echo "⚙️ Configuring background jobs..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/sh www-data -c "
+            php occ background:cron
+          "
+          
+          echo "✅ Post-sync configuration complete!"
+        env:
+        - name: NEXTCLOUD_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: admin-username
+        - name: NEXTCLOUD_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secrets
+              key: admin-password

@@ -9,6 +9,7 @@ resources:
   - client-ca-secret-placeholder.yaml  # Temporary placeholder
   - client-ca-externalsecret.yaml
   - vault-configure-haproxy.yaml
+  - default-ssl-certificate.yaml
 
 patches:
   - target:
@@ -18,13 +19,6 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/args/-
         value: "--ingress-class=haproxy"
-  - target:
-      kind: ConfigMap
-      name: haproxy-kubernetes-ingress
-    patch: |-
-      - op: add
-        path: /data/client-ca
-        value: "haproxy-controller/client-ca-cert"
   - target:
       kind: Service
       name: haproxy-kubernetes-ingress

@@ -4,10 +4,9 @@ kind: Kustomization
 resources:
   # CloudNative-PG operator
   - https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.21/releases/cnpg-1.21.0.yaml
-  # Vault configuration
-  # - job-vault-configure-cnpg.yaml  # Replaced by job template
-  # - vault-connection.yaml  # Now provided by base/vault-auth
-  # - vault-auth-cnpg.yaml  # Now provided by base/vault-auth
+  # ArgoCD Sync Hooks
+  - job-presync-vault-setup.yaml
+  - job-post-sync-configure.yaml
   # External Secrets
   - postgres-superuser-externalsecret.yaml
   # Init SQL ConfigMap

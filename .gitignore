@@ -4,3 +4,4 @@ env.sh
 charts/
 .claude/
 CLAUDE.local.md
+nas/scripts/download-cert.sh

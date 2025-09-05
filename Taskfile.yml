@@ -45,13 +45,35 @@ tasks:
     vars:
       TRANSIT_TOKEN:
         sh: |
-          # Try to get transit token automatically
-          if [ -n "$K8S_VAULT_TRANSIT_TOKEN" ]; then
-            echo "$K8S_VAULT_TRANSIT_TOKEN"
-          elif [ -n "$QNAP_VAULT_TOKEN" ] && command -v vault >/dev/null 2>&1; then
+          # Get transit token from Vault
+          if command -v vault >/dev/null 2>&1; then
             export VAULT_ADDR=http://192.168.1.42:61200
-            export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
-            vault kv get -field=token secret/k8s-transit 2>/dev/null || echo ""
+            # Check if already authenticated or use QNAP_VAULT_TOKEN
+            if vault token lookup &>/dev/null 2>&1; then
+              vault kv get -field=token secret/k8s-transit 2>/dev/null || echo ""
+            elif [ -n "$QNAP_VAULT_TOKEN" ]; then
+              export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
+              vault kv get -field=token secret/k8s-transit 2>/dev/null || echo ""
+            else
+              echo ""
+            fi
+          else
+            echo ""
+          fi
+      ESO_TOKEN:
+        sh: |
+          # Get ESO token from Vault
+          if command -v vault >/dev/null 2>&1; then
+            export VAULT_ADDR=http://192.168.1.42:61200
+            # Check if already authenticated or use QNAP_VAULT_TOKEN
+            if vault token lookup &>/dev/null 2>&1; then
+              vault kv get -field=token secret/tokens/eso-pki 2>/dev/null || echo ""
+            elif [ -n "$QNAP_VAULT_TOKEN" ]; then
+              export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
+              vault kv get -field=token secret/tokens/eso-pki 2>/dev/null || echo ""
+            else
+              echo ""
+            fi
           else
             echo ""
           fi
@@ -63,20 +85,27 @@ tasks:
           echo ""
           echo "To deploy, you need to:"
           echo "1. Deploy QNAP services first:"
-          echo "   cd nas/"
-          echo "   ./deploy-k3s-services.sh"
+          echo "   task nas:deploy"
           echo ""
-          echo "2. Initialize Vault and save the root token"
+          echo "2. Initialize Vault and set up tokens:"
+          echo "   task nas:vault-init"
+          echo "   task nas:vault-secrets"
+          echo "   task nas:vault-transit"
           echo ""
-          echo "3. Export the QNAP Vault root token:"
-          echo "   export QNAP_VAULT_TOKEN=<qnap-vault-root-token>"
+          echo "3. Ensure you're authenticated to QNAP Vault:"
+          echo "   export VAULT_ADDR=http://192.168.1.42:61200"
+          echo "   vault login"
           echo ""
-          echo "The transit token will be automatically retrieved."
+          echo "The deployment will automatically retrieve tokens from Vault."
           exit 1
         else
           echo "✅ Found transit token"
           # Export for use by other stages
           echo "export K8S_VAULT_TRANSIT_TOKEN={{.TRANSIT_TOKEN}}" > /tmp/vault-transit-env
+          if [ -n "{{.ESO_TOKEN}}" ]; then
+            echo "export NAS_ESO_TOKEN={{.ESO_TOKEN}}" >> /tmp/vault-transit-env
+            echo "✅ Found ESO token for CA sync"
+          fi
         fi
       - |
         if [ -f "./scripts/preflight-check.sh" ]; then
@@ -264,6 +293,11 @@ tasks:
     cmds:
       - 'echo "🔧 Stage 11: Running post-deployment fixes..."'
       - |
+        # Source tokens from prereq if available
+        if [ -f /tmp/vault-transit-env ]; then
+          source /tmp/vault-transit-env
+        fi
+        
         # Configure NAS ESO sync if token is available
         if [ -n "$NAS_ESO_TOKEN" ]; then
           echo "🔄 Configuring NAS Vault sync..."

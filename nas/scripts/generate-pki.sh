@@ -165,8 +165,9 @@ export -f secret_exists
 # Generate default admin certificate
 generate_client_cert "admin" "admin@daddyshome.fr"
 
-# Create client download script
-cat > /tmp/download-cert.sh << 'SCRIPT'
+# Create client download script in project directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cat > "$SCRIPT_DIR/download-cert.sh" << 'SCRIPT'
 #!/bin/bash
 USERNAME="${1:-$USER}"
 if [ -z "$VAULT_ADDR" ]; then
@@ -182,7 +183,7 @@ vault kv get -field=p12 secret/pki/clients/$USERNAME | base64 -d > "$USERNAME.p1
 echo "✅ Certificate saved to $USERNAME.p12"
 echo "   Import this file into your browser/system"
 SCRIPT
-chmod +x /tmp/download-cert.sh
+chmod +x "$SCRIPT_DIR/download-cert.sh"
 
 echo ""
 echo "🎯 PKI initialization complete!"
@@ -195,7 +196,7 @@ echo ""
 echo "📥 Client certificate download:"
 echo "   export VAULT_ADDR=$VAULT_ADDR"
 echo "   vault login  # Use your token or auth method"
-echo "   /tmp/download-cert.sh [username]"
+echo "   $SCRIPT_DIR/download-cert.sh [username]"
 echo ""
 echo "🔄 For External Secrets sync, use this token:"
 echo "   $ESO_TOKEN"

@@ -1,0 +1,121 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cloudnative-pg-vault-setup
+  namespace: cloudnative-pg
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      serviceAccountName: vault-configurator
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-vault
+        image: bitnami/kubectl:1.28
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for Vault to be ready..."
+          until kubectl get pod -n vault -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
+            echo "Vault not ready yet..."
+            sleep 5
+          done
+          echo "Vault is ready"
+      containers:
+      - name: vault-setup
+        image: vault:1.13.3
+        env:
+        - name: VAULT_ADDR
+          value: "http://vault.vault.svc.cluster.local:8200"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "🔐 Setting up Vault secrets for CloudNative-PG..."
+          
+          # Check if token file exists
+          if [ ! -f /var/run/secrets/vault-token/token ]; then
+            echo "⚠️  Vault admin token not found. Vault might not be initialized yet."
+            echo "This is expected on fresh cluster deployment. Exiting gracefully."
+            exit 0
+          fi
+          
+          # Get Vault token from secret
+          export VAULT_TOKEN=$(cat /var/run/secrets/vault-token/token)
+          
+          # Wait for Vault to be unsealed
+          max_attempts=30
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if vault status >/dev/null 2>&1; then
+              if [ "$(vault status -format=json | jq -r '.sealed')" = "false" ]; then
+                echo "✓ Vault is unsealed"
+                break
+              fi
+            fi
+            attempt=$((attempt + 1))
+            echo "Waiting for Vault to be unsealed... ($attempt/$max_attempts)"
+            sleep 5
+          done
+          
+          if [ $attempt -eq $max_attempts ]; then
+            echo "⚠️  Vault is not ready yet. This job will retry later."
+            exit 0
+          fi
+          
+          # Check if postgres superuser secret exists
+          if vault kv get -format=json secret/postgres-superuser >/dev/null 2>&1; then
+            echo "✓ Postgres superuser secret already exists in Vault"
+          else
+            echo "Creating postgres superuser secret in Vault..."
+            POSTGRES_PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9!@#$%^&*()_+' | fold -w 32 | head -n 1)
+            vault kv put secret/postgres-superuser \
+              username="postgres" \
+              password="$POSTGRES_PASSWORD"
+            echo "✓ Created postgres superuser credentials"
+          fi
+          
+          echo "✅ Vault setup complete"
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/vault-token
+      volumes:
+      - name: vault-token
+        secret:
+          secretName: vault-admin-token
+          optional: true
+          defaultMode: 0400
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-configurator
+  namespace: cloudnative-pg
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-configurator
+  namespace: vault
+rules:
+- apiGroups: [""]
+  resources: ["pods", "secrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-configurator
+  namespace: vault
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-configurator
+subjects:
+- kind: ServiceAccount
+  name: vault-configurator
+  namespace: cloudnative-pg
