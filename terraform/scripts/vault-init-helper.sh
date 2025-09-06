@@ -27,9 +27,13 @@ wait_for_vault() {
     while [ $elapsed -lt $MAX_WAIT ]; do
         if kubectl get pod -n "$VAULT_NAMESPACE" vault-0 &>/dev/null; then
             local phase=$(kubectl get pod -n "$VAULT_NAMESPACE" vault-0 -o jsonpath='{.status.phase}')
-            if [ "$phase" = "Running" ]; then
-                log_info "Vault pod is running"
+            local ready=$(kubectl get pod -n "$VAULT_NAMESPACE" vault-0 -o jsonpath='{.status.containerStatuses[?(@.name=="vault")].ready}')
+            
+            if [ "$phase" = "Running" ] && [ "$ready" = "true" ]; then
+                log_info "Vault pod is running and ready"
                 return 0
+            elif [ "$phase" = "Running" ]; then
+                log_info "Vault pod is running but not ready yet (init containers may still be running)"
             fi
         fi
         sleep 5
@@ -42,17 +46,29 @@ wait_for_vault() {
 
 # Initialize Vault with transit unseal
 initialize_vault() {
+    # Wait a bit more to ensure Vault is fully ready
+    log_info "Waiting for Vault to be fully ready..."
+    sleep 10
+    
     # Check if already initialized
-    if kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault status 2>&1 | grep -q "Initialized.*true"; then
-        log_info "Vault is already initialized"
-        
-        # Check if admin token exists
-        if kubectl get secret -n "$VAULT_NAMESPACE" vault-admin-token &>/dev/null; then
-            log_info "Admin token secret exists"
-            return 0
+    local status_output
+    if ! status_output=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -c vault -- vault status 2>&1); then
+        if echo "$status_output" | grep -q "Initialized.*true"; then
+            log_info "Vault is already initialized"
+            
+            # Check if admin token exists
+            if kubectl get secret -n "$VAULT_NAMESPACE" vault-admin-token &>/dev/null; then
+                log_info "Admin token secret exists"
+                return 0
+            else
+                log_warn "Vault initialized but admin token missing"
+                log_warn "Manual recovery required - create vault-admin-token secret"
+                return 1
+            fi
+        elif echo "$status_output" | grep -q "Initialized.*false"; then
+            log_info "Vault needs initialization"
         else
-            log_warn "Vault initialized but admin token missing"
-            log_warn "Manual recovery required - create vault-admin-token secret"
+            log_error "Failed to check Vault status: $status_output"
             return 1
         fi
     fi
@@ -61,7 +77,7 @@ initialize_vault() {
     
     # Initialize with minimal shares for transit unseal
     local init_output
-    if ! init_output=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- \
+    if ! init_output=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -c vault -- \
         vault operator init -recovery-shares=1 -recovery-threshold=1 -format=json 2>&1); then
         log_error "Failed to initialize Vault: $init_output"
         return 1
