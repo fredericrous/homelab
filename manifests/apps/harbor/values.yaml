@@ -1,0 +1,79 @@
+# Official Harbor Helm chart values
+expose:
+  type: clusterIP
+  tls:
+    enabled: true
+    certSource: auto
+  clusterIP:
+    name: harbor
+    ports:
+      httpPort: 80
+      httpsPort: 443
+
+externalURL: https://harbor.daddyshome.fr
+
+persistence:
+  enabled: true
+  persistentVolumeClaim:
+    registry:
+      storageClass: "rook-ceph-block"
+      accessMode: ReadWriteOnce
+      size: 50Gi
+    jobservice:
+      storageClass: "rook-ceph-block"
+      accessMode: ReadWriteOnce
+      size: 10Gi
+
+harborAdminPassword: "HarborAdmin123"
+
+# Database configuration
+database:
+  type: external
+  external:
+    host: "postgres-apps.postgres.svc.cluster.local"
+    port: "5432"
+    username: "harbor"
+    password: "HarborDB123"
+    # These are the database names that Harbor uses
+    coreDatabase: "harbor_core"
+    notaryServerDatabase: "harbor_notary_server"  
+    notarySignerDatabase: "harbor_notary_signer"
+
+# Redis configuration  
+redis:
+  type: external
+  external:
+    host: "redis-standalone.ot-operators.svc.cluster.local"
+    port: "6379"
+    # Optional: password can be set if redis requires authentication
+    # password: ""
+
+# Disable internal database and redis
+postgresql:
+  enabled: false
+redis-cluster:
+  enabled: false
+
+# Portal configuration
+portal:
+  replicas: 1
+
+core:
+  replicas: 1
+
+jobservice:
+  replicas: 1
+
+registry:
+  replicas: 1
+
+trivy:
+  enabled: true
+  replicas: 1
+
+notary:
+  enabled: false
+
+# Metrics
+metrics:
+  enabled: false

@@ -19,8 +19,8 @@ resources:
 
 helmCharts:
 - name: harbor  
-  repo: https://charts.bitnami.com/bitnami
-  version: "27.0.3"
+  repo: https://helm.goharbor.io
+  version: "1.15.1"
   releaseName: harbor
   namespace: harbor
-  valuesFile: values-bitnami-tls.yaml
+  valuesFile: values.yaml
