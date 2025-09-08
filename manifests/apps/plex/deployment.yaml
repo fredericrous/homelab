@@ -50,8 +50,8 @@ spec:
           mountPath: /config
         - name: data
           mountPath: /data
-        # - name: nfs-media
-        #   mountPath: /media
+        - name: nfs-media
+          mountPath: /media
         - name: transcode
           mountPath: /transcode
         # securityContext:
@@ -64,6 +64,6 @@ spec:
         emptyDir: {}  # Can be replaced with another PVC if needed
       - name: transcode
         emptyDir: {}  # Temp storage for transcoding
-      # - name: nfs-media
-      #   persistentVolumeClaim:
-      #     claimName: plex-nfs-media
+      - name: nfs-media
+        persistentVolumeClaim:
+          claimName: plex-nfs-media

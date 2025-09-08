@@ -1,0 +1,84 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: plex-populate-secrets
+  namespace: plex
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: default
+      containers:
+      - name: populate-secrets
+        image: hashicorp/vault:1.20.1
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "🔐 Populating Plex secrets in Vault..."
+          
+          # Vault address from main cluster Vault
+          export VAULT_ADDR=http://vault.vault.svc.cluster.local:8200
+          
+          # Get admin token from reflected secret
+          export VAULT_TOKEN=$(cat /vault-admin-token/token)
+          
+          # Function to check if secret exists
+          secret_exists() {
+            vault kv get "$1" >/dev/null 2>&1
+          }
+          
+          # Create Plex configuration secret if it doesn't exist
+          if ! secret_exists "secret/plex/config"; then
+            echo "📝 Creating Plex config secret..."
+            
+            # Generate a placeholder claim token
+            # In production, this should be obtained from https://www.plex.tv/claim/
+            PLEX_CLAIM_TOKEN="${PLEX_CLAIM_TOKEN:-claim-PLACEHOLDER}"
+            
+            vault kv put secret/plex/config \
+              claim_token="$PLEX_CLAIM_TOKEN"
+            
+            echo "✅ Plex config secret created"
+            echo "⚠️  Note: Replace the claim_token with a real one from https://www.plex.tv/claim/"
+          else
+            echo "✅ Plex config secret already exists"
+          fi
+          
+          # Create additional Plex secrets if needed
+          if ! secret_exists "secret/plex/preferences"; then
+            echo "📝 Creating Plex preferences secret..."
+            
+            vault kv put secret/plex/preferences \
+              advertise_ip="https://plex.daddyshome.fr/" \
+              friendly_name="Homelab Plex" \
+              timezone="Europe/Paris" \
+              allowed_networks="192.168.1.0/24,10.0.0.0/8"
+            
+            echo "✅ Plex preferences secret created"
+          else
+            echo "✅ Plex preferences secret already exists"
+          fi
+          
+          echo "✅ All Plex secrets populated successfully"
+        env:
+        - name: PLEX_CLAIM_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: plex-claim-import
+              key: claim_token
+              optional: true
+        volumeMounts:
+        - name: vault-admin-token
+          mountPath: /vault-admin-token
+          readOnly: true
+      volumes:
+      - name: vault-admin-token
+        secret:
+          secretName: vault-admin-token  # Reflected from vault namespace by Reflector

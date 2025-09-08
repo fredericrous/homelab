@@ -200,9 +200,7 @@ spec:
       volumes:
       - name: vault-admin-token
         secret:
-          secretName: vault-admin-token
-          optional: true  # Don't fail if secret doesn't exist yet
-          defaultMode: 0400
+          secretName: vault-admin-token  # Reflected from vault namespace by Reflector
       - name: script
         configMap:
           name: vault-configure-eso-script

@@ -12,17 +12,28 @@ echo "🔐 Checking HAProxy client CA certificate..."
 if ! kubectl get secret client-ca-cert -n haproxy-controller >/dev/null 2>&1; then
   echo "⚠️  Client CA certificate secret missing"
 
-  # Check if it exists in the repository
-  CA_CERT_PATH="../manifests/core/client-ca/ca/ca.crt"
-  if [ -f "$CA_CERT_PATH" ]; then
-    echo "📤 Creating client CA secret from file..."
-    # HAProxy expects the CA cert to be in 'ca.crt' key, not 'tls.crt'
-    kubectl create secret generic client-ca-cert \
-      --from-file=ca.crt="$CA_CERT_PATH" \
-      -n haproxy-controller || true
-    echo "✅ Client CA secret created"
+  # Check if CA was synced from NAS
+  if kubectl get secret nas-ca-cert-temp -n vault >/dev/null 2>&1; then
+    echo "📤 Creating client CA secret from NAS sync..."
+    CA_CERT=$(kubectl get secret nas-ca-cert-temp -n vault -o jsonpath='{.data.ca_crt}' | base64 -d)
+    
+    # Create secret in vault namespace with Reflector annotations
+    echo "$CA_CERT" | kubectl create secret generic client-ca-cert \
+      --from-file=ca.crt=/dev/stdin \
+      -n vault || true
+      
+    # Add Reflector annotations to replicate to haproxy-controller
+    kubectl annotate secret client-ca-cert -n vault \
+      "reflector.v1.k8s.emberstack.com/reflection-allowed=true" \
+      "reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces=haproxy-controller" \
+      "reflector.v1.k8s.emberstack.com/reflection-auto-enabled=true" \
+      --overwrite || true
+      
+    echo "✅ Client CA secret created with Reflector annotations"
   else
-    echo "❌ Client CA certificate file not found at $CA_CERT_PATH"
+    echo "❌ NAS CA sync not found"
+    echo "   Ensure NAS ESO sync is configured and the CA is available in Vault"
+    echo "   The CA should be synced from NAS Vault at secret/pki/ca"
   fi
 else
   echo "✅ Client CA certificate already exists"

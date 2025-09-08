@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubernetes-reflector
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-100"  # Deploy very early
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/fredericrous/homelab
+    targetRevision: main
+    path: manifests/core/kubernetes-reflector
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubernetes-reflector
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true

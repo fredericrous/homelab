@@ -6,11 +6,13 @@ namespace: plex
 resources:
   # App-specific resources
   - namespace.yaml
+  - serviceaccount.yaml
   # - vault-connection.yaml  # Now provided by base/vault-auth
   # - job-vault-configure-plex.yaml  # Replaced by job template
   # - vault-setup-job.yaml  # Replaced by job-vault-configure-plex.yaml
   # - plex-vault-auth.yaml  # Now provided by base/vault-auth
   - plex-config-externalsecret.yaml
+  - job-vault-populate-plex.yaml
   - pvc-config.yaml
   - pvc-nfs-media.yaml
   - deployment.yaml
@@ -32,3 +34,8 @@ patches:
           metadata:
             annotations:
               backup.velero.io/backup-volumes: plex-config
+  # Enable GPU support
+  - path: patch-gpu-enable.yaml
+    target:
+      kind: Deployment
+      name: plex

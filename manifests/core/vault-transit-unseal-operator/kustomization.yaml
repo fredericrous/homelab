@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: vault-transit-unseal-operator
+
+resources:
+- namespace.yaml
+- crds/vault-transit-unseal-crd.yaml
+- rbac.yaml
+- deployment.yaml
+# Choose one of these for the transit token:
+# - transit-token-secret.yaml         # Manual secret (not recommended)
+# - transit-token-externalsecret.yaml # ExternalSecret (recommended)
+
+images:
+- name: ghcr.io/fredericrous/vault-transit-unseal-operator
+  newTag: v0.1.5
+
+# For local testing, you can override with:
+# kubectl set image deployment/vault-transit-unseal-operator manager=your-registry/vault-transit-unseal-operator:latest -n vault-transit-unseal-operator

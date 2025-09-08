@@ -196,24 +196,25 @@ tasks:
       - sh: test -n "{{.EMAIL}}"
         msg: "Usage: task nas:generate-client-cert -- <username> <email>"
     cmds:
-      - |
-        export VAULT_ADDR={{.VAULT_ADDR}}
-        if ! vault token lookup &>/dev/null; then
-          echo "Not authenticated to Vault. Run: vault login"
-          exit 1
-        fi
-        
-        # Source the functions from generate-pki.sh
-        source {{.TASK_DIR}}/scripts/generate-pki.sh
-        
-        # Generate the certificate
-        generate_client_cert "{{.USERNAME}}" "{{.EMAIL}}"
-        
-        echo ""
-        echo "📥 Download your certificate:"
-        echo "  export VAULT_ADDR={{.VAULT_ADDR}}"
-        echo "  vault login  # If not already logged in"
-        echo "  {{.TASK_DIR}}/scripts/download-cert.sh {{.USERNAME}}"
+      - cmd: |
+          export VAULT_ADDR={{.VAULT_ADDR}}
+          if ! vault token lookup &>/dev/null; then
+            echo "Not authenticated to Vault. Run: vault login"
+            exit 1
+          fi
+          
+          # Source the functions from generate-pki.sh
+          source {{.TASK_DIR}}/scripts/generate-pki.sh
+          
+          # Generate the certificate
+          generate_client_cert "{{.USERNAME}}" "{{.EMAIL}}"
+          
+          echo ""
+          echo "📥 Download your certificate:"
+          echo "  export VAULT_ADDR={{.VAULT_ADDR}}"
+          echo "  vault login  # If not already logged in"
+          echo "  {{.TASK_DIR}}/scripts/download-cert.sh {{.USERNAME}}"
+        shell: bash
 
   show-info:
     desc: Show deployment information

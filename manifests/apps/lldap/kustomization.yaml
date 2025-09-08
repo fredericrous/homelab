@@ -6,6 +6,10 @@ namespace: lldap
 resources:
   # App-specific resources
   - namespace.yaml
+  - serviceaccount.yaml
+  - job-vault-populate-lldap.yaml
+  - job-reset-admin-password.yaml
+  - pvc.yaml
   - lldap-secrets-eso.yaml  # ESO resource for LLDAP secrets
   - ovh-credentials-eso.yaml  # ESO resource for OVH credentials
   - deployment.yaml

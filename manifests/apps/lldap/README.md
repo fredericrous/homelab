@@ -5,12 +5,17 @@
 - **LLDAP Admin Panel**: http://lldap.daddyshome.fr (via NGINX Ingress on port 30080)
 - **Direct Access**: http://192.168.1.68:30080/lldap
 
-## Default Credentials
+## Admin Credentials
 
-- **Username**: admin
-- **Password**: lldap-admin-password
+Admin credentials are automatically generated during deployment and stored in Vault.
 
-⚠️ **IMPORTANT**: Change the default password immediately after first login!
+See [ADMIN-ACCESS.md](./ADMIN-ACCESS.md) for instructions on retrieving them.
+
+Quick access:
+```bash
+# Get admin password
+kubectl exec -n vault vault-0 -- vault kv get -field=password secret/lldap/admin-credentials
+```
 
 ## Configuration
 

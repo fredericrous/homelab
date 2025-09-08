@@ -5,7 +5,9 @@ resources:
   # CloudNative-PG operator
   - https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.21/releases/cnpg-1.21.0.yaml
   # ArgoCD Sync Hooks
-  - job-presync-vault-setup.yaml
+  # - job-presync-vault-setup.yaml  # Obsolete with ESO/VSO
+  # - vault-token-reader-rbac.yaml  # No longer needed with Reflector
+  - job-populate-vault-secrets.yaml
   - job-post-sync-configure.yaml
   # External Secrets
   - postgres-superuser-externalsecret.yaml

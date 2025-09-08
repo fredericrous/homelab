@@ -28,6 +28,9 @@ spec:
       effective_cache_size: "1GB"
   
   # Bootstrap configuration
+  # Enable superuser access for database creation
+  enableSuperuserAccess: true
+  
   bootstrap:
     initdb:
       database: postgres

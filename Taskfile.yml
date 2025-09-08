@@ -87,16 +87,18 @@ tasks:
           echo "1. Deploy QNAP services first:"
           echo "   task nas:deploy"
           echo ""
-          echo "2. Initialize Vault and set up tokens:"
-          echo "   task nas:vault-init"
-          echo "   task nas:vault-secrets"
+          echo "2. Set up transit token for auto-unsealing:"
           echo "   task nas:vault-transit"
           echo ""
-          echo "3. Ensure you're authenticated to QNAP Vault:"
-          echo "   export VAULT_ADDR=http://192.168.1.42:61200"
-          echo "   vault login"
+          echo "3. Either:"
+          echo "   a) Authenticate to QNAP Vault so deployment can retrieve the token:"
+          echo "      export VAULT_ADDR=http://192.168.1.42:61200"
+          echo "      vault login <root-token>"
+          echo "   b) OR set the token in environment:"
+          echo "      export QNAP_VAULT_TOKEN=<qnap-vault-token>"
           echo ""
-          echo "The deployment will automatically retrieve tokens from Vault."
+          echo "The deployment will automatically create the vault-transit-token secret."
+          echo "The vault-transit-unseal-operator will handle Vault initialization."
           exit 1
         else
           echo "✅ Found transit token"
@@ -106,6 +108,24 @@ tasks:
             echo "export NAS_ESO_TOKEN={{.ESO_TOKEN}}" >> /tmp/vault-transit-env
             echo "✅ Found ESO token for CA sync"
           fi
+        fi
+      - |
+        # Check OVH credentials
+        echo "🔍 Checking OVH credentials..."
+        if [ -z "${OVH_APPLICATION_KEY}" ] || [ -z "${OVH_APPLICATION_SECRET}" ] || [ -z "${OVH_CONSUMER_KEY}" ]; then
+          echo "❌ OVH credentials not found"
+          echo ""
+          echo "To deploy with Let's Encrypt certificates, you need OVH API credentials:"
+          echo ""
+          echo "export OVH_APPLICATION_KEY=\"your-application-key\""
+          echo "export OVH_APPLICATION_SECRET=\"your-application-secret\""
+          echo "export OVH_CONSUMER_KEY=\"your-consumer-key\""
+          echo ""
+          echo "Get these from: https://eu.api.ovh.com/createToken/"
+          echo "Or from your CLAUDE.local.md file"
+          exit 1
+        else
+          echo "✅ Found OVH credentials"
         fi
       - |
         if [ -f "./scripts/preflight-check.sh" ]; then
@@ -250,7 +270,7 @@ tasks:
       - 'kubectl get app -n argocd rook-ceph 2>/dev/null | grep -q "Synced"'
 
   stage8-post:
-    desc: "Stage 8.5: Vault post-initialization tasks"
+    desc: "Stage 8.5: Vault configuration (after auto-initialization by operator)"
     dir: '{{.TERRAFORM_DIR}}'
     deps: [stage8]
     env:
@@ -258,7 +278,7 @@ tasks:
       OVH_APPLICATION_SECRET: '{{.OVH_APPLICATION_SECRET}}'
       OVH_CONSUMER_KEY: '{{.OVH_CONSUMER_KEY}}'
     cmds:
-      - 'echo "🔐 Stage 8.5: Running Vault post-initialization tasks..."'
+      - 'echo "🔐 Stage 8.5: Configuring Vault (initialized by vault-transit-unseal-operator)..."'
       - './scripts/vault-post-init.sh "{{.KUBECONFIG}}"'
     status:
       - 'kubectl exec -n vault vault-0 -- vault kv get secret/client-ca 2>/dev/null'

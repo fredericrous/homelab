@@ -5,12 +5,6 @@ namespace: vault
 
 # ConfigMaps for scripts
 configMapGenerator:
-  - name: vault-init-script
-    namespace: vault
-    files:
-      - scripts/vault-init.sh
-    options:
-      disableNameSuffixHash: true
   - name: vault-health-check
     namespace: vault
     files:
@@ -42,15 +36,13 @@ resources:
   - rbac-vault-config-role.yaml
   - rbac-vault-secret-manager.yaml
   - vault-transit-token-secret-placeholder.yaml  # Placeholder to prevent ArgoCD from pruning the secret
-  # - job-configure-transit-token.yaml  # Not needed - terraform creates the secret
-  # - job-vault-init-simplified.yaml  # Simplified init for transit unseal
-  - job-vault-init-improved.yaml  # Improved init that handles missing admin token
   - job-vault-configure-kv.yaml  # Enable KV secret engine
   - vault-configure-argocd-job.yaml  # Configure Vault for ArgoCD after initialization
   - job-configure-app-ovh-access.yaml  # Configure OVH access for apps
   - job-configure-cert-manager-vault-access.yaml  # Configure cert-manager Vault access
   - job-vault-populate-secrets.yaml  # Populate initial secrets
   - job-vault-validate.yaml  # Validate complete setup
+  - vault-transit-unseal.yaml  # VaultTransitUnseal custom resource
   # vault-pvc.yaml is duplicate of vault-storage.yaml
 
 patches:
@@ -62,22 +54,10 @@ patches:
     target:
       kind: StatefulSet
       name: vault
-  
+
   # Add sync waves to jobs for proper ordering
   # Wave 0: StatefulSet and core resources (default)
-  
-  # Wave 2: Vault initialization
-  - target:
-      kind: Job
-      name: vault-init
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-init
-        annotations:
-          argocd.argoproj.io/sync-wave: "2"
-  
+  # Wave 1-2: Vault initialization - Now handled by vault-transit-unseal-operator
   # Wave 3: KV engine configuration
   - target:
       kind: Job
@@ -89,7 +69,7 @@ patches:
         name: vault-configure-kv
         annotations:
           argocd.argoproj.io/sync-wave: "3"
-  
+
   # Wave 4: Authentication configuration
   - target:
       kind: Job
@@ -101,7 +81,7 @@ patches:
         name: vault-configure
         annotations:
           argocd.argoproj.io/sync-wave: "4"
-  
+
   # Wave 5: Application-specific access
   - target:
       kind: Job
@@ -113,7 +93,7 @@ patches:
         name: configure-app-ovh-access
         annotations:
           argocd.argoproj.io/sync-wave: "5"
-  
+
   - target:
       kind: Job
       name: configure-cert-manager-vault-access
@@ -124,7 +104,7 @@ patches:
         name: configure-cert-manager-vault-access
         annotations:
           argocd.argoproj.io/sync-wave: "5"
-  
+
   - target:
       kind: Job
       name: vault-populate
@@ -135,7 +115,7 @@ patches:
         name: vault-populate
         annotations:
           argocd.argoproj.io/sync-wave: "6"
-  
+
   - target:
       kind: Job
       name: vault-validate
@@ -146,11 +126,11 @@ patches:
         name: vault-validate
         annotations:
           argocd.argoproj.io/sync-wave: "7"
-  
+
   # Comment out secret-copier for now - it creates a circular dependency
   # The secret it's trying to copy (ovh-credentials) might not exist yet
   # TODO: Fix this dependency issue properly
-  
+
   # # Customize the secret copier job from template
   # # Keep using the original service account name from the template
   # - target:
@@ -162,7 +142,7 @@ patches:
   #     metadata:
   #       name: secret-copier
   #       namespace: vault
-  # 
+  #
   # - target:
   #     kind: ClusterRole
   #     name: PLACEHOLDER-secret-copier
@@ -171,7 +151,7 @@ patches:
   #     kind: ClusterRole
   #     metadata:
   #       name: vault-secret-copier
-  # 
+  #
   # - target:
   #     kind: ClusterRoleBinding
   #     name: PLACEHOLDER-secret-copier
@@ -188,7 +168,7 @@ patches:
   #     - kind: ServiceAccount
   #       name: secret-copier
   #       namespace: vault
-  # 
+  #
   # - target:
   #     kind: Job
   #     name: secret-copier

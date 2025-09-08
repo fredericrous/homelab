@@ -158,14 +158,31 @@ generate_client_cert() {
     echo "✅ Certificate for $username stored in Vault"
 }
 
-# Export function for use in other scripts
-export -f generate_client_cert
-export -f secret_exists
+# Functions are defined above and will be available when this script is sourced
 
-# Generate default admin certificate
-generate_client_cert "admin" "admin@daddyshome.fr"
+# Only run initialization if script is executed directly, not sourced
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    # Generate default admin certificate
+    generate_client_cert "admin" "admin@daddyshome.fr"
 
-# Create client download script in project directory
+    echo ""
+    echo "🎯 PKI initialization complete!"
+    echo ""
+    echo "📋 Summary:"
+    echo "   CA Certificate: Stored at secret/pki/ca"
+    echo "   ESO Token: Stored at secret/tokens/eso-pki"
+    echo "   Admin Certificate: Generated"
+    echo ""
+    echo "📥 Client certificate download:"
+    echo "   export VAULT_ADDR=$VAULT_ADDR"
+    echo "   vault login  # Use your token or auth method"
+    echo "   nas/scripts/download-cert.sh [username]"
+    echo ""
+    echo "🔄 For External Secrets sync, use this token:"
+    echo "   $ESO_TOKEN"
+fi  # End of direct execution check
+
+# Always create the download script (whether sourced or executed)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cat > "$SCRIPT_DIR/download-cert.sh" << 'SCRIPT'
 #!/bin/bash
@@ -182,21 +199,6 @@ echo "📥 Downloading certificate for $USERNAME..."
 vault kv get -field=p12 secret/pki/clients/$USERNAME | base64 -d > "$USERNAME.p12"
 echo "✅ Certificate saved to $USERNAME.p12"
 echo "   Import this file into your browser/system"
+echo "   Password: (leave empty/blank)"
 SCRIPT
 chmod +x "$SCRIPT_DIR/download-cert.sh"
-
-echo ""
-echo "🎯 PKI initialization complete!"
-echo ""
-echo "📋 Summary:"
-echo "   CA Certificate: Stored at secret/pki/ca"
-echo "   ESO Token: Stored at secret/tokens/eso-pki"
-echo "   Admin Certificate: Generated"
-echo ""
-echo "📥 Client certificate download:"
-echo "   export VAULT_ADDR=$VAULT_ADDR"
-echo "   vault login  # Use your token or auth method"
-echo "   $SCRIPT_DIR/download-cert.sh [username]"
-echo ""
-echo "🔄 For External Secrets sync, use this token:"
-echo "   $ESO_TOKEN"

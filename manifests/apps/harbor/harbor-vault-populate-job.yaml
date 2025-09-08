@@ -61,4 +61,14 @@ spec:
               http_secret="$HTTP_SECRET"
           fi
 
+          # Create harbor registry-user secret for Stremio
+          if vault kv get secret/harbor/registry-user 2>/dev/null; then
+            echo "Harbor registry-user secret already exists in Vault. Skipping."
+          else
+            echo "Creating Harbor registry-user secret in Vault..."
+            vault kv put secret/harbor/registry-user \
+              username="harbor_registry_user" \
+              password="33V4wUaUxgEC2cFEqENfkv"
+          fi
+
           echo "Harbor secrets successfully populated in Vault"

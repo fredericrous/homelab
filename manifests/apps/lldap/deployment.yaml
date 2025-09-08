@@ -40,17 +40,22 @@ spec:
           value: "/secrets/jwt-secret"
         - name: LLDAP_LDAP_USER_PASS_FILE
           value: "/secrets/ldap-user-pass"
+        - name: LLDAP_USER_PASS_FILE
+          value: "/secrets/user-pass"
         - name: LLDAP_KEY_SEED_FILE
           value: "/secrets/key-seed"
+        - name: LLDAP_LDAP_USER_EMAIL
+          value: "admin@daddyshome.fr"
         volumeMounts:
         - name: secrets
           mountPath: /secrets
           readOnly: true
-        - name: data
+        - name: lldap-data
           mountPath: /data
       volumes:
       - name: secrets
         secret:
           secretName: lldap-secrets
-      - name: data
-        emptyDir: {}
+      - name: lldap-data
+        persistentVolumeClaim:
+          claimName: lldap-data

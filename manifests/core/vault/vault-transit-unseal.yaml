@@ -1,0 +1,32 @@
+apiVersion: vault.homelab.io/v1alpha1
+kind: VaultTransitUnseal
+metadata:
+  name: vault-main
+  namespace: vault
+spec:
+  vaultPod:
+    namespace: vault
+    selector:
+      app: vault
+  transitVault:
+    address: http://192.168.1.42:61200
+    secretRef:
+      name: vault-transit-token
+      key: token
+    keyName: autounseal
+    mountPath: transit
+    tlsSkipVerify: true
+  initialization:
+    recoveryShares: 1
+    recoveryThreshold: 1
+    secretNames:
+      adminToken: vault-admin-token
+      recoveryKeys: vault-keys
+      # Reflector annotations for automatic secret replication
+      adminTokenAnnotations:
+        reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio,argocd,plex"
+        reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+  monitoring:
+    checkInterval: 30s
+    retryInterval: 10s

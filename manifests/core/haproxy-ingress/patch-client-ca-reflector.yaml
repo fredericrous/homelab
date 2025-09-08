@@ -1,0 +1,14 @@
+# Instead of using ExternalSecret to fetch from Vault,
+# we can reflect the client-ca-cert directly from where it's created
+apiVersion: v1
+kind: Secret
+metadata:
+  name: client-ca-cert
+  namespace: vault  # Or wherever the source is
+  annotations:
+    # Enable reflection
+    reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+    # Reflect to haproxy-controller namespace
+    reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "haproxy-controller"
+    # Auto-create
+    reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"

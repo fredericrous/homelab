@@ -1,0 +1,26 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nextcloud-setup
+  namespace: nextcloud
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["services", "pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-setup
+  namespace: nextcloud
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nextcloud-setup
+subjects:
+- kind: ServiceAccount
+  name: nextcloud
+  namespace: nextcloud
