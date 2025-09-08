@@ -1,0 +1,5 @@
+name: argo-workflows-crds
+namespace: argo-workflows
+syncWave: "-25"  # Deploy early, right after kyverno and before rook-ceph (-22)
+project: core
+path: manifests/core/argo-workflows-crds

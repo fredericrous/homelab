@@ -1,0 +1,12 @@
+name: argo-workflows-config
+namespace: argo-workflows
+syncWave: "-5"  # Deploy after Vault (-16), ESO (-15), PostgreSQL (-12), but before apps
+project: core
+path: manifests/core/argo-workflows-config
+dependsOn:
+  - name: vault
+    namespace: argocd
+  - name: external-secrets-operator
+    namespace: argocd
+  - name: cloudnative-pg
+    namespace: argocd
