@@ -7,6 +7,13 @@ resources:
   - namespace.yaml
   - workflow-controller-cluster-role.yaml
 
+patches:
+- target:
+    kind: Role
+    name: argo-workflows-workflow-controller
+    namespace: argo-workflows
+  path: workflow-controller-role-patch.yaml
+
 helmCharts:
 - name: argo-workflows
   repo: https://argoproj.github.io/argo-helm
