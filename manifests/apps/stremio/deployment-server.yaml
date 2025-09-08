@@ -14,7 +14,7 @@ spec:
         app: stremio-server
     spec:
       serviceAccountName: stremio
-      # runtimeClassName: nvidia  # GPU support disabled - Talos nodes missing GPU extensions
+      runtimeClassName: nvidia  # Enable GPU support
       initContainers:
       - name: ffmpeg-provider
         image: stremio/server:latest
@@ -167,11 +167,11 @@ spec:
           value: "/bin/ffprobe"
         - name: NO_CORS
           value: "1"
-        # GPU environment variables disabled - Talos nodes missing GPU extensions
-        # - name: NVIDIA_VISIBLE_DEVICES
-        #   value: "all"
-        # - name: NVIDIA_DRIVER_CAPABILITIES
-        #   value: "compute,utility,video"
+        # GPU environment variables for hardware acceleration
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility,video"
         lifecycle:
           postStart:
             exec:
@@ -189,11 +189,11 @@ spec:
           name: https
         resources:
           limits:
-            # nvidia.com/gpu: 1  # GPU support disabled - Talos nodes missing GPU extensions
+            nvidia.com/gpu: 1  # Request 1 GPU for hardware acceleration
             memory: 4Gi
             cpu: 4
           requests:
-            # nvidia.com/gpu: 1  # GPU support disabled - Talos nodes missing GPU extensions
+            nvidia.com/gpu: 1  # Request 1 GPU for hardware acceleration
             memory: 2Gi
             cpu: 2
         volumeMounts:
