@@ -1,0 +1,5 @@
+name: argo-workflow-templates
+namespace: argo-workflows
+syncWave: "-24"  # Deploy right after Argo Workflows
+project: core
+path: manifests/base/argo-workflows/workflow-templates
