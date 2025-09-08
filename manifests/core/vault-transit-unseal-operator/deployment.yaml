@@ -29,10 +29,7 @@ spec:
       - name: manager
         image: ghcr.io/fredericrous/vault-transit-unseal-operator:0.2.1
         imagePullPolicy: Always
-        args:
-        - --health-probe-bind-address=:8081
-        - --metrics-bind-address=:8080
-        - --leader-elect
+        # args removed - v0.2.1 doesn't use these flags
         env:
         - name: WATCH_NAMESPACE
           value: ""  # Watch all namespaces
