@@ -65,6 +65,6 @@ spec:
         hostPath:
           path: /
       nodeSelector:
-        extensions.talos.dev/nvidia-container-toolkit-production: "565.77.0-v1.17.3"
+        extensions.talos.dev/nvidia-container-toolkit-production: "570.148.08-v1.17.8"
       tolerations:
       - operator: Exists
