@@ -15,9 +15,10 @@ resources:
   - build-workspace-pvc.yaml
   - buildkitd-service.yaml
   # - build-job.yaml  # Replaced by Argo Workflow
-  # - stremio-web-copy-job.yaml  # To be replaced by Argo Workflow
+  # - stremio-web-copy-job.yaml  # Replaced by Argo Workflow
   - argo-workflow-rbac.yaml
   - workflow-build-stremio.yaml
+  - workflow-copy-stremio-web.yaml
   - deployment-server.yaml
   - deployment-web.yaml
   - stremio-nginx-config.yaml

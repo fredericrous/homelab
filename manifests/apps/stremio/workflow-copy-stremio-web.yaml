@@ -1,0 +1,143 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: copy-stremio-web
+  namespace: stremio
+spec:
+  entrypoint: copy-stremio-web
+  serviceAccountName: argo-workflow
+  
+  volumes:
+  - name: docker-config
+    secret:
+      secretName: harbor-registry-user-creds
+  - name: stremio-web-data
+    persistentVolumeClaim:
+      claimName: stremio-web-data
+
+  templates:
+  - name: copy-stremio-web
+    dag:
+      tasks:
+      - name: check-image-exists
+        template: check-image-exists
+      - name: trigger-build
+        template: trigger-build
+        dependencies: [check-image-exists]
+        when: "{{tasks.check-image-exists.outputs.result}} == 'not-found'"
+      - name: extract-and-copy
+        template: extract-and-copy
+        dependencies: [check-image-exists, trigger-build]
+        when: "{{tasks.check-image-exists.outputs.result}} == 'exists' || {{tasks.trigger-build.outputs.result}} == 'completed'"
+
+  - name: check-image-exists
+    container:
+      image: alpine:latest
+      command:
+      - sh
+      - -c
+      - |
+        # Install required tools
+        apk add --no-cache curl jq
+        
+        # Copy docker config
+        mkdir -p ~/.docker
+        cp /docker-config/.dockerconfigjson ~/.docker/config.json
+        
+        # Extract credentials
+        export HARBOR_USER=$(cat ~/.docker/config.json | jq -r '.auths["harbor-registry.harbor.svc.cluster.local:5000"].username')
+        export HARBOR_PASS=$(cat ~/.docker/config.json | jq -r '.auths["harbor-registry.harbor.svc.cluster.local:5000"].password')
+        
+        # Check if image exists
+        echo "Checking if stremio-web image exists in Harbor..."
+        if curl -f -s -u "$HARBOR_USER:$HARBOR_PASS" \
+          "http://harbor-registry.harbor.svc.cluster.local:5000/v2/library/stremio-web/manifests/latest" >/dev/null; then
+          echo "Image exists in Harbor."
+          echo "exists" > /tmp/result
+        else
+          echo "Image not found in Harbor."
+          echo "not-found" > /tmp/result
+        fi
+        
+        # Output the result
+        cat /tmp/result
+      volumeMounts:
+      - name: docker-config
+        mountPath: /docker-config
+        readOnly: true
+    outputs:
+      parameters:
+      - name: result
+        valueFrom:
+          path: /tmp/result
+
+  - name: trigger-build
+    container:
+      image: argoproj/argo-cli:latest
+      command:
+      - sh
+      - -c
+      - |
+        echo "Triggering build workflow..."
+        # Submit the build workflow and wait for completion
+        argo submit -n stremio /Users/fredericrous/Developer/Perso/homelab/manifests/apps/stremio/workflow-build-stremio.yaml --wait
+        echo "completed" > /tmp/result
+    outputs:
+      parameters:
+      - name: result
+        valueFrom:
+          path: /tmp/result
+
+  - name: extract-and-copy
+    container:
+      image: moby/buildkit:latest
+      command:
+      - sh
+      - -c
+      - |
+        # Install required tools
+        apk add --no-cache curl jq tar skopeo
+        
+        # Copy docker config
+        mkdir -p ~/.docker
+        cp /docker-config/.dockerconfigjson ~/.docker/config.json
+        
+        # Use skopeo to copy the image to a tar file
+        echo "Copying image from Harbor..."
+        skopeo copy --src-creds harbor_registry_user:33V4wUaUxgEC2cFEqENfkv \
+          docker://harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest \
+          oci-archive:/tmp/stremio-web.tar
+        
+        # Extract the tar file
+        echo "Extracting image contents..."
+        cd /tmp
+        tar -xf stremio-web.tar
+        
+        # Find and extract the layer containing the build directory
+        echo "Looking for build directory in layers..."
+        for layer in $(find . -name "layer.tar"); do
+          echo "Checking layer: $layer"
+          tar -tf "$layer" | grep -q "build/" && {
+            echo "Found build directory in $layer"
+            tar -xf "$layer" -C /stremio-web-data
+            break
+          }
+        done
+        
+        # Verify the extraction
+        echo "Contents of /stremio-web-data:"
+        ls -la /stremio-web-data/
+        
+        if [ -d "/stremio-web-data/build" ]; then
+          echo "Build directory successfully extracted!"
+          ls -la /stremio-web-data/build/
+        else
+          echo "Warning: Build directory not found in extracted content"
+          exit 1
+        fi
+      volumeMounts:
+      - name: docker-config
+        mountPath: /docker-config
+        readOnly: true
+      - name: stremio-web-data
+        mountPath: /stremio-web-data
