@@ -4,13 +4,23 @@ Before running `terraform apply`, ensure the following prerequisites are met:
 
 ## 1. Vault Transit Token Setup
 
-The Vault sync process requires a valid transit token from your QNAP Vault. Run:
+### When using Taskfile (Recommended)
+
+If you're using `task deploy` from the root directory, the transit token is automatically fetched from QNAP Vault during the prereq stage.
+
+### When using terraform directly
+
+If running terraform commands directly without Taskfile, you need to set up the transit token:
 
 ```bash
+# Option 1: Export the token
+export K8S_VAULT_TRANSIT_TOKEN="your-transit-token-here"
+
+# Option 2: Run the setup script (will prompt for token)
 ./scripts/setup-transit-token.sh
 ```
 
-This script will create the necessary files for the vault-sync-enhanced.sh script to read the transit token.
+The token can be found in CLAUDE.local.md under 'Transit Token for K8s Vault'.
 
 ## 2. Verify Core App Versions
 

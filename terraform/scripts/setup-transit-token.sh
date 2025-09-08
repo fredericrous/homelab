@@ -3,14 +3,27 @@
 
 set -euo pipefail
 
+# Check if token files already exist from Taskfile
+if [ -f /tmp/vault-transit-token ] && [ -s /tmp/vault-transit-token ]; then
+    echo "✅ Transit token already exists from Taskfile"
+    exit 0
+fi
+
+# Check environment variable from Taskfile export
+if [ -f /tmp/vault-transit-env ]; then
+    source /tmp/vault-transit-env
+fi
+
 # Transit token should be provided via environment variable or prompt
 if [ -z "${K8S_VAULT_TRANSIT_TOKEN:-}" ]; then
+    echo "Transit token not found in environment."
     echo "Please provide the Vault transit token:"
     echo "(Found in CLAUDE.local.md under 'Transit Token for K8s Vault')"
     read -s TRANSIT_TOKEN
     echo
 else
     TRANSIT_TOKEN="$K8S_VAULT_TRANSIT_TOKEN"
+    echo "✅ Using transit token from environment"
 fi
 
 if [ -z "$TRANSIT_TOKEN" ]; then
