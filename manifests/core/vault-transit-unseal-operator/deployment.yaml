@@ -19,6 +19,8 @@ spec:
         app.kubernetes.io/instance: vault-transit-unseal-operator
     spec:
       serviceAccountName: vault-transit-unseal-operator
+      imagePullSecrets:
+      - name: ghcr-io-secret
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
