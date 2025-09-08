@@ -8,7 +8,7 @@ spec:
   refreshInterval: 5m
   
   secretStoreRef:
-    name: nas-vault-backend
+    name: vault-backend
     kind: ClusterSecretStore
   
   target:
