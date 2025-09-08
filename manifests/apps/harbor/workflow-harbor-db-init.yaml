@@ -1,0 +1,172 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: harbor-db-init
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  entrypoint: harbor-db-init
+  serviceAccountName: argo-workflow
+  
+  volumes:
+  - name: postgres-superuser
+    secret:
+      secretName: postgres-superuser-secret
+  - name: harbor-database
+    secret:
+      secretName: harbor-database-secret
+
+  templates:
+  - name: harbor-db-init
+    dag:
+      tasks:
+      - name: create-harbor-user
+        template: create-harbor-user
+      - name: create-databases
+        template: create-databases
+        dependencies: [create-harbor-user]
+      - name: grant-permissions
+        template: grant-permissions
+        dependencies: [create-databases]
+
+  - name: create-harbor-user
+    container:
+      image: postgres:17
+      env:
+      - name: PGHOST
+        value: "postgres-apps-rw.postgres.svc.cluster.local"
+      - name: PGPORT
+        value: "5432"
+      - name: PGUSER
+        value: "postgres"
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: postgres-superuser-secret
+            key: password
+      - name: HARBOR_DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: harbor-database-secret
+            key: password
+      command:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        
+        echo "Checking if harbor user exists..."
+        if psql -tAc "SELECT 1 FROM pg_user WHERE usename='harbor'" | grep -q 1; then
+          echo "Harbor user already exists. Updating password..."
+          psql -c "ALTER USER harbor WITH PASSWORD '$HARBOR_DB_PASSWORD';"
+          echo "updated" > /tmp/result
+        else
+          echo "Creating harbor user..."
+          psql -c "CREATE USER harbor WITH PASSWORD '$HARBOR_DB_PASSWORD';"
+          echo "created" > /tmp/result
+        fi
+        
+        echo "User operation completed: $(cat /tmp/result)"
+    outputs:
+      parameters:
+      - name: result
+        valueFrom:
+          path: /tmp/result
+
+  - name: create-databases
+    container:
+      image: postgres:17
+      env:
+      - name: PGHOST
+        value: "postgres-apps-rw.postgres.svc.cluster.local"
+      - name: PGPORT
+        value: "5432"
+      - name: PGUSER
+        value: "postgres"
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: postgres-superuser-secret
+            key: password
+      command:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        
+        # Track which databases were created
+        created_dbs=""
+        existing_dbs=""
+        
+        # Create databases if they don't exist
+        for db in harbor_core harbor_notary_server harbor_notary_signer; do
+          echo "Checking database $db..."
+          if psql -lqt | cut -d \| -f 1 | grep -qw "$db"; then
+            echo "Database $db already exists"
+            existing_dbs="$existing_dbs $db"
+          else
+            echo "Creating database $db..."
+            psql -c "CREATE DATABASE $db OWNER harbor;"
+            created_dbs="$created_dbs $db"
+          fi
+          
+          # Always grant all privileges (idempotent)
+          psql -c "GRANT ALL PRIVILEGES ON DATABASE $db TO harbor;"
+        done
+        
+        echo "Summary:"
+        echo "Created databases:$created_dbs"
+        echo "Existing databases:$existing_dbs"
+        
+        # Output result for next step
+        echo "databases ready" > /tmp/result
+    outputs:
+      parameters:
+      - name: result
+        valueFrom:
+          path: /tmp/result
+
+  - name: grant-permissions
+    container:
+      image: postgres:17
+      env:
+      - name: PGHOST
+        value: "postgres-apps-rw.postgres.svc.cluster.local"
+      - name: PGPORT
+        value: "5432"
+      - name: PGUSER
+        value: "postgres"
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: postgres-superuser-secret
+            key: password
+      command:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        
+        # Grant schema permissions for each database
+        for db in harbor_core harbor_notary_server harbor_notary_signer; do
+          echo "Granting schema permissions on $db..."
+          
+          # Connect to each database and grant permissions
+          psql -d "$db" <<EOF
+        GRANT ALL ON SCHEMA public TO harbor;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO harbor;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO harbor;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO harbor;
+        EOF
+          
+          echo "Permissions granted for $db"
+        done
+        
+        echo "Harbor database initialization completed successfully!"
+        echo "completed" > /tmp/result
+    outputs:
+      parameters:
+      - name: result
+        valueFrom:
+          path: /tmp/result

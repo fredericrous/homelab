@@ -14,7 +14,9 @@ resources:
   - ovh-credentials-eso.yaml  # ESO resource for OVH credentials
   - postgres-superuser-eso.yaml  # ESO resource for postgres superuser
   - harbor-vault-populate-job.yaml
-  - harbor-db-init-job.yaml  # Initialize Harbor databases
+  # - harbor-db-init-job.yaml  # Replaced by Argo Workflow
+  - argo-workflow-rbac.yaml
+  - workflow-harbor-db-init.yaml
   - harbor-registry-config-job.yaml
   - harbor-ingress.yaml
   - harbor-ip-pool.yaml

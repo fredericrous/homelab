@@ -23,6 +23,7 @@ helmCharts:
       workflowNamespaces:
         - argo
         - stremio
+        - harbor
       # Enable leader election for HA
       replicas: 1
       resources:
