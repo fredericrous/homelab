@@ -13,7 +13,7 @@ spec:
     path: manifests/core/argo-workflows
   destination:
     server: https://kubernetes.default.svc
-    namespace: argo
+    namespace: argo-workflows
   syncPolicy:
     automated:
       prune: true
