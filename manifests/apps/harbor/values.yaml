@@ -4,6 +4,8 @@ expose:
   tls:
     enabled: true
     certSource: auto
+    auto:
+      commonName: "harbor.daddyshome.fr"
   clusterIP:
     name: harbor
     ports:
