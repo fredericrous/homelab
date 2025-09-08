@@ -18,7 +18,7 @@ func (s *secretManager) CreateOrUpdate(ctx context.Context, namespace, name stri
 				secret.Annotations = make(map[string]string)
 			}
 			secret.Annotations["reflector.v1.k8s.emberstack.com/reflection-allowed"] = "true"
-			secret.Annotations["reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces"] = "external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio"
+			secret.Annotations["reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces"] = "external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio,argocd,plex,argo"
 			secret.Annotations["reflector.v1.k8s.emberstack.com/reflection-auto-enabled"] = "true"
 		}
 		

@@ -19,12 +19,10 @@ helmCharts:
   valuesInline:
     # Controller configuration
     controller:
+      # Namespaces where workflows can be created
       workflowNamespaces:
         - argo
         - stremio
-        - harbor
-        - nextcloud
-        - vault
       # Enable leader election for HA
       replicas: 1
       resources:
@@ -81,7 +79,7 @@ helmCharts:
     workflow:
       serviceAccount:
         create: true
-        name: argo-workflow
+        name: argo-workflow-executor
       rbac:
         create: true
 
