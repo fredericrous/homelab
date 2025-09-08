@@ -14,7 +14,7 @@ resources:
 
 images:
 - name: ghcr.io/fredericrous/vault-transit-unseal-operator
-  newTag: v0.2.1
+  newTag: 0.2.1
 
 # For local testing, you can override with:
 # kubectl set image deployment/vault-transit-unseal-operator manager=your-registry/vault-transit-unseal-operator:latest -n vault-transit-unseal-operator
