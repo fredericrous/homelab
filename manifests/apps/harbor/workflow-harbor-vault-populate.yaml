@@ -1,0 +1,169 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: harbor-vault-populate
+  namespace: harbor
+spec:
+  entrypoint: harbor-vault-populate
+  serviceAccountName: argo-workflow
+  
+  workflowTemplateRef:
+    name: vault-populate-template
+    namespace: argo
+
+  templates:
+  - name: harbor-vault-populate
+    dag:
+      tasks:
+      # Wait for Vault to be ready
+      - name: wait-vault
+        templateRef:
+          name: vault-populate-template
+          template: wait-vault-ready
+      
+      # Check and create admin secret
+      - name: check-admin-secret
+        templateRef:
+          name: vault-populate-template
+          template: check-vault-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/harbor/admin"
+        dependencies: [wait-vault]
+      
+      - name: create-admin-secret
+        templateRef:
+          name: vault-populate-template
+          template: create-vault-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/harbor/admin"
+          - name: secret-data
+            value: 'password="HarborAdmin123"'
+        dependencies: [check-admin-secret]
+        when: "{{tasks.check-admin-secret.outputs.result}} == 'not-found'"
+      
+      # Check and create database secret
+      - name: check-database-secret
+        templateRef:
+          name: vault-populate-template
+          template: check-vault-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/harbor/database"
+        dependencies: [wait-vault]
+      
+      - name: create-database-secret
+        templateRef:
+          name: vault-populate-template
+          template: create-vault-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/harbor/database"
+          - name: secret-data
+            value: 'password="HarborDB123"'
+        dependencies: [check-database-secret]
+        when: "{{tasks.check-database-secret.outputs.result}} == 'not-found'"
+      
+      # Check and create registry secret
+      - name: check-registry-secret
+        templateRef:
+          name: vault-populate-template
+          template: check-vault-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/harbor/registry"
+        dependencies: [wait-vault]
+      
+      # Generate random HTTP secret for registry
+      - name: generate-http-secret
+        templateRef:
+          name: vault-populate-template
+          template: generate-password
+        arguments:
+          parameters:
+          - name: length
+            value: "16"
+        dependencies: [check-registry-secret]
+        when: "{{tasks.check-registry-secret.outputs.result}} == 'not-found'"
+      
+      # Generate htpasswd for registry user
+      - name: generate-htpasswd
+        templateRef:
+          name: vault-populate-template
+          template: generate-htpasswd
+        arguments:
+          parameters:
+          - name: username
+            value: "harbor_registry_user"
+          - name: password
+            value: "33V4wUaUxgEC2cFEqENfkv"
+        dependencies: [check-registry-secret]
+        when: "{{tasks.check-registry-secret.outputs.result}} == 'not-found'"
+      
+      - name: create-registry-secret
+        template: create-harbor-registry-secret
+        dependencies: [generate-http-secret, generate-htpasswd]
+        when: "{{tasks.check-registry-secret.outputs.result}} == 'not-found'"
+      
+      # Check and create registry-user secret for Stremio
+      - name: check-registry-user-secret
+        templateRef:
+          name: vault-populate-template
+          template: check-vault-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/harbor/registry-user"
+        dependencies: [wait-vault]
+      
+      - name: create-registry-user-secret
+        templateRef:
+          name: vault-populate-template
+          template: create-vault-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/harbor/registry-user"
+          - name: secret-data
+            value: |
+              username="harbor_registry_user"
+              password="33V4wUaUxgEC2cFEqENfkv"
+        dependencies: [check-registry-user-secret]
+        when: "{{tasks.check-registry-user-secret.outputs.result}} == 'not-found'"
+
+  # Custom template for creating the registry secret with multiple values
+  - name: create-harbor-registry-secret
+    container:
+      image: hashicorp/vault:1.20.1
+      env:
+      - name: VAULT_ADDR
+        value: "http://vault.vault.svc.cluster.local:8200"
+      - name: VAULT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: vault-admin-token
+            key: token
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        
+        # Get values from previous steps
+        HTTP_SECRET="{{tasks.generate-http-secret.outputs.parameters.password}}"
+        HTPASSWD="{{tasks.generate-htpasswd.outputs.parameters.htpasswd}}"
+        
+        echo "Creating Harbor registry secret in Vault..."
+        
+        vault kv put secret/harbor/registry \
+          password="33V4wUaUxgEC2cFEqENfkv" \
+          htpasswd="$HTPASSWD" \
+          http_secret="$HTTP_SECRET"
+        
+        echo "Harbor registry secret created successfully"

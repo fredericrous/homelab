@@ -13,7 +13,8 @@ resources:
   - harbor-registry-eso.yaml  # ESO resource for registry credentials
   - ovh-credentials-eso.yaml  # ESO resource for OVH credentials
   - postgres-superuser-eso.yaml  # ESO resource for postgres superuser
-  - harbor-vault-populate-job.yaml
+  # - harbor-vault-populate-job.yaml  # Replaced by Argo Workflow
+  - workflow-harbor-vault-populate.yaml
   # - harbor-db-init-job.yaml  # Replaced by Argo Workflow
   - argo-workflow-rbac.yaml
   - workflow-harbor-db-init.yaml

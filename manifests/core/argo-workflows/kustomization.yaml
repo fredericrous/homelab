@@ -9,6 +9,7 @@ resources:
   - argo-postgres-config-eso.yaml
   - argo-vault-populate-job.yaml
   - argo-db-init-job.yaml
+  - workflow-template-vault-populate.yaml
 
 helmCharts:
 - name: argo-workflows
