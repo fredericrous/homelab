@@ -20,12 +20,12 @@ resources:
   # - harbor-db-init-job.yaml  # Replaced by Argo Workflow
   - argo-workflow-rbac.yaml
   - workflow-harbor-db-init.yaml
-  - harbor-create-registry-user-job.yaml
-  - harbor-registry-config-job.yaml
+  # - harbor-create-registry-user-job.yaml  # Replaced by Argo Workflow
+  - workflow-create-registry-user.yaml
+  # - harbor-registry-config-job.yaml  # No longer needed - using Talos patches
   - harbor-ingress.yaml
   - harbor-ip-pool.yaml
   - harbor-registry-lb.yaml
-  - harbor-registry-nodeport.yaml
 
 helmCharts:
 - name: harbor  

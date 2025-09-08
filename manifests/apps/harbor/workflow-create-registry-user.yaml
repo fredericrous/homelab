@@ -1,0 +1,155 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: harbor-create-registry-user
+  namespace: harbor
+spec:
+  entrypoint: create-registry-user
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: create-registry-user
+    dag:
+      tasks:
+      - name: wait-harbor
+        template: wait-for-harbor
+      
+      - name: check-user
+        template: check-if-user-exists
+        dependencies: [wait-harbor]
+      
+      - name: create-user
+        template: create-user
+        dependencies: [check-user]
+        when: "{{tasks.check-user.outputs.parameters.exists}} == 'false'"
+      
+      - name: add-to-project
+        template: add-user-to-project
+        dependencies: [create-user]
+        when: "{{tasks.check-user.outputs.parameters.exists}} == 'false'"
+
+  - name: wait-for-harbor
+    container:
+      image: curlimages/curl:latest
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Waiting for Harbor to be ready..."
+        until curl -f -s "http://harbor-core.harbor.svc.cluster.local/api/v2.0/systeminfo" >/dev/null; do
+          echo "Waiting for Harbor..."
+          sleep 5
+        done
+        echo "Harbor is ready"
+
+  - name: check-if-user-exists
+    container:
+      image: curlimages/curl:latest
+      env:
+      - name: HARBOR_URL
+        value: "http://harbor-core.harbor.svc.cluster.local"
+      - name: ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: harbor-admin-secret
+            key: harborAdminPassword
+      - name: REGISTRY_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: harbor-registry-user-secret
+            key: username
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Checking if user $REGISTRY_USERNAME exists..."
+        if curl -s -u "admin:$ADMIN_PASSWORD" "$HARBOR_URL/api/v2.0/users?username=$REGISTRY_USERNAME" | grep -q "$REGISTRY_USERNAME"; then
+          echo "true" > /tmp/exists
+          echo "User $REGISTRY_USERNAME already exists"
+        else
+          echo "false" > /tmp/exists
+          echo "User $REGISTRY_USERNAME does not exist"
+        fi
+        cat /tmp/exists
+    outputs:
+      parameters:
+      - name: exists
+        valueFrom:
+          path: /tmp/exists
+
+  - name: create-user
+    container:
+      image: curlimages/curl:latest
+      env:
+      - name: HARBOR_URL
+        value: "http://harbor-core.harbor.svc.cluster.local"
+      - name: ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: harbor-admin-secret
+            key: harborAdminPassword
+      - name: REGISTRY_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: harbor-registry-user-secret
+            key: username
+      - name: REGISTRY_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: harbor-registry-user-secret
+            key: password
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Creating user $REGISTRY_USERNAME..."
+        
+        curl -X POST -u "admin:$ADMIN_PASSWORD" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "username": "'"$REGISTRY_USERNAME"'",
+            "password": "'"$REGISTRY_PASSWORD"'",
+            "realname": "Registry User",
+            "email": "registry@harbor.local"
+          }' \
+          "$HARBOR_URL/api/v2.0/users"
+        
+        echo "User created successfully"
+
+  - name: add-user-to-project
+    container:
+      image: curlimages/curl:latest
+      env:
+      - name: HARBOR_URL
+        value: "http://harbor-core.harbor.svc.cluster.local"
+      - name: ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: harbor-admin-secret
+            key: harborAdminPassword
+      - name: REGISTRY_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: harbor-registry-user-secret
+            key: username
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Adding user to library project..."
+        
+        curl -X POST -u "admin:$ADMIN_PASSWORD" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "role_id": 2,
+            "member_user": {
+              "username": "'"$REGISTRY_USERNAME"'"
+            }
+          }' \
+          "$HARBOR_URL/api/v2.0/projects/library/members" || echo "User might already be a member"
+        
+        echo "User configuration completed"
