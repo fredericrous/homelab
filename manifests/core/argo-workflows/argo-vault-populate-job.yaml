@@ -2,9 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: argo-workflows-vault-populate
-  namespace: argo
-  annotations:
-    argocd.argoproj.io/sync-wave: "-20"
+  namespace: argo-workflows
 spec:
   template:
     spec:
@@ -21,11 +19,24 @@ spec:
             secretKeyRef:
               name: vault-admin-token
               key: token
+              optional: true  # Skip if Vault not initialized yet
         command:
         - /bin/sh
         - -c
         - |
           set -e
+          
+          # Check if Vault is accessible and token exists
+          if [ -z "$VAULT_TOKEN" ]; then
+            echo "Vault token not available yet. Skipping vault population."
+            exit 0
+          fi
+          
+          # Check if Vault is reachable
+          if ! vault status > /dev/null 2>&1; then
+            echo "Vault is not reachable. Skipping vault population."
+            exit 0
+          fi
           
           # Create Argo Workflows database credentials if they don't exist
           if vault kv get secret/argo-workflows/database 2>/dev/null; then
