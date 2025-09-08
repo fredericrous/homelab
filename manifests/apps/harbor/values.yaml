@@ -32,7 +32,7 @@ harborAdminPassword: "HarborAdmin123"
 database:
   type: external
   external:
-    host: "postgres-apps.postgres.svc.cluster.local"
+    host: "postgres-apps-rw.postgres.svc.cluster.local"
     port: "5432"
     username: "harbor"
     password: "HarborDB123"
