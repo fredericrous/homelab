@@ -21,6 +21,11 @@ helmCharts:
   releaseName: argo-workflows
   namespace: argo-workflows
   valuesInline:
+    # CRDs installation
+    crds:
+      install: true
+      keep: true
+    
     # Controller configuration
     controller:
       # Namespaces where workflows can be created
