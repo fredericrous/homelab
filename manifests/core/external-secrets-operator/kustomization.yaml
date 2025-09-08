@@ -8,7 +8,7 @@ resources:
   - cluster-secret-store.yaml  # Global Vault configuration
   - clustersecretstore-nas-vault.yaml  # NAS Vault for PKI sync
   # - vault-token-reader-rbac.yaml  # No longer needed with Reflector
-  - job-vault-configure-eso.yaml  # Configure Vault access for ESO
+  # - job-vault-configure-eso.yaml  # Configure Vault access for ESO (file doesn't exist)
 
 # Install External Secrets Operator via Helm
 helmCharts:
