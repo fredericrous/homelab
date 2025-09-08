@@ -1,11 +1,11 @@
-# Harbor database credentials from Vault using External Secrets Operator
+# PostgreSQL superuser credentials from Vault using External Secrets Operator
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: harbor-database
+  name: postgres-superuser
   namespace: harbor
   annotations:
-    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-wave: "5"
 spec:
   refreshInterval: 5m
   
@@ -14,16 +14,21 @@ spec:
     kind: ClusterSecretStore
   
   target:
-    name: harbor-database-secret
+    name: postgres-superuser-secret
     creationPolicy: Owner
     deletionPolicy: Retain
     template:
       engineVersion: v2
       data:
         password: "{{ .password }}"
+        username: "{{ .username }}"
   
   data:
   - secretKey: password
     remoteRef:
-      key: secret/data/harbor/database
+      key: secret/data/postgres/superuser
       property: password
+  - secretKey: username
+    remoteRef:
+      key: secret/data/postgres/superuser
+      property: username

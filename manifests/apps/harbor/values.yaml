@@ -26,7 +26,9 @@ persistence:
       accessMode: ReadWriteOnce
       size: 10Gi
 
-harborAdminPassword: "HarborAdmin123"
+# harborAdminPassword is provided by harbor-admin-secret
+existingSecretAdminPassword: "harbor-admin-secret"
+existingSecretAdminPasswordKey: "harborAdminPassword"
 
 # Database configuration
 database:
@@ -35,7 +37,8 @@ database:
     host: "postgres-apps-rw.postgres.svc.cluster.local"
     port: "5432"
     username: "harbor"
-    password: "HarborDB123"
+    # Password comes from harbor-database-secret
+    existingSecret: "harbor-database-secret"
     # These are the database names that Harbor uses
     coreDatabase: "harbor_core"
     notaryServerDatabase: "harbor_notary_server"  

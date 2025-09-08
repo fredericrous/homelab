@@ -7,11 +7,14 @@ resources:
   # App-specific resources
   - namespace.yaml
   - harbor-serviceaccount.yaml
+  - vault-config-sa.yaml  # Service account for vault-populate job
   - harbor-admin-eso.yaml  # ESO resource for admin credentials
   - harbor-database-eso.yaml  # ESO resource for database credentials
   - harbor-registry-eso.yaml  # ESO resource for registry credentials
   - ovh-credentials-eso.yaml  # ESO resource for OVH credentials
+  - postgres-superuser-eso.yaml  # ESO resource for postgres superuser
   - harbor-vault-populate-job.yaml
+  - harbor-db-init-job.yaml  # Initialize Harbor databases
   - harbor-registry-config-job.yaml
   - harbor-ingress.yaml
   - harbor-ip-pool.yaml

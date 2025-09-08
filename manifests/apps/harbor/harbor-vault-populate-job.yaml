@@ -14,16 +14,25 @@ spec:
         env:
         - name: VAULT_ADDR
           value: "http://vault.vault.svc.cluster.local:8200"
-        - name: VAULT_NAMESPACE
-          value: "vault"
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
         command:
         - /bin/sh
         - -c
         - |
           set -e
 
-          # Get Vault token from the vault namespace
-          export VAULT_TOKEN=$(kubectl get secret vault-admin-token -n vault -o jsonpath='{.data.token}' | base64 -d)
+          # Check if Harbor admin secret already exists
+          if vault kv get secret/harbor/admin 2>/dev/null; then
+            echo "Harbor admin secret already exists in Vault. Skipping."
+          else
+            echo "Creating Harbor admin secret in Vault..."
+            vault kv put secret/harbor/admin \
+              password="HarborAdmin123"
+          fi
 
           # Check if Harbor database secret already exists
           if vault kv get secret/harbor/database 2>/dev/null; then
