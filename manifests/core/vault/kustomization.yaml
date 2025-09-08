@@ -38,8 +38,7 @@ resources:
   - vault-transit-token-secret-placeholder.yaml  # Placeholder to prevent ArgoCD from pruning the secret
   # Argo Workflows
   - argo-workflow-rbac.yaml
-  - workflow-configure-kv.yaml  # Enable KV secret engine
-  - workflow-configure-eso.yaml  # Configure ESO authentication
+  # Workflows moved to vault-config app to avoid PostSync circular dependency
   # - job-vault-configure-kv.yaml  # Replaced by workflow-configure-kv.yaml
   # - vault-configure-argocd-job.yaml  # Replaced by workflow
   # - job-configure-app-ovh-access.yaml  # Replaced by workflow
