@@ -22,8 +22,8 @@ rules:
   resources: ["persistentvolumeclaims"]
   verbs: ["create", "delete", "get"]
 - apiGroups: ["argoproj.io"]
-  resources: ["workflows", "workflows/finalizers"]
-  verbs: ["get", "list", "watch", "update", "patch", "delete"]
+  resources: ["workflows", "workflows/finalizers", "workflowtaskresults"]
+  verbs: ["get", "list", "watch", "update", "patch", "delete", "create"]
 ---
 # RoleBinding for Argo Workflows in stremio namespace
 apiVersion: rbac.authorization.k8s.io/v1

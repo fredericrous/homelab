@@ -64,7 +64,8 @@ locals {
   common_patches = [
     file("${path.module}/patch/cluster-init.yaml"),
     file("${path.module}/patch/sysctls-patch.yaml"),
-    file("${path.module}/patch/disable-forward-dns.yaml")
+    file("${path.module}/patch/disable-forward-dns.yaml"),
+    file("${path.module}/patch/harbor-registry-patch.yaml")
   ]
 
   network_config = {

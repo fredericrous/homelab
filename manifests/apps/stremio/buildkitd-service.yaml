@@ -19,11 +19,33 @@ spec:
         args:
         - --addr
         - tcp://0.0.0.0:1234
+        - --config
+        - /etc/buildkit/buildkitd.toml
+        env:
+        - name: DOCKER_CONFIG
+          value: /root/.docker
         ports:
         - containerPort: 1234
           protocol: TCP
         securityContext:
           privileged: true
+        volumeMounts:
+        - name: config
+          mountPath: /etc/buildkit
+          readOnly: true
+        - name: docker-config
+          mountPath: /root/.docker
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: buildkitd-config
+      - name: docker-config
+        secret:
+          secretName: harbor-registry-creds
+          items:
+          - key: .dockerconfigjson
+            path: config.json
 ---
 apiVersion: v1
 kind: Service

@@ -15,10 +15,10 @@ spec:
     spec:
       serviceAccountName: stremio
       imagePullSecrets:
-      - name: harbor-registry
+      - name: harbor-registry-manual
       initContainers:
       - name: copy-build
-        image: registry.daddyshome.fr/library/stremio-web:latest
+        image: 192.168.1.90:5000/library/stremio-web:latest
         imagePullPolicy: Always
         command: ["sh", "-c", "cp -r /var/www/stremio-web/build/* /build-output/"]
         volumeMounts:

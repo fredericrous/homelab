@@ -12,6 +12,6 @@ spec:
     app.kubernetes.io/instance: harbor
     app.kubernetes.io/name: harbor
   ports:
-  - port: 5443
-    targetPort: 5443
-    name: registry-tls
+  - port: 5000
+    targetPort: 5000
+    name: registry

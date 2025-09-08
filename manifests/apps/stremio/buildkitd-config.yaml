@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buildkitd-config
+  namespace: stremio
+data:
+  buildkitd.toml: |
+    debug = true
+
+    [worker.oci]
+      max-parallelism = 4
+
+    [registry."harbor-registry.harbor.svc.cluster.local:5000"]
+      http = true
+      insecure = true
+      ca=["/etc/ssl/certs/ca-certificates.crt"]
+
+    [registry."192.168.1.90:5000"]
+      http = true
+      insecure = true

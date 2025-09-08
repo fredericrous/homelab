@@ -11,6 +11,8 @@ resources:
   - harbor-admin-eso.yaml  # ESO resource for admin credentials
   - harbor-database-eso.yaml  # ESO resource for database credentials
   - harbor-registry-eso.yaml  # ESO resource for registry credentials
+  - harbor-registry-user-eso.yaml  # ESO resource for registry user credentials
+  - harbor-registry-htpasswd-eso.yaml  # ESO resource for registry htpasswd
   - ovh-credentials-eso.yaml  # ESO resource for OVH credentials
   - postgres-superuser-eso.yaml  # ESO resource for postgres superuser
   # - harbor-vault-populate-job.yaml  # Replaced by Argo Workflow
@@ -18,10 +20,12 @@ resources:
   # - harbor-db-init-job.yaml  # Replaced by Argo Workflow
   - argo-workflow-rbac.yaml
   - workflow-harbor-db-init.yaml
+  - harbor-create-registry-user-job.yaml
   - harbor-registry-config-job.yaml
   - harbor-ingress.yaml
   - harbor-ip-pool.yaml
   - harbor-registry-lb.yaml
+  - harbor-registry-nodeport.yaml
 
 helmCharts:
 - name: harbor  

@@ -33,7 +33,7 @@ spec:
       - name: build-and-push
         template: build-and-push
         dependencies: [check-image-exists]
-        when: "{{tasks.check-image-exists.outputs.result}} == 'not-found'"
+        when: "'{{tasks.check-image-exists.outputs.parameters.result}}' == 'not-found'"
 
   - name: git-clone
     container:
@@ -59,7 +59,7 @@ spec:
       - -c
       - |
         # Install required tools
-        apk add --no-cache curl jq
+        apk add --no-cache curl jq >&2
         
         # Copy docker config
         mkdir -p ~/.docker
@@ -69,18 +69,18 @@ spec:
         export HARBOR_USER=$(cat ~/.docker/config.json | jq -r '.auths["harbor-registry.harbor.svc.cluster.local:5000"].username')
         export HARBOR_PASS=$(cat ~/.docker/config.json | jq -r '.auths["harbor-registry.harbor.svc.cluster.local:5000"].password')
         
-        # Check if image exists
-        echo "Checking if image already exists in Harbor..."
+        # Check if image exists (try LoadBalancer IP for reliability)
+        echo "Checking if image already exists in Harbor..." >&2
         if curl -f -s -u "$HARBOR_USER:$HARBOR_PASS" \
-          "http://harbor-registry.harbor.svc.cluster.local:5000/v2/library/stremio-web/manifests/latest" >/dev/null; then
-          echo "Image already exists in Harbor."
+          "http://192.168.1.90:5000/v2/library/stremio-web/manifests/latest" >/dev/null; then
+          echo "Image already exists in Harbor." >&2
           echo "exists" > /tmp/result
         else
-          echo "Image not found in Harbor."
+          echo "Image not found in Harbor." >&2
           echo "not-found" > /tmp/result
         fi
         
-        # Output the result
+        # Output only the result to stdout
         cat /tmp/result
       volumeMounts:
       - name: docker-config
@@ -99,10 +99,13 @@ spec:
       - sh
       - -c
       - |
-        # Copy docker config
-        echo "Setting up Docker authentication..."
+        # Setup authentication
+        echo "Setting up authentication..."
+        
+        # Copy docker config for buildkit
         mkdir -p ~/.docker
         cp /docker-config/.dockerconfigjson ~/.docker/config.json
+        export DOCKER_CONFIG=/root/.docker
         
         # Build and push
         echo "Building and pushing image..."
@@ -110,7 +113,8 @@ spec:
           --frontend dockerfile.v0 \
           --local context=/workspace \
           --local dockerfile=/workspace \
-          --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest,push=true
+          --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest,push=true,registry.insecure=true \
+          --registry-auth-tlscontext host=harbor-registry.harbor.svc.cluster.local:5000,insecure=true
       volumeMounts:
       - name: workspace
         mountPath: /workspace

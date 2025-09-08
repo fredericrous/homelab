@@ -56,8 +56,15 @@ cni:
 enableHostPort: true
 hostServices:
   enabled: true
+  hostNamespaceOnly: false  # Allow access from host network
 enableHostFirewall: false
 enableL7Proxy: false
+
+# Enable host to reach ClusterIP services
+enableHostReachableServices: true
+hostReachableServices:
+  enabled: true
+  protocols: tcp,udp
 
 # 3. Enable Hubble (Observability) with resource limits
 hubble:

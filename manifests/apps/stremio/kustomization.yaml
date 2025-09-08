@@ -6,6 +6,7 @@ namespace: stremio
 resources:
   # App-specific resources
   - namespace.yaml
+  - serviceaccount.yaml
   # - stremio-vault-auth.yaml  # Now provided by base/vault-auth
   # - job-vault-configure-stremio.yaml  # Now using job-templates base
   - harbor-registry-externalsecret.yaml
@@ -13,6 +14,7 @@ resources:
   - pvc.yaml
   - pvc-web.yaml
   - build-workspace-pvc.yaml
+  - buildkitd-config.yaml
   - buildkitd-service.yaml
   # - build-job.yaml  # Replaced by Argo Workflow
   # - stremio-web-copy-job.yaml  # Replaced by Argo Workflow
