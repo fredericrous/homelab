@@ -5,6 +5,7 @@ namespace: argo-workflows
 
 resources:
   - namespace.yaml
+  - workflow-controller-cluster-role.yaml
 
 helmCharts:
 - name: argo-workflows

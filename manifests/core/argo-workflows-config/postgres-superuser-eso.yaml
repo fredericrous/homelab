@@ -3,12 +3,12 @@ apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
   name: postgres-superuser
-  namespace: argo
+  namespace: argo-workflows
 spec:
   refreshInterval: 5m
   
   secretStoreRef:
-    name: vault-backend
+    name: nas-vault-backend
     kind: ClusterSecretStore
   
   target:
