@@ -38,7 +38,7 @@ patches:
             annotations:
               backup.velero.io/backup-volumes: plex-config
   # Enable GPU support
-  - path: patch-gpu-enable.yaml
+  - path: patch-gpu-resources.yaml
     target:
       kind: Deployment
       name: plex

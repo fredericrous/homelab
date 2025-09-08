@@ -2,22 +2,16 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: plex
-  namespace: plex
 spec:
   template:
     spec:
-      nodeSelector:
-        # Ensure pod runs on GPU node
-        kubernetes.io/hostname: talos-wk-1-gpu
       runtimeClassName: nvidia
       containers:
       - name: plex
         resources:
           limits:
             nvidia.com/gpu: 1  # Request 1 GPU
-            memory: 4Gi
           requests:
             nvidia.com/gpu: 1
-            memory: 2Gi
         securityContext:
           privileged: true  # Required for GPU access
