@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: plex-vault-populate
+  namespace: plex
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  entrypoint: populate-secrets
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: populate-secrets
+    dag:
+      tasks:
+      - name: wait-vault
+        templateRef:
+          name: vault-operations
+          template: wait-vault-ready
+      
+      - name: check-secret
+        dependencies: [wait-vault]
+        templateRef:
+          name: vault-operations
+          template: check-secret-exists
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/plex/config"
+      
+      - name: create-secret
+        dependencies: [check-secret]
+        when: "'{{tasks.check-secret.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: vault-operations
+          template: populate-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/plex/config"
+          - name: secret-data
+            value: |
+              {
+                "claim": "claim-ABC123REPLACEME",
+                "timezone": "Europe/Paris"
+              }

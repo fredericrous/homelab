@@ -12,7 +12,10 @@ resources:
   # - vault-setup-job.yaml  # Replaced by job-vault-configure-plex.yaml
   # - plex-vault-auth.yaml  # Now provided by base/vault-auth
   - plex-config-externalsecret.yaml
-  - job-vault-populate-plex.yaml
+  # Argo Workflow
+  - argo-workflow-rbac.yaml
+  - workflow-vault-populate.yaml
+  # - job-vault-populate-plex.yaml  # Replaced by workflow-vault-populate.yaml
   - pvc-config.yaml
   - pvc-nfs-media.yaml
   - deployment.yaml

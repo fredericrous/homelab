@@ -1,0 +1,168 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: application-setup
+  namespace: argo-workflows
+spec:
+  templates:
+  # Wait for deployment to be ready
+  - name: wait-deployment-ready
+    inputs:
+      parameters:
+      - name: namespace
+      - name: deployment-name
+      - name: service-name
+      - name: service-port
+        value: "80"
+    container:
+      image: bitnami/kubectl:1.28
+      command:
+      - sh
+      - -c
+      - |
+        echo "Waiting for deployment {{inputs.parameters.deployment-name}} in {{inputs.parameters.namespace}}..."
+        # Wait for deployment to exist
+        until kubectl get deployment -n {{inputs.parameters.namespace}} {{inputs.parameters.deployment-name}} >/dev/null 2>&1; do
+          echo "Waiting for deployment to be created..."
+          sleep 5
+        done
+        
+        # Wait for at least one pod to be ready
+        kubectl wait --for=condition=available --timeout=600s deployment/{{inputs.parameters.deployment-name}} -n {{inputs.parameters.namespace}}
+        
+        # Wait for service to respond
+        echo "Waiting for service {{inputs.parameters.service-name}} to be ready..."
+        for i in $(seq 1 60); do
+          if nc -z {{inputs.parameters.service-name}}.{{inputs.parameters.namespace}}.svc.cluster.local {{inputs.parameters.service-port}} 2>/dev/null; then
+            echo "Service is ready!"
+            exit 0
+          fi
+          echo "Service not ready yet... ($i/60)"
+          sleep 5
+        done
+        echo "ERROR: Service did not become ready in time"
+        exit 1
+
+  # Execute command in running pod
+  - name: exec-in-pod
+    inputs:
+      parameters:
+      - name: namespace
+      - name: pod-selector
+      - name: container
+        value: ""
+      - name: command
+    container:
+      image: bitnami/kubectl:1.28
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Finding pod with selector {{inputs.parameters.pod-selector}} in {{inputs.parameters.namespace}}..."
+        POD=$(kubectl get pods -n {{inputs.parameters.namespace}} -l {{inputs.parameters.pod-selector}} -o jsonpath='{.items[0].metadata.name}')
+        if [ -z "$POD" ]; then
+          echo "ERROR: No pod found with selector {{inputs.parameters.pod-selector}}"
+          exit 1
+        fi
+        echo "Found pod: $POD"
+        
+        CONTAINER_ARG=""
+        if [ -n "{{inputs.parameters.container}}" ]; then
+          CONTAINER_ARG="-c {{inputs.parameters.container}}"
+        fi
+        
+        echo "Executing command in pod..."
+        kubectl exec -n {{inputs.parameters.namespace}} $POD $CONTAINER_ARG -- sh -c '{{inputs.parameters.command}}'
+
+  # Run OCC command for Nextcloud
+  - name: nextcloud-occ
+    inputs:
+      parameters:
+      - name: namespace
+        value: "nextcloud"
+      - name: occ-command
+    container:
+      image: bitnami/kubectl:1.28
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Running Nextcloud occ command: {{inputs.parameters.occ-command}}..."
+        POD=$(kubectl get pods -n {{inputs.parameters.namespace}} -l app.kubernetes.io/name=nextcloud -o jsonpath='{.items[0].metadata.name}')
+        if [ -z "$POD" ]; then
+          echo "ERROR: No Nextcloud pod found"
+          exit 1
+        fi
+        
+        kubectl exec -n {{inputs.parameters.namespace}} $POD -- su -s /bin/bash www-data -c "php occ {{inputs.parameters.occ-command}}"
+
+  # HTTP health check
+  - name: http-health-check
+    inputs:
+      parameters:
+      - name: url
+      - name: expected-status
+        value: "200"
+      - name: timeout
+        value: "300"
+    container:
+      image: curlimages/curl:latest
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Checking health of {{inputs.parameters.url}}..."
+        START=$(date +%s)
+        TIMEOUT={{inputs.parameters.timeout}}
+        
+        while true; do
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" {{inputs.parameters.url}} || echo "000")
+          if [ "$STATUS" = "{{inputs.parameters.expected-status}}" ]; then
+            echo "Health check passed! Status: $STATUS"
+            exit 0
+          fi
+          
+          NOW=$(date +%s)
+          ELAPSED=$((NOW - START))
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "ERROR: Health check timeout after ${ELAPSED}s. Last status: $STATUS"
+            exit 1
+          fi
+          
+          echo "Status: $STATUS, waiting... (${ELAPSED}s/${TIMEOUT}s)"
+          sleep 5
+        done
+
+  # Fix file permissions
+  - name: fix-permissions
+    inputs:
+      parameters:
+      - name: namespace
+      - name: pod-selector
+      - name: path
+      - name: user
+      - name: group
+      - name: permissions
+        value: ""
+    container:
+      image: bitnami/kubectl:1.28
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        POD=$(kubectl get pods -n {{inputs.parameters.namespace}} -l {{inputs.parameters.pod-selector}} -o jsonpath='{.items[0].metadata.name}')
+        if [ -z "$POD" ]; then
+          echo "ERROR: No pod found with selector {{inputs.parameters.pod-selector}}"
+          exit 1
+        fi
+        
+        echo "Fixing permissions on {{inputs.parameters.path}} in pod $POD..."
+        kubectl exec -n {{inputs.parameters.namespace}} $POD -- sh -c "chown -R {{inputs.parameters.user}}:{{inputs.parameters.group}} {{inputs.parameters.path}}"
+        
+        if [ -n "{{inputs.parameters.permissions}}" ]; then
+          kubectl exec -n {{inputs.parameters.namespace}} $POD -- sh -c "chmod -R {{inputs.parameters.permissions}} {{inputs.parameters.path}}"
+        fi

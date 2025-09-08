@@ -15,5 +15,9 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
-  - postgres-setup.yaml
-  - vault-secrets-init.yaml
+  # Argo Workflows
+  - argo-workflow-rbac.yaml
+  - workflow-database-setup.yaml
+  - workflow-database-cleanup.yaml
+  # - postgres-setup.yaml  # Replaced by workflow-database-setup.yaml
+  # - vault-secrets-init.yaml  # Not needed, using ESO

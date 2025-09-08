@@ -7,4 +7,7 @@ resources:
   - minio-deployment.yaml
   - cronjob-sync-to-qnap.yaml
   - configmap-lifecycle.yaml
-  - job-configure-lifecycle.yaml
+  # Argo Workflow
+  - argo-workflow-rbac.yaml
+  - workflow-configure-lifecycle.yaml
+  # - job-configure-lifecycle.yaml  # Replaced by workflow-configure-lifecycle.yaml

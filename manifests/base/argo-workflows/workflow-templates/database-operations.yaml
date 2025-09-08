@@ -1,0 +1,131 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: database-operations
+  namespace: argo-workflows
+spec:
+  templates:
+  # Wait for PostgreSQL to be ready
+  - name: wait-postgres
+    inputs:
+      parameters:
+      - name: host
+        value: "postgres-apps-rw.postgres.svc.cluster.local"
+      - name: port
+        value: "5432"
+    container:
+      image: busybox:latest
+      command:
+      - sh
+      - -c
+      - |
+        echo "Waiting for PostgreSQL at {{inputs.parameters.host}}:{{inputs.parameters.port}}..."
+        until nc -z {{inputs.parameters.host}} {{inputs.parameters.port}}; do
+          echo "PostgreSQL is not ready yet..."
+          sleep 5
+        done
+        echo "PostgreSQL is ready!"
+
+  # Check if database exists
+  - name: check-database-exists
+    inputs:
+      parameters:
+      - name: host
+      - name: database
+      - name: superuser-secret
+        value: "postgres-superuser"
+    container:
+      image: postgres:16-alpine
+      env:
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.superuser-secret}}"
+            key: password
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.superuser-secret}}"
+            key: username
+      command:
+      - sh
+      - -c
+      - |
+        if psql -h {{inputs.parameters.host}} -U "$POSTGRES_USER" -tc "SELECT 1 FROM pg_database WHERE datname = '{{inputs.parameters.database}}'" | grep -q 1; then
+          echo "exists" > /tmp/result
+        else
+          echo "not-exists" > /tmp/result
+        fi
+        cat /tmp/result
+    outputs:
+      parameters:
+      - name: exists
+        valueFrom:
+          path: /tmp/result
+
+  # Create database with user
+  - name: create-database-and-user
+    inputs:
+      parameters:
+      - name: host
+      - name: database
+      - name: username
+      - name: password
+      - name: superuser-secret
+        value: "postgres-superuser"
+    container:
+      image: postgres:16-alpine
+      env:
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.superuser-secret}}"
+            key: password
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.superuser-secret}}"
+            key: username
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Creating database {{inputs.parameters.database}} and user {{inputs.parameters.username}}..."
+        psql -h {{inputs.parameters.host}} -U "$POSTGRES_USER" <<EOF
+        CREATE USER {{inputs.parameters.username}} WITH PASSWORD '{{inputs.parameters.password}}';
+        CREATE DATABASE {{inputs.parameters.database}} OWNER {{inputs.parameters.username}};
+        GRANT ALL PRIVILEGES ON DATABASE {{inputs.parameters.database}} TO {{inputs.parameters.username}};
+        \c {{inputs.parameters.database}}
+        GRANT ALL ON SCHEMA public TO {{inputs.parameters.username}};
+        EOF
+        echo "Database setup completed!"
+
+  # Execute custom SQL
+  - name: execute-sql
+    inputs:
+      parameters:
+      - name: host
+      - name: database
+      - name: sql
+      - name: user-secret
+    container:
+      image: postgres:16-alpine
+      env:
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.user-secret}}"
+            key: password
+      - name: PGUSER
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.user-secret}}"
+            key: username
+      command:
+      - sh
+      - -c
+      - |
+        psql -h {{inputs.parameters.host}} -d {{inputs.parameters.database}} <<EOF
+        {{inputs.parameters.sql}}
+        EOF

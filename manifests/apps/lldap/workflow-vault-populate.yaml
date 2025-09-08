@@ -1,0 +1,121 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: lldap-vault-populate
+  namespace: lldap
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  entrypoint: populate-secrets
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: populate-secrets
+    dag:
+      tasks:
+      - name: wait-vault
+        templateRef:
+          name: vault-operations
+          template: wait-vault-ready
+      
+      - name: check-lldap-secret
+        dependencies: [wait-vault]
+        templateRef:
+          name: vault-operations
+          template: check-secret-exists
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/lldap"
+      
+      - name: generate-passwords
+        dependencies: [check-lldap-secret]
+        when: "'{{tasks.check-lldap-secret.outputs.parameters.exists}}' == 'not-exists'"
+        dag:
+          tasks:
+          - name: jwt-secret
+            templateRef:
+              name: vault-operations
+              template: generate-password
+            arguments:
+              parameters:
+              - name: length
+                value: "32"
+          
+          - name: user-pass
+            templateRef:
+              name: vault-operations
+              template: generate-password
+            arguments:
+              parameters:
+              - name: length
+                value: "16"
+          
+          - name: ldap-pass
+            templateRef:
+              name: vault-operations
+              template: generate-password
+            arguments:
+              parameters:
+              - name: length
+                value: "16"
+      
+      - name: create-lldap-secret
+        dependencies: [generate-passwords]
+        when: "'{{tasks.check-lldap-secret.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: vault-operations
+          template: populate-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/lldap"
+          - name: secret-data
+            value: |
+              {
+                "LLDAP_JWT_SECRET": "{{tasks.generate-passwords.tasks.jwt-secret.outputs.parameters.password}}",
+                "LLDAP_USER_PASS": "{{tasks.generate-passwords.tasks.user-pass.outputs.parameters.password}}",
+                "LLDAP_LDAP_USER_PASS": "{{tasks.generate-passwords.tasks.ldap-pass.outputs.parameters.password}}",
+                "LLDAP_LDAP_BASE_DN": "dc=daddyshome,dc=fr",
+                "LLDAP_HTTP_URL": "http://lldap.lldap.svc.cluster.local:17170"
+              }
+      
+      - name: check-db-secret
+        dependencies: [wait-vault]
+        templateRef:
+          name: vault-operations
+          template: check-secret-exists
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/lldap-db"
+      
+      - name: generate-db-password
+        dependencies: [check-db-secret]
+        when: "'{{tasks.check-db-secret.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: vault-operations
+          template: generate-password
+        arguments:
+          parameters:
+          - name: length
+            value: "24"
+      
+      - name: create-db-secret
+        dependencies: [generate-db-password]
+        when: "'{{tasks.check-db-secret.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: vault-operations
+          template: populate-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/lldap-db"
+          - name: secret-data
+            value: |
+              {
+                "password": "{{tasks.generate-db-password.outputs.parameters.password}}",
+                "database_url": "postgres://lldap:{{tasks.generate-db-password.outputs.parameters.password}}@postgres-apps-rw.postgres.svc.cluster.local/lldap"
+              }

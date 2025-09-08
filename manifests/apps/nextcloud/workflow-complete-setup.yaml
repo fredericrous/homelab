@@ -1,0 +1,256 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: nextcloud-complete-setup
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  entrypoint: complete-setup
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: complete-setup
+    dag:
+      tasks:
+      # Pre-sync tasks
+      - name: populate-vault-secrets
+        template: vault-populate
+      
+      - name: setup-database
+        dependencies: [populate-vault-secrets]
+        template: database-setup
+      
+      # Wait for deployment
+      - name: wait-nextcloud
+        dependencies: [setup-database]
+        templateRef:
+          name: application-setup
+          template: wait-deployment-ready
+        arguments:
+          parameters:
+          - name: namespace
+            value: "nextcloud"
+          - name: deployment-name
+            value: "nextcloud"
+          - name: service-name
+            value: "nextcloud"
+      
+      # Initial setup
+      - name: initial-setup
+        dependencies: [wait-nextcloud]
+        template: initial-configuration
+      
+      # Post-sync configurations
+      - name: configure-utf8
+        dependencies: [initial-setup]
+        template: configure-utf8-support
+      
+      - name: configure-storage
+        dependencies: [initial-setup]
+        template: configure-local-storage
+      
+      - name: fix-permissions
+        dependencies: [configure-utf8, configure-storage]
+        template: fix-file-permissions
+      
+      - name: final-configuration
+        dependencies: [fix-permissions]
+        template: apply-final-config
+  
+  # Vault populate
+  - name: vault-populate
+    dag:
+      tasks:
+      - name: wait-vault
+        templateRef:
+          name: vault-operations
+          template: wait-vault-ready
+      
+      - name: check-admin-secret
+        dependencies: [wait-vault]
+        templateRef:
+          name: vault-operations
+          template: check-secret-exists
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/nextcloud/admin"
+      
+      - name: generate-admin-password
+        dependencies: [check-admin-secret]
+        when: "'{{tasks.check-admin-secret.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: vault-operations
+          template: generate-password
+        arguments:
+          parameters:
+          - name: length
+            value: "24"
+      
+      - name: create-admin-secret
+        dependencies: [generate-admin-password]
+        when: "'{{tasks.check-admin-secret.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: vault-operations
+          template: populate-secret
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "secret/nextcloud/admin"
+          - name: secret-data
+            value: |
+              {
+                "username": "admin",
+                "password": "{{tasks.generate-admin-password.outputs.parameters.password}}"
+              }
+  
+  # Database setup
+  - name: database-setup
+    dag:
+      tasks:
+      - name: wait-postgres
+        templateRef:
+          name: database-operations
+          template: wait-postgres
+      
+      - name: check-database
+        dependencies: [wait-postgres]
+        templateRef:
+          name: database-operations
+          template: check-database-exists
+        arguments:
+          parameters:
+          - name: host
+            value: "postgres-apps-rw.postgres.svc.cluster.local"
+          - name: database
+            value: "nextcloud"
+      
+      - name: create-database
+        dependencies: [check-database]
+        when: "'{{tasks.check-database.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: database-operations
+          template: create-database-and-user
+        arguments:
+          parameters:
+          - name: host
+            value: "postgres-apps-rw.postgres.svc.cluster.local"
+          - name: database
+            value: "nextcloud"
+          - name: username
+            value: "nextcloud"
+          - name: password
+            value: "{{workflow.parameters.db-password}}"
+  
+  # Initial configuration
+  - name: initial-configuration
+    container:
+      image: bitnami/kubectl:1.28
+      env:
+      - name: ADMIN_USER
+        valueFrom:
+          secretKeyRef:
+            name: nextcloud-admin
+            key: username
+      - name: ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: nextcloud-admin
+            key: password
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        POD=$(kubectl get pods -n nextcloud -l app.kubernetes.io/name=nextcloud -o jsonpath='{.items[0].metadata.name}')
+        
+        echo "Checking if Nextcloud is already installed..."
+        if kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ status" | grep -q "installed: true"; then
+          echo "Nextcloud is already installed"
+        else
+          echo "Installing Nextcloud..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ maintenance:install \
+            --database=pgsql \
+            --database-host=postgres-apps-rw.postgres.svc.cluster.local \
+            --database-name=nextcloud \
+            --database-user=nextcloud \
+            --database-pass=$DB_PASSWORD \
+            --admin-user=$ADMIN_USER \
+            --admin-pass=$ADMIN_PASSWORD \
+            --data-dir=/var/www/html/data"
+        fi
+      env:
+      - name: DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: nextcloud-db
+            key: password
+  
+  # Configure UTF8
+  - name: configure-utf8-support
+    templateRef:
+      name: application-setup
+      template: nextcloud-occ
+    arguments:
+      parameters:
+      - name: occ-command
+        value: "config:system:set mysql.utf8mb4 --type=boolean --value=true"
+  
+  # Configure local storage
+  - name: configure-local-storage
+    container:
+      image: bitnami/kubectl:1.28
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        POD=$(kubectl get pods -n nextcloud -l app.kubernetes.io/name=nextcloud -o jsonpath='{.items[0].metadata.name}')
+        
+        # Check if external storage app is enabled
+        if ! kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ app:list" | grep -q "files_external:"; then
+          echo "Enabling external storage app..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ app:enable files_external"
+        fi
+        
+        # Configure external storage
+        kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ files_external:create \
+          -c datadir=/media \
+          'Media' local null::null || echo 'Storage might already exist'"
+  
+  # Fix permissions
+  - name: fix-file-permissions
+    templateRef:
+      name: application-setup
+      template: fix-permissions
+    arguments:
+      parameters:
+      - name: namespace
+        value: "nextcloud"
+      - name: pod-selector
+        value: "app.kubernetes.io/name=nextcloud"
+      - name: path
+        value: "/var/www/html"
+      - name: user
+        value: "www-data"
+      - name: group
+        value: "www-data"
+  
+  # Final configuration
+  - name: apply-final-config
+    templateRef:
+      name: application-setup
+      template: nextcloud-occ
+    arguments:
+      parameters:
+      - name: occ-command
+        value: "config:system:set trusted_domains 1 --value=nextcloud.daddyshome.fr"
+  
+  parameters:
+  - name: db-password
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-db
+        key: password

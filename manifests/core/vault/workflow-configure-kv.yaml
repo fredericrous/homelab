@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: vault-configure-kv
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  entrypoint: configure-kv
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: configure-kv
+    dag:
+      tasks:
+      - name: wait-vault
+        templateRef:
+          name: vault-operations
+          template: wait-vault-ready
+      
+      - name: enable-kv
+        dependencies: [wait-vault]
+        container:
+          image: hashicorp/vault:1.20.1
+          env:
+          - name: VAULT_ADDR
+            value: "http://vault.vault.svc.cluster.local:8200"
+          - name: VAULT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: vault-admin-token
+                key: token
+          command:
+          - sh
+          - -c
+          - |
+            set -e
+            echo "Checking if KV secrets engine is enabled..."
+            
+            if ! vault secrets list | grep -q "^secret/"; then
+              echo "Enabling KV v2 secrets engine..."
+              vault secrets enable -path=secret -version=2 kv
+            else
+              echo "KV secrets engine already enabled"
+            fi
+            
+            # Configure KV settings
+            vault kv metadata put -mount=secret -max-versions=5 -delete-version-after="30d" / || true

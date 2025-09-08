@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: authelia-database-cleanup
+  namespace: authelia
+spec:
+  entrypoint: cleanup-database
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: cleanup-database
+    dag:
+      tasks:
+      - name: wait-postgres
+        templateRef:
+          name: database-operations
+          template: wait-postgres
+      
+      - name: cleanup-sessions
+        dependencies: [wait-postgres]
+        templateRef:
+          name: database-operations
+          template: execute-sql
+        arguments:
+          parameters:
+          - name: host
+            value: "postgres-apps-rw.postgres.svc.cluster.local"
+          - name: database
+            value: "authelia"
+          - name: user-secret
+            value: "authelia-db-secret"
+          - name: sql
+            value: |
+              -- Clean up old authentication attempts
+              DELETE FROM authentication_attempts WHERE datetime < NOW() - INTERVAL '30 days';
+              
+              -- Clean up expired sessions
+              DELETE FROM user_sessions WHERE expiration < NOW();
+              
+              -- Clean up old TOTP secrets that were never confirmed
+              DELETE FROM totp_configurations WHERE confirmed = false AND created_at < NOW() - INTERVAL '7 days';
+              
+              -- Vacuum to reclaim space
+              VACUUM ANALYZE;

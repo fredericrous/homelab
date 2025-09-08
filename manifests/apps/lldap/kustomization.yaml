@@ -7,8 +7,12 @@ resources:
   # App-specific resources
   - namespace.yaml
   - serviceaccount.yaml
-  - job-vault-populate-lldap.yaml
-  - job-reset-admin-password.yaml
+  # Argo Workflows
+  - argo-workflow-rbac.yaml
+  - workflow-vault-populate.yaml
+  - workflow-database-setup.yaml
+  # - job-vault-populate-lldap.yaml  # Replaced by workflow-vault-populate.yaml
+  # - job-reset-admin-password.yaml  # Replaced by workflow (if needed)
   - pvc.yaml
   - lldap-secrets-eso.yaml  # ESO resource for LLDAP secrets
   - ovh-credentials-eso.yaml  # ESO resource for OVH credentials

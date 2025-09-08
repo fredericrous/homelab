@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: lldap-database-setup
+  namespace: lldap
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  entrypoint: setup-database
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: setup-database
+    dag:
+      tasks:
+      - name: wait-postgres
+        templateRef:
+          name: database-operations
+          template: wait-postgres
+        arguments:
+          parameters:
+          - name: host
+            value: "postgres-apps-rw.postgres.svc.cluster.local"
+      
+      - name: check-database
+        dependencies: [wait-postgres]
+        templateRef:
+          name: database-operations
+          template: check-database-exists
+        arguments:
+          parameters:
+          - name: host
+            value: "postgres-apps-rw.postgres.svc.cluster.local"
+          - name: database
+            value: "lldap"
+      
+      - name: create-database
+        dependencies: [check-database]
+        when: "'{{tasks.check-database.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: database-operations
+          template: create-database-and-user
+        arguments:
+          parameters:
+          - name: host
+            value: "postgres-apps-rw.postgres.svc.cluster.local"
+          - name: database
+            value: "lldap"
+          - name: username
+            value: "lldap"
+          - name: password
+            value: "{{workflow.parameters.db-password}}"
+  
+  parameters:
+  - name: db-password
+    valueFrom:
+      secretKeyRef:
+        name: lldap-db-secret
+        key: password

@@ -1,0 +1,186 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: vault-operations
+  namespace: argo-workflows
+spec:
+  templates:
+  # Wait for Vault to be ready and unsealed
+  - name: wait-vault-ready
+    inputs:
+      parameters:
+      - name: vault-addr
+        value: "http://vault.vault.svc.cluster.local:8200"
+    container:
+      image: curlimages/curl:latest
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Waiting for Vault at {{inputs.parameters.vault-addr}}..."
+        until curl -sf {{inputs.parameters.vault-addr}}/v1/sys/health | grep -q "initialized"; do
+          echo "Waiting for Vault to be initialized..."
+          sleep 5
+        done
+        echo "Vault is ready!"
+
+  # Check if secret exists in Vault
+  - name: check-secret-exists
+    inputs:
+      parameters:
+      - name: vault-addr
+        value: "http://vault.vault.svc.cluster.local:8200"
+      - name: secret-path
+      - name: token-secret
+        value: "vault-admin-token"
+    container:
+      image: hashicorp/vault:1.20.1
+      env:
+      - name: VAULT_ADDR
+        value: "{{inputs.parameters.vault-addr}}"
+      - name: VAULT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.token-secret}}"
+            key: token
+      command:
+      - sh
+      - -c
+      - |
+        if vault kv get "{{inputs.parameters.secret-path}}" >/dev/null 2>&1; then
+          echo "exists" > /tmp/result
+        else
+          echo "not-exists" > /tmp/result
+        fi
+        cat /tmp/result
+    outputs:
+      parameters:
+      - name: exists
+        valueFrom:
+          path: /tmp/result
+
+  # Populate secret in Vault
+  - name: populate-secret
+    inputs:
+      parameters:
+      - name: vault-addr
+        value: "http://vault.vault.svc.cluster.local:8200"
+      - name: secret-path
+      - name: secret-data  # JSON string of key-value pairs
+      - name: token-secret
+        value: "vault-admin-token"
+    container:
+      image: hashicorp/vault:1.20.1
+      env:
+      - name: VAULT_ADDR
+        value: "{{inputs.parameters.vault-addr}}"
+      - name: VAULT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.token-secret}}"
+            key: token
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Creating secret at {{inputs.parameters.secret-path}}..."
+        echo '{{inputs.parameters.secret-data}}' | vault kv put {{inputs.parameters.secret-path}} -
+
+  # Configure Vault policy
+  - name: configure-policy
+    inputs:
+      parameters:
+      - name: vault-addr
+        value: "http://vault.vault.svc.cluster.local:8200"
+      - name: policy-name
+      - name: policy-hcl
+      - name: token-secret
+        value: "vault-admin-token"
+    container:
+      image: hashicorp/vault:1.20.1
+      env:
+      - name: VAULT_ADDR
+        value: "{{inputs.parameters.vault-addr}}"
+      - name: VAULT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.token-secret}}"
+            key: token
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Configuring policy {{inputs.parameters.policy-name}}..."
+        cat <<'EOF' > /tmp/policy.hcl
+        {{inputs.parameters.policy-hcl}}
+        EOF
+        vault policy write {{inputs.parameters.policy-name}} /tmp/policy.hcl
+
+  # Configure Kubernetes auth
+  - name: configure-k8s-auth
+    inputs:
+      parameters:
+      - name: vault-addr
+        value: "http://vault.vault.svc.cluster.local:8200"
+      - name: auth-path
+        value: "kubernetes"
+      - name: role-name
+      - name: service-account
+      - name: namespace
+      - name: policies
+      - name: token-secret
+        value: "vault-admin-token"
+    container:
+      image: hashicorp/vault:1.20.1
+      env:
+      - name: VAULT_ADDR
+        value: "{{inputs.parameters.vault-addr}}"
+      - name: VAULT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.token-secret}}"
+            key: token
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Configuring Kubernetes auth role {{inputs.parameters.role-name}}..."
+        
+        # Ensure auth method is enabled
+        vault auth list | grep -q "^{{inputs.parameters.auth-path}}/" || \
+          vault auth enable -path={{inputs.parameters.auth-path}} kubernetes
+        
+        # Configure the auth method if not already done
+        if ! vault read auth/{{inputs.parameters.auth-path}}/config >/dev/null 2>&1; then
+          vault write auth/{{inputs.parameters.auth-path}}/config \
+            kubernetes_host="https://kubernetes.default.svc" \
+            kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        fi
+        
+        # Create/update role
+        vault write auth/{{inputs.parameters.auth-path}}/role/{{inputs.parameters.role-name}} \
+          bound_service_account_names={{inputs.parameters.service-account}} \
+          bound_service_account_namespaces={{inputs.parameters.namespace}} \
+          policies={{inputs.parameters.policies}} \
+          ttl=1h
+
+  # Generate random password
+  - name: generate-password
+    inputs:
+      parameters:
+      - name: length
+        value: "16"
+    script:
+      image: alpine:latest
+      command: [sh]
+      source: |
+        cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w {{inputs.parameters.length}} | head -n 1 > /tmp/password
+    outputs:
+      parameters:
+      - name: password
+        valueFrom:
+          path: /tmp/password

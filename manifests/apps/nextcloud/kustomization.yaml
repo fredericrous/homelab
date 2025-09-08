@@ -21,14 +21,17 @@ resources:
   - ingress-mobile.yaml
   # Database initialization (idempotent - safe to run multiple times)
   - postgres-superuser-externalsecret.yaml
-  # ArgoCD Sync Hooks
+  # Argo Workflow for complete setup
+  - argo-workflow-rbac.yaml
+  - workflow-complete-setup.yaml
+  # Old ArgoCD Sync Hook Jobs - replaced by workflow-complete-setup.yaml
   # - job-presync-vault-setup.yaml  # Obsolete with ESO/VSO
-  - job-presync-database.yaml
-  - job-initial-setup.yaml
-  - job-postsync-fix-permissions.yaml
-  - job-configure-local-external-storage.yaml
-  - job-configure-utf8-support.yaml
-  - job-postsync-configure.yaml
+  # - job-presync-database.yaml
+  # - job-initial-setup.yaml
+  # - job-postsync-fix-permissions.yaml
+  # - job-configure-local-external-storage.yaml
+  # - job-configure-utf8-support.yaml
+  # - job-postsync-configure.yaml
 
 # Patches
 patches:

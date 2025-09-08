@@ -1,0 +1,148 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: minio-configure-lifecycle
+  namespace: minio
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  entrypoint: configure-lifecycle
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: configure-lifecycle
+    dag:
+      tasks:
+      - name: wait-minio
+        template: wait-for-minio
+      
+      - name: check-buckets
+        dependencies: [wait-minio]
+        template: check-bucket-exists
+      
+      - name: create-buckets
+        dependencies: [check-buckets]
+        when: "'{{tasks.check-buckets.outputs.parameters.exists}}' == 'not-exists'"
+        template: create-bucket
+      
+      - name: configure-lifecycle-rules
+        dependencies: [create-buckets]
+        template: apply-lifecycle-rules
+  
+  - name: wait-for-minio
+    container:
+      image: minio/mc:latest
+      env:
+      - name: MINIO_ROOT_USER
+        valueFrom:
+          secretKeyRef:
+            name: minio-credentials
+            key: root-user
+      - name: MINIO_ROOT_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: minio-credentials
+            key: root-password
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Waiting for MinIO to be ready..."
+        until mc alias set myminio http://minio.minio.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+          echo "MinIO is not ready yet..."
+          sleep 5
+        done
+        echo "MinIO is ready!"
+  
+  - name: check-bucket-exists
+    container:
+      image: minio/mc:latest
+      env:
+      - name: MINIO_ROOT_USER
+        valueFrom:
+          secretKeyRef:
+            name: minio-credentials
+            key: root-user
+      - name: MINIO_ROOT_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: minio-credentials
+            key: root-password
+      command:
+      - sh
+      - -c
+      - |
+        mc alias set myminio http://minio.minio.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+        if mc ls myminio/velero >/dev/null 2>&1; then
+          echo "exists" > /tmp/result
+        else
+          echo "not-exists" > /tmp/result
+        fi
+        cat /tmp/result
+    outputs:
+      parameters:
+      - name: exists
+        valueFrom:
+          path: /tmp/result
+  
+  - name: create-bucket
+    container:
+      image: minio/mc:latest
+      env:
+      - name: MINIO_ROOT_USER
+        valueFrom:
+          secretKeyRef:
+            name: minio-credentials
+            key: root-user
+      - name: MINIO_ROOT_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: minio-credentials
+            key: root-password
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        mc alias set myminio http://minio.minio.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+        
+        # Create buckets
+        mc mb myminio/velero
+        mc mb myminio/harbor
+        mc mb myminio/loki
+        
+        echo "Buckets created successfully"
+  
+  - name: apply-lifecycle-rules
+    container:
+      image: minio/mc:latest
+      env:
+      - name: MINIO_ROOT_USER
+        valueFrom:
+          secretKeyRef:
+            name: minio-credentials
+            key: root-user
+      - name: MINIO_ROOT_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: minio-credentials
+            key: root-password
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        mc alias set myminio http://minio.minio.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+        
+        # Configure lifecycle for Velero backups (30 days)
+        mc ilm rule add myminio/velero --expire-days 30 --prefix "backups/"
+        
+        # Configure lifecycle for Harbor artifacts (7 days for untagged)
+        mc ilm rule add myminio/harbor --expire-days 7 --prefix "docker/registry/v2/blobs/"
+        
+        # Configure lifecycle for Loki logs (14 days)
+        mc ilm rule add myminio/loki --expire-days 14
+        
+        echo "Lifecycle rules configured successfully"

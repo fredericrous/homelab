@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: argo
+namespace: argo-workflows
 
 resources:
   - namespace.yaml
@@ -10,19 +10,30 @@ resources:
   - argo-vault-populate-job.yaml
   - argo-db-init-job.yaml
   - workflow-template-vault-populate.yaml
+  
+  # Include workflow templates from base
+  - ../../base/argo-workflows/workflow-templates
 
 helmCharts:
 - name: argo-workflows
   repo: https://argoproj.github.io/argo-helm
   version: 0.45.2
   releaseName: argo-workflows
-  namespace: argo
+  namespace: argo-workflows
   valuesInline:
     # Controller configuration
     controller:
       # Namespaces where workflows can be created
       workflowNamespaces:
-        - argo
+        - argo-workflows
+        - authelia
+        - lldap
+        - plex
+        - nextcloud
+        - vault
+        - velero
+        - rook-ceph
+        - postgres
         - stremio
         - harbor
       # Enable leader election for HA

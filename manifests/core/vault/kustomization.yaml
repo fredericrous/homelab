@@ -36,12 +36,16 @@ resources:
   - rbac-vault-config-role.yaml
   - rbac-vault-secret-manager.yaml
   - vault-transit-token-secret-placeholder.yaml  # Placeholder to prevent ArgoCD from pruning the secret
-  - job-vault-configure-kv.yaml  # Enable KV secret engine
-  - vault-configure-argocd-job.yaml  # Configure Vault for ArgoCD after initialization
-  - job-configure-app-ovh-access.yaml  # Configure OVH access for apps
-  - job-configure-cert-manager-vault-access.yaml  # Configure cert-manager Vault access
-  - job-vault-populate-secrets.yaml  # Populate initial secrets
-  - job-vault-validate.yaml  # Validate complete setup
+  # Argo Workflows
+  - argo-workflow-rbac.yaml
+  - workflow-configure-kv.yaml  # Enable KV secret engine
+  - workflow-configure-eso.yaml  # Configure ESO authentication
+  # - job-vault-configure-kv.yaml  # Replaced by workflow-configure-kv.yaml
+  # - vault-configure-argocd-job.yaml  # Replaced by workflow
+  # - job-configure-app-ovh-access.yaml  # Replaced by workflow
+  # - job-configure-cert-manager-vault-access.yaml  # Replaced by workflow
+  # - job-vault-populate-secrets.yaml  # Replaced by app-specific workflows
+  # - job-vault-validate.yaml  # Can be added to workflow if needed
   - vault-transit-unseal.yaml  # VaultTransitUnseal custom resource
   # vault-pvc.yaml is duplicate of vault-storage.yaml
 

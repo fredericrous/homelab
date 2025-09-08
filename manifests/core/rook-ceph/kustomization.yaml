@@ -5,6 +5,10 @@ namespace: rook-ceph
 
 resources:
 - namespace.yaml
+# Argo Workflow
+- argo-workflow-rbac.yaml
+- workflow-fix-pool-size.yaml
+# - fix-pool-size.yaml  # Replaced by workflow-fix-pool-size.yaml
 
 helmCharts:
 - name: rook-ceph

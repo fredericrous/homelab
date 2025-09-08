@@ -1,0 +1,92 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: rook-ceph-fix-pool-size
+  namespace: rook-ceph
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  entrypoint: fix-pool-size
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: fix-pool-size
+    dag:
+      tasks:
+      - name: wait-ceph-tools
+        template: wait-for-ceph-tools
+      
+      - name: check-pools
+        dependencies: [wait-ceph-tools]
+        template: check-pool-configuration
+      
+      - name: fix-replication
+        dependencies: [check-pools]
+        when: "'{{tasks.check-pools.outputs.parameters.needs-fix}}' == 'true'"
+        template: fix-pool-replication
+  
+  - name: wait-for-ceph-tools
+    container:
+      image: bitnami/kubectl:1.28
+      command:
+      - sh
+      - -c
+      - |
+        echo "Waiting for Ceph tools pod to be ready..."
+        kubectl wait --for=condition=ready pod -l app=rook-ceph-tools -n rook-ceph --timeout=300s
+  
+  - name: check-pool-configuration
+    container:
+      image: bitnami/kubectl:1.28
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        TOOLS_POD=$(kubectl get pod -n rook-ceph -l app=rook-ceph-tools -o jsonpath='{.items[0].metadata.name}')
+        
+        echo "Checking pool configuration..."
+        POOLS=$(kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool ls)
+        
+        NEEDS_FIX="false"
+        for pool in $POOLS; do
+          SIZE=$(kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool get $pool size | awk '{print $2}')
+          MIN_SIZE=$(kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool get $pool min_size | awk '{print $2}')
+          
+          if [ "$SIZE" -gt 2 ] || [ "$MIN_SIZE" -gt 1 ]; then
+            echo "Pool $pool needs adjustment: size=$SIZE, min_size=$MIN_SIZE"
+            NEEDS_FIX="true"
+          fi
+        done
+        
+        echo "$NEEDS_FIX" > /tmp/needs-fix
+    outputs:
+      parameters:
+      - name: needs-fix
+        valueFrom:
+          path: /tmp/needs-fix
+  
+  - name: fix-pool-replication
+    container:
+      image: bitnami/kubectl:1.28
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        TOOLS_POD=$(kubectl get pod -n rook-ceph -l app=rook-ceph-tools -o jsonpath='{.items[0].metadata.name}')
+        
+        echo "Fixing pool replication settings..."
+        POOLS=$(kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool ls)
+        
+        for pool in $POOLS; do
+          echo "Adjusting pool: $pool"
+          kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool set $pool size 2
+          kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool set $pool min_size 1
+          
+          # Also set failure domain to host for better distribution
+          kubectl exec -n rook-ceph $TOOLS_POD -- ceph osd pool set $pool crush_rule replicated_rule || true
+        done
+        
+        echo "Pool configuration fixed!"

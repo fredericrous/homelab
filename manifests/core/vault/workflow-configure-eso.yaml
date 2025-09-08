@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: vault-configure-eso
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  entrypoint: configure-eso
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: configure-eso
+    dag:
+      tasks:
+      - name: wait-vault
+        templateRef:
+          name: vault-operations
+          template: wait-vault-ready
+      
+      - name: configure-policy
+        dependencies: [wait-vault]
+        templateRef:
+          name: vault-operations
+          template: configure-policy
+        arguments:
+          parameters:
+          - name: policy-name
+            value: "external-secrets-operator"
+          - name: policy-hcl
+            value: |
+              # Read all secrets
+              path "secret/data/*" {
+                capabilities = ["read", "list"]
+              }
+              
+              path "secret/metadata/*" {
+                capabilities = ["read", "list"]
+              }
+              
+              # Auth token lookup
+              path "auth/token/lookup-self" {
+                capabilities = ["read"]
+              }
+      
+      - name: configure-auth
+        dependencies: [configure-policy]
+        templateRef:
+          name: vault-operations
+          template: configure-k8s-auth
+        arguments:
+          parameters:
+          - name: role-name
+            value: "external-secrets-operator"
+          - name: service-account
+            value: "external-secrets-operator"
+          - name: namespace
+            value: "external-secrets-operator"
+          - name: policies
+            value: "external-secrets-operator"

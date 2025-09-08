@@ -1,0 +1,121 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: cloudnative-pg-init-databases
+  namespace: postgres
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  entrypoint: init-all-databases
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: init-all-databases
+    dag:
+      tasks:
+      - name: wait-postgres
+        templateRef:
+          name: database-operations
+          template: wait-postgres
+      
+      # Create multiple databases in parallel
+      - name: create-nextcloud-db
+        dependencies: [wait-postgres]
+        template: create-app-database
+        arguments:
+          parameters:
+          - name: database
+            value: "nextcloud"
+          - name: username
+            value: "nextcloud"
+          - name: password-secret
+            value: "nextcloud-db-secret"
+      
+      - name: create-authelia-db
+        dependencies: [wait-postgres]
+        template: create-app-database
+        arguments:
+          parameters:
+          - name: database
+            value: "authelia"
+          - name: username
+            value: "authelia"
+          - name: password-secret
+            value: "authelia-db-secret"
+      
+      - name: create-lldap-db
+        dependencies: [wait-postgres]
+        template: create-app-database
+        arguments:
+          parameters:
+          - name: database
+            value: "lldap"
+          - name: username
+            value: "lldap"
+          - name: password-secret
+            value: "lldap-db-secret"
+      
+      - name: create-harbor-db
+        dependencies: [wait-postgres]
+        template: create-app-database
+        arguments:
+          parameters:
+          - name: database
+            value: "harbor"
+          - name: username
+            value: "harbor"
+          - name: password-secret
+            value: "harbor-database-secret"
+  
+  - name: create-app-database
+    inputs:
+      parameters:
+      - name: database
+      - name: username
+      - name: password-secret
+    dag:
+      tasks:
+      - name: check-database
+        templateRef:
+          name: database-operations
+          template: check-database-exists
+        arguments:
+          parameters:
+          - name: host
+            value: "postgres-apps-rw.postgres.svc.cluster.local"
+          - name: database
+            value: "{{inputs.parameters.database}}"
+      
+      - name: get-password
+        dependencies: [check-database]
+        when: "'{{tasks.check-database.outputs.parameters.exists}}' == 'not-exists'"
+        container:
+          image: bitnami/kubectl:1.28
+          command:
+          - sh
+          - -c
+          - |
+            kubectl get secret {{inputs.parameters.password-secret}} -n {{inputs.parameters.database}} -o jsonpath='{.data.password}' | base64 -d > /tmp/password
+        outputs:
+          parameters:
+          - name: password
+            valueFrom:
+              path: /tmp/password
+      
+      - name: create-database
+        dependencies: [get-password]
+        when: "'{{tasks.check-database.outputs.parameters.exists}}' == 'not-exists'"
+        templateRef:
+          name: database-operations
+          template: create-database-and-user
+        arguments:
+          parameters:
+          - name: host
+            value: "postgres-apps-rw.postgres.svc.cluster.local"
+          - name: database
+            value: "{{inputs.parameters.database}}"
+          - name: username
+            value: "{{inputs.parameters.username}}"
+          - name: password
+            value: "{{tasks.get-password.outputs.parameters.password}}"

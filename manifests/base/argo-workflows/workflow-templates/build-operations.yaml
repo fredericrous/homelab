@@ -1,0 +1,192 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: build-operations
+  namespace: argo-workflows
+spec:
+  templates:
+  # Check if container image exists in registry
+  - name: check-image-exists
+    inputs:
+      parameters:
+      - name: registry
+      - name: image
+      - name: tag
+      - name: registry-secret
+        value: "harbor-registry-secret"
+    container:
+      image: curlimages/curl:latest
+      env:
+      - name: REGISTRY_USER
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.registry-secret}}"
+            key: username
+      - name: REGISTRY_PASS
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.registry-secret}}"
+            key: password
+      command:
+      - sh
+      - -c
+      - |
+        AUTH=$(echo -n "$REGISTRY_USER:$REGISTRY_PASS" | base64)
+        URL="{{inputs.parameters.registry}}/v2/{{inputs.parameters.image}}/manifests/{{inputs.parameters.tag}}"
+        
+        if curl -sf -H "Authorization: Basic $AUTH" "$URL" >/dev/null; then
+          echo "found" > /tmp/result
+        else
+          echo "not-found" > /tmp/result
+        fi
+        cat /tmp/result
+    outputs:
+      parameters:
+      - name: result
+        valueFrom:
+          path: /tmp/result
+
+  # Build container image with Buildkit
+  - name: buildkit-build
+    inputs:
+      parameters:
+      - name: context-url
+      - name: dockerfile
+        value: "Dockerfile"
+      - name: image
+      - name: registry
+      - name: build-args
+        value: ""
+      - name: registry-secret
+        value: "harbor-registry-secret"
+    volumes:
+    - name: registry-auth
+      secret:
+        secretName: "{{inputs.parameters.registry-secret}}"
+    container:
+      image: moby/buildkit:master
+      privileged: true
+      env:
+      - name: BUILDKITD_FLAGS
+        value: "--oci-worker-no-process-sandbox"
+      volumeMounts:
+      - name: registry-auth
+        mountPath: /registry-auth
+        readOnly: true
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        
+        # Start buildkitd
+        buildkitd &
+        BUILDKITD_PID=$!
+        
+        # Wait for buildkitd to be ready
+        sleep 5
+        
+        # Setup registry auth
+        mkdir -p ~/.docker
+        cat > ~/.docker/config.json <<EOF
+        {
+          "auths": {
+            "{{inputs.parameters.registry}}": {
+              "username": "$(cat /registry-auth/username)",
+              "password": "$(cat /registry-auth/password)"
+            }
+          }
+        }
+        EOF
+        
+        # Build and push image
+        BUILD_ARGS=""
+        if [ -n "{{inputs.parameters.build-args}}" ]; then
+          BUILD_ARGS="{{inputs.parameters.build-args}}"
+        fi
+        
+        buildctl build \
+          --frontend dockerfile.v0 \
+          --local context={{inputs.parameters.context-url}} \
+          --local dockerfile={{inputs.parameters.context-url}} \
+          --opt filename={{inputs.parameters.dockerfile}} \
+          --output type=image,name={{inputs.parameters.registry}}/{{inputs.parameters.image}},push=true \
+          $BUILD_ARGS
+        
+        # Cleanup
+        kill $BUILDKITD_PID
+
+  # Copy files between volumes
+  - name: copy-files
+    inputs:
+      parameters:
+      - name: source-pvc
+      - name: source-path
+      - name: dest-pvc
+      - name: dest-path
+      - name: namespace
+    volumes:
+    - name: source
+      persistentVolumeClaim:
+        claimName: "{{inputs.parameters.source-pvc}}"
+    - name: dest
+      persistentVolumeClaim:
+        claimName: "{{inputs.parameters.dest-pvc}}"
+    container:
+      image: busybox:latest
+      volumeMounts:
+      - name: source
+        mountPath: /source
+        readOnly: true
+      - name: dest
+        mountPath: /dest
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Copying from {{inputs.parameters.source-path}} to {{inputs.parameters.dest-path}}..."
+        
+        # Create destination directory if needed
+        mkdir -p "$(dirname /dest/{{inputs.parameters.dest-path}})"
+        
+        # Copy files
+        cp -r /source/{{inputs.parameters.source-path}} /dest/{{inputs.parameters.dest-path}}
+        
+        echo "Copy completed!"
+
+  # Pull and extract container image
+  - name: extract-image
+    inputs:
+      parameters:
+      - name: image
+      - name: extract-path
+      - name: dest-pvc
+    volumes:
+    - name: dest
+      persistentVolumeClaim:
+        claimName: "{{inputs.parameters.dest-pvc}}"
+    container:
+      image: alpine:latest
+      volumeMounts:
+      - name: dest
+        mountPath: /dest
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        apk add --no-cache skopeo tar
+        
+        echo "Pulling image {{inputs.parameters.image}}..."
+        skopeo copy docker://{{inputs.parameters.image}} dir:/tmp/image
+        
+        echo "Extracting to {{inputs.parameters.extract-path}}..."
+        mkdir -p /dest/{{inputs.parameters.extract-path}}
+        
+        # Extract all layers
+        for layer in /tmp/image/*.tar; do
+          tar -xf "$layer" -C /dest/{{inputs.parameters.extract-path}} || true
+        done
+        
+        echo "Extraction completed!"

@@ -7,8 +7,11 @@ resources:
   # ArgoCD Sync Hooks
   # - job-presync-vault-setup.yaml  # Obsolete with ESO/VSO
   # - vault-token-reader-rbac.yaml  # No longer needed with Reflector
-  - job-populate-vault-secrets.yaml
-  - job-post-sync-configure.yaml
+  # Argo Workflow
+  - argo-workflow-rbac.yaml
+  - workflow-init-databases.yaml
+  # - job-populate-vault-secrets.yaml  # Replaced by app-specific workflows
+  # - job-post-sync-configure.yaml  # Replaced by workflow-init-databases.yaml
   # External Secrets
   - postgres-superuser-externalsecret.yaml
   # Init SQL ConfigMap
