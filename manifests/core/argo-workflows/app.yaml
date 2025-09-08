@@ -1,5 +1,5 @@
 name: argo-workflows
 namespace: argo-workflows
-syncWave: "-25"  # Deploy early, after cilium/kyverno but before most other services
+syncWave: "-10"  # Deploy after ESO (-15) but before most other services
 project: core
 path: manifests/core/argo-workflows
