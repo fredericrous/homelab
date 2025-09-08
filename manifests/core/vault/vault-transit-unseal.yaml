@@ -25,7 +25,7 @@ spec:
       # Reflector annotations for automatic secret replication
       adminTokenAnnotations:
         reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
-        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio,argocd,plex,argo"
+        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio,argocd,plex,argo-workflows"
         reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
   monitoring:
     checkInterval: 30s
