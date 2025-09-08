@@ -23,21 +23,11 @@ helmCharts:
       install: true
       keep: true
     
+    # Single namespace mode to avoid kustomize conflicts
+    singleNamespace: true
+    
     # Controller configuration
     controller:
-      # Namespaces where workflows can be created
-      workflowNamespaces:
-        - argo-workflows
-        - authelia
-        - lldap
-        - plex
-        - nextcloud
-        - vault
-        - velero
-        - rook-ceph
-        - postgres
-        - stremio
-        - harbor
       # Enable leader election for HA
       replicas: 1
       resources:
@@ -89,14 +79,6 @@ helmCharts:
 
     # Configure artifact repository (disabled for now, can add MinIO later)
     artifactRepository: {}
-
-    # Workflow defaults
-    workflow:
-      serviceAccount:
-        create: true
-        name: argo-workflow-executor
-      rbac:
-        create: true
 
     # Enable archive logs
     persistence:
