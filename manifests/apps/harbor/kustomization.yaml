@@ -19,8 +19,7 @@ resources:
 
 helmCharts:
 - name: harbor
-  repo: https://charts.bitnami.com/bitnami
-  version: 26.8.0
+  chartHome: ./charts/harbor-26.8.0
   releaseName: harbor
   namespace: harbor
   valuesFile: values-bitnami-tls.yaml
