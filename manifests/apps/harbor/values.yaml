@@ -44,11 +44,18 @@ database:
 # Redis configuration  
 redis:
   type: external
+  internal:
+    # Disable internal Redis
+    enabled: false
   external:
-    host: "redis-standalone.ot-operators.svc.cluster.local"
-    port: "6379"
-    # Optional: password can be set if redis requires authentication
-    # password: ""
+    addr: "redis-standalone.ot-operators.svc.cluster.local:6379"
+    # The "coreDatabaseIndex" must be "0" as the library Harbor used doesn't support configuring it
+    coreDatabaseIndex: "0"
+    jobserviceDatabaseIndex: "1" 
+    registryDatabaseIndex: "2"
+    trivyAdapterIndex: "5"
+    username: ""
+    password: ""
 
 # Disable internal database and redis
 postgresql:
