@@ -10,9 +10,6 @@ resources:
   - argo-vault-populate-job.yaml
   - argo-db-init-job.yaml
   - workflow-template-vault-populate.yaml
-  
-  # Workflow templates will be included later - namespace conflict issue
-  # - ../../base/argo-workflows/workflow-templates
 
 helmCharts:
 - name: argo-workflows
