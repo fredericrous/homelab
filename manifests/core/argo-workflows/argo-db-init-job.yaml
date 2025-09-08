@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: argo-workflows-db-init
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      restartPolicy: OnFailure
+      containers:
+      - name: db-init
+        image: postgres:17
+        env:
+        - name: PGHOST
+          value: "postgres-apps-rw.postgres.svc.cluster.local"
+        - name: PGPORT
+          value: "5432"
+        - name: PGUSER
+          value: "postgres"
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser-secret
+              key: password
+        - name: ARGO_DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: argo-postgres-config
+              key: username
+        - name: ARGO_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: argo-postgres-config
+              key: password
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          echo "Checking if argo user exists..."
+          if psql -tAc "SELECT 1 FROM pg_user WHERE usename='$ARGO_DB_USER'" | grep -q 1; then
+            echo "Argo user already exists. Updating password..."
+            psql -c "ALTER USER $ARGO_DB_USER WITH PASSWORD '$ARGO_DB_PASSWORD';"
+          else
+            echo "Creating argo user..."
+            psql -c "CREATE USER $ARGO_DB_USER WITH PASSWORD '$ARGO_DB_PASSWORD';"
+          fi
+          
+          # Create database if it doesn't exist
+          echo "Checking database argo_workflows..."
+          if psql -lqt | cut -d \| -f 1 | grep -qw "argo_workflows"; then
+            echo "Database argo_workflows already exists"
+          else
+            echo "Creating database argo_workflows..."
+            psql -c "CREATE DATABASE argo_workflows OWNER $ARGO_DB_USER;"
+          fi
+          
+          # Grant all privileges
+          psql -c "GRANT ALL PRIVILEGES ON DATABASE argo_workflows TO $ARGO_DB_USER;"
+          
+          # Grant schema permissions
+          echo "Granting schema permissions on argo_workflows..."
+          psql -d argo_workflows -c "GRANT ALL ON SCHEMA public TO $ARGO_DB_USER;"
+          psql -d argo_workflows -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $ARGO_DB_USER;"
+          psql -d argo_workflows -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $ARGO_DB_USER;"
+          psql -d argo_workflows -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO $ARGO_DB_USER;"
+          
+          echo "Argo Workflows database initialization completed successfully!"

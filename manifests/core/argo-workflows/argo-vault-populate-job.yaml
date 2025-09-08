@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: argo-workflows-vault-populate
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      restartPolicy: OnFailure
+      containers:
+      - name: vault-populate
+        image: hashicorp/vault:1.20.1
+        env:
+        - name: VAULT_ADDR
+          value: "http://vault.vault.svc.cluster.local:8200"
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          # Create Argo Workflows database credentials if they don't exist
+          if vault kv get secret/argo-workflows/database 2>/dev/null; then
+            echo "Argo Workflows database secret already exists in Vault. Skipping."
+          else
+            echo "Creating Argo Workflows database secret in Vault..."
+            vault kv put secret/argo-workflows/database \
+              username="argo" \
+              password="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)"
+          fi
+          
+          echo "Argo Workflows secrets successfully populated in Vault"

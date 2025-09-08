@@ -1,0 +1,32 @@
+# PostgreSQL superuser credentials from Vault
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: postgres-superuser
+  namespace: argo
+spec:
+  refreshInterval: 5m
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: postgres-superuser-secret
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      data:
+        password: "{{ .password }}"
+        username: "{{ .username }}"
+  
+  data:
+  - secretKey: password
+    remoteRef:
+      key: secret/data/postgres/superuser
+      property: password
+  - secretKey: username
+    remoteRef:
+      key: secret/data/postgres/superuser
+      property: username

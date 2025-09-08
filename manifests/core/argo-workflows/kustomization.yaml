@@ -1,0 +1,101 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argo
+
+resources:
+  - namespace.yaml
+  - postgres-superuser-eso.yaml
+  - argo-postgres-config-eso.yaml
+  - argo-vault-populate-job.yaml
+  - argo-db-init-job.yaml
+
+helmCharts:
+- name: argo-workflows
+  repo: https://argoproj.github.io/argo-helm
+  version: 0.45.2
+  releaseName: argo-workflows
+  namespace: argo
+  valuesInline:
+    # Controller configuration
+    controller:
+      workflowNamespaces:
+        - argo
+        - stremio
+        - harbor
+        - nextcloud
+        - vault
+      # Enable leader election for HA
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+    # Server configuration (UI)
+    server:
+      enabled: true
+      replicas: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      extraArgs:
+        - --auth-mode=server
+      # Ingress for the UI
+      ingress:
+        enabled: true
+        ingressClassName: haproxy
+        hosts:
+          - argo-workflows.daddyshome.fr
+        annotations:
+          cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
+          haproxy.org/ssl-redirect: "true"
+          haproxy.org/auth-tls-verify-client: "required"
+          haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+        tls:
+          - secretName: argo-workflows-tls
+            hosts:
+              - argo-workflows.daddyshome.fr
+
+    # Executor configuration
+    executor:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+    # Configure artifact repository (disabled for now, can add MinIO later)
+    artifactRepository: {}
+
+    # Workflow defaults
+    workflow:
+      serviceAccount:
+        create: true
+        name: argo-workflow
+      rbac:
+        create: true
+
+    # Enable archive logs
+    persistence:
+      archive: true
+      postgresql:
+        host: postgres-apps-rw.postgres.svc.cluster.local
+        port: 5432
+        database: argo_workflows
+        tableName: argo_workflows
+        userNameSecret:
+          name: argo-postgres-config
+          key: username
+        passwordSecret:
+          name: argo-postgres-config
+          key: password

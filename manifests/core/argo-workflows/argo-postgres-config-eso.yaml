@@ -1,0 +1,32 @@
+# Argo Workflows PostgreSQL credentials from Vault
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: argo-postgres-config
+  namespace: argo
+spec:
+  refreshInterval: 5m
+  
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: argo-postgres-config
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      data:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+  
+  data:
+  - secretKey: username
+    remoteRef:
+      key: secret/data/argo-workflows/database
+      property: username
+  - secretKey: password
+    remoteRef:
+      key: secret/data/argo-workflows/database
+      property: password
