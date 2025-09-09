@@ -6,6 +6,7 @@ namespace: argo-workflows
 resources:
   - namespace.yaml
   - workflow-controller-cluster-role.yaml
+  - workflow-controller-vault-rbac.yaml
 
 patches:
 - target:
@@ -26,8 +27,12 @@ helmCharts:
       install: true
       keep: true
     
-    # Single namespace mode to avoid kustomize conflicts
-    singleNamespace: true
+    # Multi-namespace mode to watch vault namespace too
+    singleNamespace: false
+    
+    # Namespaces to watch (in addition to controller namespace)
+    workflowNamespaces:
+      - vault
     
     # Controller configuration
     controller:
