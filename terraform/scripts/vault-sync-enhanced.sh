@@ -285,6 +285,16 @@ monitor_sync() {
                 log_success "$app_name resources deployed (Sync: $sync_status, Health: $health_status)"
                 return 0
             fi
+        elif [ "$sync_status" = "OutOfSync" ] && [ "$health_status" = "Progressing" ]; then
+            # With vault-config separation, vault stays OutOfSync but resources are deployed
+            if kubectl get pod -n "$VAULT_NAMESPACE" vault-0 &>/dev/null; then
+                # Check if pod is actually running
+                local pod_phase=$(kubectl get pod -n "$VAULT_NAMESPACE" vault-0 -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+                if [ "$pod_phase" = "Running" ]; then
+                    log_success "$app_name resources deployed and running (Sync: $sync_status, Health: $health_status)"
+                    return 0
+                fi
+            fi
         elif [ "$op_phase" = "Failed" ] || [ "$op_phase" = "Error" ]; then
             local error_msg=$(kubectl get app -n "$ARGOCD_NAMESPACE" "$app_name" \
                 -o jsonpath='{.status.operationState.message}' 2>/dev/null || echo "No error message")
