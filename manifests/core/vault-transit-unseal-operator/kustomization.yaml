@@ -5,13 +5,15 @@ namespace: vault-transit-unseal-operator
 
 resources:
 - namespace.yaml
-- crds/vault-transit-unseal-crd.yaml
 - rbac.yaml
 - deployment.yaml
 
 images:
 - name: ghcr.io/fredericrous/vault-transit-unseal-operator
-  newTag: 0.3.0
+  newTag: 0.5.1
+
+patchesStrategicMerge:
+- deployment-patch.yaml
 
 # For local testing, you can override with:
 # kubectl set image deployment/vault-transit-unseal-operator manager=your-registry/vault-transit-unseal-operator:latest -n vault-transit-unseal-operator

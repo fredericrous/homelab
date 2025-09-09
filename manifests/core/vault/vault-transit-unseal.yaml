@@ -22,6 +22,7 @@ spec:
     secretNames:
       adminToken: vault-admin-token
       recoveryKeys: vault-keys
+      storeRecoveryKeys: true  # Enable for homelab/dev environments
       # Reflector annotations for automatic secret replication
       adminTokenAnnotations:
         reflector.v1.k8s.emberstack.com/reflection-allowed: "true"

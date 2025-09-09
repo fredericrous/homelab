@@ -45,6 +45,12 @@ tasks:
     vars:
       TRANSIT_TOKEN:
         sh: |
+          # Allow manual override
+          if [ -n "$K8S_VAULT_TRANSIT_TOKEN" ]; then
+            echo "$K8S_VAULT_TRANSIT_TOKEN"
+            exit 0
+          fi
+          
           # Get transit token from Vault
           if command -v vault >/dev/null 2>&1; then
             export VAULT_ADDR=http://192.168.1.42:61200
@@ -79,10 +85,24 @@ tasks:
           fi
     cmds:
       - |
+        # Check connectivity to QNAP Vault if we're trying to use it
+        if [ -z "$K8S_VAULT_TRANSIT_TOKEN" ] && [ -n "$QNAP_VAULT_TOKEN" ]; then
+          if [ -f "./scripts/check-vault-connectivity.sh" ]; then
+            ./scripts/check-vault-connectivity.sh || exit 1
+          fi
+        fi
+      - |
         # Check if we have a transit token
         if [ -z "{{.TRANSIT_TOKEN}}" ]; then
           echo "❌ Transit token not found"
           echo ""
+          
+          # Check if it's a connectivity issue
+          if [ -n "$QNAP_VAULT_TOKEN" ] && ! curl -s --connect-timeout 5 http://192.168.1.42:61200/v1/sys/health >/dev/null 2>&1; then
+            echo "🌐 Cannot reach QNAP Vault - are you connected to your home network?"
+            echo ""
+          fi
+          
           echo "To deploy, you need to:"
           echo "1. Deploy QNAP services first:"
           echo "   task nas:deploy"
@@ -96,6 +116,8 @@ tasks:
           echo "      vault login <root-token>"
           echo "   b) OR set the token in environment:"
           echo "      export QNAP_VAULT_TOKEN=<qnap-vault-token>"
+          echo "   c) OR provide the transit token directly:"
+          echo "      export K8S_VAULT_TRANSIT_TOKEN=<transit-token>"
           echo ""
           echo "The deployment will automatically create the vault-transit-token secret."
           echo "The vault-transit-unseal-operator will handle Vault initialization."
