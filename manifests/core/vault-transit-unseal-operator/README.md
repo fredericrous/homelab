@@ -2,11 +2,6 @@
 
 This operator manages Vault initialization, unsealing, and post-unseal configuration.
 
-## Current Status
-
-- **Operator Version**: v0.5.1 (includes post-unseal configuration and auto-CRD installation)
-- **Image**: `ghcr.io/fredericrous/vault-transit-unseal-operator:0.5.1`
-
 ## Features
 
 1. **Automatic Vault Initialization** with transit unseal

@@ -10,7 +10,7 @@ resources:
 
 images:
 - name: ghcr.io/fredericrous/vault-transit-unseal-operator
-  newTag: 0.5.1
+  newTag: 0.5.2
 
 patchesStrategicMerge:
 - deployment-patch.yaml
