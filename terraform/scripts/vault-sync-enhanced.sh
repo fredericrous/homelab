@@ -286,7 +286,7 @@ monitor_sync() {
                 return 0
             fi
         elif [ "$sync_status" = "OutOfSync" ] && [ "$health_status" = "Progressing" ]; then
-            # With vault-config separation, vault stays OutOfSync but resources are deployed
+            # Vault may stay OutOfSync temporarily while operator configures post-unseal settings
             if kubectl get pod -n "$VAULT_NAMESPACE" vault-0 &>/dev/null; then
                 # Check if pod is actually running
                 local pod_phase=$(kubectl get pod -n "$VAULT_NAMESPACE" vault-0 -o jsonpath='{.status.phase}' 2>/dev/null || echo "")

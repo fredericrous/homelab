@@ -36,10 +36,8 @@ resources:
   - rbac-vault-config-role.yaml
   - rbac-vault-secret-manager.yaml
   - vault-transit-token-secret-placeholder.yaml  # Placeholder to prevent ArgoCD from pruning the secret
-  # Argo Workflows
-  - argo-workflow-rbac.yaml
-  # Workflows moved to vault-config app to avoid PostSync circular dependency
-  # - job-vault-configure-kv.yaml  # Replaced by workflow-configure-kv.yaml
+  # Core Vault configuration (KV, ESO) is now handled by vault-transit-unseal-operator's postUnsealConfig
+  # Application-specific access should be configured by each application (e.g., cert-manager configures its own Vault access)
   # - vault-configure-argocd-job.yaml  # Replaced by workflow
   # - job-configure-app-ovh-access.yaml  # Replaced by workflow
   # - job-configure-cert-manager-vault-access.yaml  # Replaced by workflow
@@ -58,77 +56,9 @@ patches:
       kind: StatefulSet
       name: vault
 
-  # Add sync waves to jobs for proper ordering
-  # Wave 0: StatefulSet and core resources (default)
-  # Wave 1-2: Vault initialization - Now handled by vault-transit-unseal-operator
-  # Wave 3: KV engine configuration
-  - target:
-      kind: Job
-      name: vault-configure-kv
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-configure-kv
-        annotations:
-          argocd.argoproj.io/sync-wave: "3"
-
-  # Wave 4: Authentication configuration
-  - target:
-      kind: Job
-      name: vault-configure
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-configure
-        annotations:
-          argocd.argoproj.io/sync-wave: "4"
-
-  # Wave 5: Application-specific access
-  - target:
-      kind: Job
-      name: configure-app-ovh-access
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: configure-app-ovh-access
-        annotations:
-          argocd.argoproj.io/sync-wave: "5"
-
-  - target:
-      kind: Job
-      name: configure-cert-manager-vault-access
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: configure-cert-manager-vault-access
-        annotations:
-          argocd.argoproj.io/sync-wave: "5"
-
-  - target:
-      kind: Job
-      name: vault-populate
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-populate
-        annotations:
-          argocd.argoproj.io/sync-wave: "6"
-
-  - target:
-      kind: Job
-      name: vault-validate
-    patch: |-
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: vault-validate
-        annotations:
-          argocd.argoproj.io/sync-wave: "7"
+  # Jobs removed - configuration is now handled by vault-transit-unseal-operator's postUnsealConfig
+  # The operator will handle KV engine setup and External Secrets Operator configuration
+  # after Vault is unsealed
 
   # Comment out secret-copier for now - it creates a circular dependency
   # The secret it's trying to copy (ovh-credentials) might not exist yet

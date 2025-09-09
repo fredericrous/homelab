@@ -8,13 +8,10 @@ resources:
 - crds/vault-transit-unseal-crd.yaml
 - rbac.yaml
 - deployment.yaml
-# Choose one of these for the transit token:
-# - transit-token-secret.yaml         # Manual secret (not recommended)
-# - transit-token-externalsecret.yaml # ExternalSecret (recommended)
 
 images:
 - name: ghcr.io/fredericrous/vault-transit-unseal-operator
-  newTag: 0.2.1
+  newTag: 0.3.0
 
 # For local testing, you can override with:
 # kubectl set image deployment/vault-transit-unseal-operator manager=your-registry/vault-transit-unseal-operator:latest -n vault-transit-unseal-operator

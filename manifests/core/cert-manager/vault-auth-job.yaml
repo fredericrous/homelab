@@ -1,0 +1,113 @@
+# This job configures Vault authentication for cert-manager
+# It runs after both Vault and cert-manager are deployed
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-auth-configurer
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-manager-vault-auth-configurer
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+rules:
+# Need to read secrets (vault-admin-token is reflected to cert-manager namespace)
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-manager-vault-auth-configurer
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cert-manager-vault-auth-configurer
+subjects:
+- kind: ServiceAccount
+  name: vault-auth-configurer
+  namespace: cert-manager
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: configure-vault-auth
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "15"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: vault-auth-configurer
+      restartPolicy: OnFailure
+      containers:
+      - name: configure
+        image: bitnami/kubectl:1.28
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -e
+          
+          # Wait for vault-admin-token to be available (reflected by Reflector)
+          echo "Waiting for vault-admin-token..."
+          for i in {1..60}; do
+            if kubectl get secret vault-admin-token -n cert-manager >/dev/null 2>&1; then
+              echo "✅ Found vault-admin-token"
+              break
+            fi
+            echo "⏳ Waiting for vault-admin-token to be reflected... ($i/60)"
+            sleep 5
+          done
+          
+          # Get the token
+          export VAULT_TOKEN=$(kubectl get secret vault-admin-token -n cert-manager -o jsonpath='{.data.token}' | base64 -d)
+          export VAULT_ADDR=http://vault.vault.svc.cluster.local:8200
+          
+          # Install vault CLI
+          apt-get update && apt-get install -y curl
+          curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
+          apt-get install -y software-properties-common
+          apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+          apt-get update && apt-get install -y vault
+          
+          # Skip if already configured
+          if vault policy read cert-manager >/dev/null 2>&1; then
+            echo "cert-manager policy already exists, skipping"
+            exit 0
+          fi
+          
+          # Create policy for cert-manager
+          vault policy write cert-manager - <<EOF
+          path "secret/data/ovh-dns" {
+            capabilities = ["read"]
+          }
+          path "secret/data/cert-manager/*" {
+            capabilities = ["read"]
+          }
+          EOF
+          
+          # Configure role for cert-manager
+          vault write auth/kubernetes/role/cert-manager \
+            bound_service_account_names=cert-manager \
+            bound_service_account_namespaces=cert-manager \
+            policies=cert-manager \
+            ttl=24h
+            
+          # Configure role for cert-manager webhook
+          vault write auth/kubernetes/role/cert-manager-webhook \
+            bound_service_account_names=cert-manager-webhook-ovh \
+            bound_service_account_namespaces=cert-manager \
+            policies=cert-manager \
+            ttl=24h
+          
+          echo "✅ Configured cert-manager Vault access"

@@ -53,8 +53,8 @@ export VAULT_TOKEN
 echo "🔍 Checking secret mount configuration..."
 if ! vault secrets list | grep -q "^secret/"; then
   echo "❌ KV secret engine not found at secret/"
-  echo "   This should have been enabled by the vault-configure-kv job"
-  echo "   Running: kubectl apply -k manifests/core/vault/"
+  echo "   This should have been enabled by the vault-transit-unseal-operator"
+  echo "   Please check the VaultTransitUnseal resource postUnsealConfig"
   exit 1
 fi
 
@@ -86,7 +86,8 @@ echo "✅ Created haproxy-ingress policy"
 # Ensure Kubernetes auth is configured
 if ! vault auth list | grep -q "kubernetes/"; then
   echo "❌ Kubernetes auth not enabled in Vault"
-  echo "   This should have been done by vault-configure job"
+  echo "   This should have been enabled by the vault-transit-unseal-operator"
+  echo "   Please check the VaultTransitUnseal resource postUnsealConfig"
   exit 1
 fi
 

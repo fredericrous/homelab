@@ -8,10 +8,7 @@ resources:
   - https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
   
   # Vault configuration
-  # - job-vault-configure-cert-manager.yaml  # Replaced by job template
-  # - vault-connection.yaml  # Now provided by base/vault-auth
-  # - vault-auth-cert-manager.yaml  # Now provided by base/vault-auth
-  # - job-vault-populate-secrets.yaml  # Replaced by job template
+  - vault-auth-job.yaml  # Configures Vault authentication for cert-manager
   - ovh-credentials-externalsecret.yaml
   
   # OVH DNS-01 webhook for Let's Encrypt

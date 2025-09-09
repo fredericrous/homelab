@@ -25,8 +25,30 @@ spec:
       # Reflector annotations for automatic secret replication
       adminTokenAnnotations:
         reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
-        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio,argocd,plex,argo-workflows"
+        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio,argocd,plex"
         reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
   monitoring:
     checkInterval: 30s
     retryInterval: 10s
+  
+  # Post-unseal configuration
+  postUnsealConfig:
+    # Enable KV v2 secret engine
+    enableKV: true
+    kvConfig:
+      path: "secret"
+      version: 2
+    
+    # Enable External Secrets Operator configuration
+    enableExternalSecretsOperator: true
+    externalSecretsOperatorConfig:
+      policyName: "external-secrets-operator"
+      kubernetesAuth:
+        roleName: "external-secrets-operator"
+        serviceAccounts:
+          - name: external-secrets
+            namespace: external-secrets
+          - name: external-secrets-operator
+            namespace: external-secrets
+        ttl: "24h"
+        maxTTL: "24h"
