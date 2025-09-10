@@ -5,6 +5,7 @@ namespace: vault-transit-unseal-operator
 
 resources:
 - namespace.yaml
+- crds/vault-transit-unseal-crd.yaml
 - rbac.yaml
 - deployment.yaml
 
