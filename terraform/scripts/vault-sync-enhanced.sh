@@ -57,6 +57,13 @@ read_transit_token() {
         return 1
     fi
     
+    # Quick validation - check if token looks valid (not a placeholder)
+    if [ "$token" = "PLACEHOLDER_WILL_BE_REPLACED_BY_TERRAFORM" ]; then
+        log_error "Transit token is still a placeholder!"
+        log_error "You need to provide a valid transit token"
+        return 1
+    fi
+    
     echo "$token"
 }
 
@@ -247,6 +254,13 @@ check_vault_deployment() {
                 fi
             elif [ "$pod_phase" = "Running" ]; then
                 log_info "Waiting for Vault container to be ready (init containers may still be running)"
+                # Check for common errors in pod logs
+                if kubectl logs -n "$VAULT_NAMESPACE" vault-0 --tail=10 2>&1 | grep -q "invalid token\|permission denied"; then
+                    log_error "Vault failed to start due to invalid transit token!"
+                    log_error "Run 'task refresh-transit-token' to get a new token from QNAP Vault"
+                    kubectl logs -n "$VAULT_NAMESPACE" vault-0 --tail=5
+                    return 1
+                fi
             else
                 log_info "Vault pod status: $pod_phase"
             fi

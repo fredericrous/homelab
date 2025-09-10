@@ -96,6 +96,9 @@ tasks:
         if [ -z "{{.TRANSIT_TOKEN}}" ]; then
           echo "❌ Transit token not found"
           echo ""
+        elif [ "{{.TRANSIT_TOKEN}}" = "PLACEHOLDER_WILL_BE_REPLACED_BY_TERRAFORM" ]; then
+          echo "❌ Transit token is a placeholder - need real token!"
+          echo ""
           
           # Check if it's a connectivity issue
           if [ -n "$QNAP_VAULT_TOKEN" ] && ! curl -s --connect-timeout 5 http://192.168.1.42:61200/v1/sys/health >/dev/null 2>&1; then
@@ -567,6 +570,81 @@ tasks:
         echo "Use this token:"
         echo "  NAS_ESO_TOKEN=<token> task deploy"
         echo "  or: task configure-nas-sync -- <token>"
+
+  refresh-transit-token:
+    desc: Get fresh transit token from QNAP Vault and update cluster
+    preconditions:
+      - sh: 'test -f {{.KUBECONFIG}}'
+        msg: "Kubeconfig not found - cluster must be deployed first"
+    cmds:
+      - |
+        echo "🔑 Refreshing transit token from QNAP Vault..."
+        echo ""
+        
+        # Check connectivity
+        if ! curl -s --connect-timeout 5 http://192.168.1.42:61200/v1/sys/health >/dev/null 2>&1; then
+          echo "❌ Cannot reach QNAP Vault at http://192.168.1.42:61200"
+          echo "   Are you connected to your home network?"
+          exit 1
+        fi
+        
+        # Check if authenticated
+        export VAULT_ADDR=http://192.168.1.42:61200
+        if ! vault token lookup &>/dev/null 2>&1; then
+          if [ -n "$QNAP_VAULT_TOKEN" ]; then
+            export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
+          else
+            echo "❌ Not authenticated to QNAP Vault"
+            echo ""
+            echo "Please authenticate first:"
+            echo "  export VAULT_ADDR=http://192.168.1.42:61200"
+            echo "  vault login"
+            echo ""
+            echo "Or provide token:"
+            echo "  export QNAP_VAULT_TOKEN=<your-qnap-vault-token>"
+            exit 1
+          fi
+        fi
+        
+        # Get the transit token
+        TRANSIT_TOKEN=$(vault kv get -field=token secret/k8s-transit 2>/dev/null || echo "")
+        if [ -z "$TRANSIT_TOKEN" ]; then
+          echo "❌ Transit token not found in QNAP Vault at secret/k8s-transit"
+          echo ""
+          echo "You need to run the transit setup first:"
+          echo "  task nas:vault-transit"
+          exit 1
+        fi
+        
+        echo "✅ Retrieved transit token from QNAP Vault"
+        echo ""
+        
+        # Update the secret in the cluster
+        echo "🔄 Updating vault-transit-token secret in cluster..."
+        kubectl delete secret vault-transit-token -n vault --ignore-not-found=true
+        kubectl create secret generic vault-transit-token \
+          -n vault \
+          --from-literal=token="$TRANSIT_TOKEN"
+        
+        echo "✅ Transit token updated"
+        echo ""
+        
+        # Restart vault pod to pick up new token
+        echo "🔄 Restarting vault pod..."
+        kubectl delete pod -n vault -l app=vault --force --grace-period=0
+        
+        echo ""
+        echo "⏳ Waiting for vault to restart..."
+        sleep 10
+        
+        # Check status
+        kubectl get pods -n vault
+        echo ""
+        echo "📋 To check if vault started correctly:"
+        echo "  kubectl logs -n vault vault-0"
+        echo ""
+        echo "💡 You can also export the token for the deployment:"
+        echo "  export K8S_VAULT_TRANSIT_TOKEN=$TRANSIT_TOKEN"
 
   check-ca-sync:
     desc: Check if CA is properly synced from NAS
