@@ -5,6 +5,18 @@ set -e
 KUBECONFIG="${1:?Error: KUBECONFIG path required as first argument}"
 export KUBECONFIG
 
+# Ensure we're using the correct kubeconfig
+unset KUBERNETES_MASTER
+echo "🔧 Using KUBECONFIG: $KUBECONFIG"
+
+# Test connection
+if ! kubectl cluster-info &>/dev/null; then
+  echo "❌ Cannot connect to cluster with KUBECONFIG=$KUBECONFIG"
+  echo "Testing connection..."
+  kubectl cluster-info
+  exit 1
+fi
+
 echo "💾 Waiting for Rook-Ceph application to be created by ApplicationSet..."
 KUBECONFIG_PATH="$KUBECONFIG"
 timeout 150s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get app -n argocd rook-ceph >/dev/null 2>&1; do

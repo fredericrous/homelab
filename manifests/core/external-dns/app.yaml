@@ -1,0 +1,16 @@
+name: external-dns
+namespace: external-dns
+project: core
+path: manifests/core/external-dns
+autoSync: "true"   # Auto-sync DNS records
+prune: "true"      # Remove records when resources are deleted
+syncWave: "-9"     # Deploy after cert-manager (-14) and ingress (-8)
+dependsOn:
+  - name: external-secrets-operator
+    namespace: argocd
+  - name: haproxy-ingress  # Needs ingress controller to be ready
+    namespace: argocd
+syncOptions:
+  - CreateNamespace=true
+  - ServerSideApply=true
+retryLimit: 3

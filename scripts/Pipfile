@@ -1,0 +1,16 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pyyaml = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3"
+
+[scripts]
+find-unreferenced-yaml = "python scripts/find-unreferenced-yaml.py"
+show-sync-waves = "python scripts/show-sync-waves.py"
