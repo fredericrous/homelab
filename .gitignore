@@ -5,3 +5,4 @@ charts/
 .claude/
 CLAUDE.local.md
 nas/scripts/download-cert.sh
+vault-transit-unseal-operator/
