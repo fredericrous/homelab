@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: tetragon
+
+resources:
+  - namespace.yaml
+  - network-policy.yaml
+  
+helmCharts:
+  - name: tetragon
+    repo: https://helm.cilium.io
+    version: 1.2.0
+    releaseName: tetragon
+    namespace: tetragon
+    valuesFile: values.yaml
+
+# Generate ConfigMap for custom policies
+configMapGenerator:
+  - name: tetragon-policies
+    files:
+      - policies/base-audit.yaml
+      - policies/sensitive-operations.yaml
+      - policies/vault-access.yaml
+      - policies/privilege-escalation.yaml

@@ -1,0 +1,63 @@
+# Enable Vault audit logging to file and syslog
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-enable-audit
+  namespace: vault
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: vault
+      containers:
+        - name: enable-audit
+          image: vault:1.18.3
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault:8200"
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-admin-token
+                  key: token
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              # Wait for Vault to be ready
+              until vault status 2>/dev/null; do
+                echo "Waiting for Vault..."
+                sleep 5
+              done
+              
+              # Enable file audit backend
+              if ! vault audit list | grep -q "file/"; then
+                vault audit enable file file_path=/vault/logs/audit.log \
+                  log_raw=false \
+                  hmac_accessor=true \
+                  mode=0600 \
+                  prefix="VAULT_AUDIT:"
+                echo "✅ File audit backend enabled"
+              fi
+              
+              # Enable syslog audit backend for real-time streaming
+              if ! vault audit list | grep -q "syslog/"; then
+                vault audit enable syslog \
+                  tag="vault-audit" \
+                  facility="LOCAL0" \
+                  log_raw=false
+                echo "✅ Syslog audit backend enabled"
+              fi
+              
+              # Configure audit filtering
+              vault write sys/config/auditing/request-headers \
+                hmac:X-Forwarded-For=true \
+                hmac:X-Real-IP=true \
+                hmac:X-Forwarded-Proto=true
+              
+              echo "✅ Vault audit logging configured"

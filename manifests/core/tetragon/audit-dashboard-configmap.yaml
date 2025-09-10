@@ -1,0 +1,47 @@
+# Grafana dashboard for security audit events
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tetragon-audit-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  tetragon-security-audit.json: |
+    {
+      "dashboard": {
+        "title": "Security Audit Dashboard",
+        "uid": "security-audit",
+        "tags": ["security", "audit", "tetragon"],
+        "panels": [
+          {
+            "title": "Security Events by Type",
+            "targets": [{
+              "expr": "sum by (event_type) (rate(tetragon_events_total[5m]))"
+            }],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "title": "Privilege Escalation Attempts",
+            "targets": [{
+              "expr": "sum(rate(tetragon_privilege_escalation_total[5m]))"
+            }],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "title": "Vault Access Patterns",
+            "targets": [{
+              "expr": "sum by (operation) (rate(tetragon_vault_access_total[5m]))"
+            }],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+          },
+          {
+            "title": "Suspicious File Access",
+            "targets": [{
+              "expr": "sum by (path) (rate(tetragon_file_access_total{path=~\"/etc/kubernetes.*|/var/lib/kubelet.*\"}[5m]))"
+            }],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          }
+        ]
+      }
+    }

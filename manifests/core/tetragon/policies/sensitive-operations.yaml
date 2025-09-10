@@ -1,0 +1,90 @@
+# Track sensitive security operations
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: sensitive-operations
+spec:
+  # Track privilege escalation attempts
+  kprobes:
+    - call: "sys_setuid"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Equal"
+              values:
+                - "0"  # Root UID
+          matchActions:
+            - action: Post
+              
+    - call: "sys_setgid"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Equal"
+              values:
+                - "0"  # Root GID
+          matchActions:
+            - action: Post
+    
+    # Track capability usage
+    - call: "cap_capable"
+      syscall: false
+      args:
+        - index: 3
+          type: "int"
+      selectors:
+        - matchArgs:
+            - index: 3
+              operator: "In"
+              values:
+                - "21"  # CAP_SYS_ADMIN
+                - "22"  # CAP_SYS_BOOT
+                - "23"  # CAP_SYS_NICE
+                - "24"  # CAP_SYS_RESOURCE
+          matchActions:
+            - action: Post
+              
+    # Track secret access via environment
+    - call: "security_bprm_check"
+      syscall: false
+      selectors:
+        - matchBinaries:
+            - operator: "In"
+              values:
+                - "/usr/bin/vault"
+                - "/usr/local/bin/kubectl"
+                - "/usr/bin/helm"
+          matchActions:
+            - action: Post
+              
+  # Track container escapes
+  tracepoints:
+    - subsystem: "raw_syscalls"
+      event: "sys_enter"
+      args:
+        - index: 1
+          type: "syscall64"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "In"
+              values:
+                - "39"   # sys_getpid
+                - "102"  # sys_getuid
+                - "104"  # sys_getgid
+                - "110"  # sys_getppid
+          matchNamespaces:
+            - namespace: Pid
+              operator: In
+              values:
+                - "host"
+          matchActions:
+            - action: Post

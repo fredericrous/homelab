@@ -1,0 +1,85 @@
+# Detect and prevent privilege escalation
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: privilege-escalation
+spec:
+  # Track sudo usage
+  kprobes:
+    - call: "sys_execve"
+      syscall: true
+      return: true
+      args:
+        - index: 0
+          type: "string"
+      selectors:
+        - matchBinaries:
+            - operator: "In"
+              values:
+                - "/usr/bin/sudo"
+                - "/bin/su"
+                - "/usr/bin/su"
+          matchActions:
+            - action: Post
+            
+    # Track kernel module loading
+    - call: "sys_init_module"
+      syscall: true
+      args:
+        - index: 0
+          type: "bytes"
+      selectors:
+        - matchActions:
+            - action: Post
+            
+    - call: "sys_finit_module"
+      syscall: true
+      args:
+        - index: 0
+          type: "fd"
+      selectors:
+        - matchActions:
+            - action: Post
+            
+    # Track BPF program loading (potential rootkit)
+    - call: "sys_bpf"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Equal"
+              values:
+                - "5"  # BPF_PROG_LOAD
+          matchActions:
+            - action: Post
+            
+    # Track container breakout attempts
+    - call: "switch_task_namespaces"
+      syscall: false
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: In
+              values:
+                - "host"
+          matchActions:
+            - action: Post
+            
+    # Track debugger attachment
+    - call: "sys_ptrace"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "In"
+              values:
+                - "16"  # PTRACE_ATTACH
+                - "17"  # PTRACE_DETACH
+          matchActions:
+            - action: Post

@@ -1,0 +1,97 @@
+# Configure Vault authentication for monitoring services
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-auth-monitoring
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: vault-auth
+      containers:
+        - name: vault-auth
+          image: vault:1.18.3
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault.vault.svc.cluster.local:8200"
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-admin-token
+                  key: token
+                  optional: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              # Wait for Vault
+              until vault status 2>/dev/null; do
+                echo "Waiting for Vault..."
+                sleep 5
+              done
+              
+              # Enable Kubernetes auth if not already enabled
+              if ! vault auth list | grep -q "kubernetes/"; then
+                vault auth enable kubernetes
+              fi
+              
+              # Configure Kubernetes auth
+              vault write auth/kubernetes/config \
+                kubernetes_host="https://$KUBERNETES_PORT_443_TCP_ADDR:443"
+              
+              # Create policy for monitoring
+              vault policy write monitoring - <<EOF
+              path "secret/data/monitoring/*" {
+                capabilities = ["read", "list"]
+              }
+              
+              path "sys/metrics" {
+                capabilities = ["read"]
+              }
+              EOF
+              
+              # Create role
+              vault write auth/kubernetes/role/monitoring \
+                bound_service_account_names="prometheus-kube-prometheus-prometheus,grafana,loki" \
+                bound_service_account_namespaces="monitoring" \
+                policies="monitoring" \
+                ttl=24h
+              
+              echo "✅ Vault auth configured for monitoring"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-auth
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-auth
+  namespace: vault
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["vault-admin-token"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-auth
+  namespace: vault
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-auth
+subjects:
+  - kind: ServiceAccount
+    name: vault-auth
+    namespace: monitoring

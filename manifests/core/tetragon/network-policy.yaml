@@ -1,0 +1,67 @@
+# Network policy for Tetragon
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tetragon
+  namespace: tetragon
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tetragon
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Prometheus scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 2112  # Metrics port
+    # Allow gRPC from hubble-relay
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hubble-relay
+      ports:
+        - protocol: TCP
+          port: 54321  # gRPC port
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow Kubernetes API
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              component: kube-apiserver
+      ports:
+        - protocol: TCP
+          port: 6443
+    # Allow Loki for log shipping
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: loki
+      ports:
+        - protocol: TCP
+          port: 3100

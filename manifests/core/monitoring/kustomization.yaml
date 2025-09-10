@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - namespace.yaml
+  - network-policy.yaml
+  - vault-auth.yaml
+  - vault-populate-job.yaml
+  - prometheus-vault-secret.yaml
+  - loki-vault-secret.yaml
+  - grafana-vault-secret.yaml
+
+helmCharts:
+  # Prometheus Stack (includes Prometheus, Grafana, AlertManager)
+  - name: kube-prometheus-stack
+    repo: https://prometheus-community.github.io/helm-charts
+    version: 69.3.0
+    releaseName: kube-prometheus-stack
+    namespace: monitoring
+    valuesFile: prometheus-values.yaml
+
+  # Loki for log aggregation
+  - name: loki
+    repo: https://grafana.github.io/helm-charts
+    version: 6.23.0
+    releaseName: loki
+    namespace: monitoring
+    valuesFile: loki-values.yaml
+
+  # Promtail for log shipping (optional, Tetragon can ship directly)
+  - name: promtail
+    repo: https://grafana.github.io/helm-charts
+    version: 6.16.6
+    releaseName: promtail
+    namespace: monitoring
+    valuesFile: promtail-values.yaml

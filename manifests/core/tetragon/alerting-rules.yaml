@@ -1,0 +1,74 @@
+# PrometheusRule for security alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: security-audit-alerts
+  namespace: tetragon
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: security.audit
+      interval: 30s
+      rules:
+        # Privilege escalation detection
+        - alert: PrivilegeEscalationAttempt
+          expr: |
+            sum(rate(tetragon_privilege_escalation_total[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+            category: security
+          annotations:
+            summary: "Privilege escalation attempt detected"
+            description: "{{ $labels.pod }} in namespace {{ $labels.namespace }} attempted privilege escalation"
+            
+        # Unauthorized Vault access
+        - alert: UnauthorizedVaultAccess
+          expr: |
+            sum(rate(tetragon_vault_access_total{status="denied"}[5m])) > 0
+          for: 1m
+          labels:
+            severity: high
+            category: security
+          annotations:
+            summary: "Unauthorized Vault access attempt"
+            description: "Unauthorized access to Vault from {{ $labels.source_pod }}"
+            
+        # Suspicious file access
+        - alert: SuspiciousFileAccess
+          expr: |
+            sum(rate(tetragon_file_access_total{
+              path=~"/etc/kubernetes/pki/.*|/var/lib/kubelet/pki/.*"
+            }[5m])) by (pod, namespace) > 5
+          for: 5m
+          labels:
+            severity: warning
+            category: security
+          annotations:
+            summary: "Suspicious file access pattern detected"
+            description: "Pod {{ $labels.pod }} is accessing sensitive files"
+            
+        # Container escape attempt
+        - alert: ContainerEscapeAttempt
+          expr: |
+            sum(tetragon_namespace_changes_total{to="host"}) > 0
+          for: 1m
+          labels:
+            severity: critical
+            category: security
+          annotations:
+            summary: "Container escape attempt detected"
+            description: "Pod {{ $labels.pod }} attempted to escape to host namespace"
+            
+        # Kernel module loading
+        - alert: UnauthorizedKernelModule
+          expr: |
+            sum(rate(tetragon_kernel_module_load_total[5m])) > 0
+          for: 1m
+          labels:
+            severity: high
+            category: security
+          annotations:
+            summary: "Kernel module loading detected"
+            description: "Process {{ $labels.process }} loaded kernel module {{ $labels.module }}"

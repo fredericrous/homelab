@@ -1,0 +1,67 @@
+# Network policy for monitoring namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-default
+  namespace: monitoring
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from any namespace for metrics scraping
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9090  # Prometheus
+        - protocol: TCP
+          port: 9093  # AlertManager
+        - protocol: TCP
+          port: 3000  # Grafana
+        - protocol: TCP
+          port: 3100  # Loki
+        - protocol: TCP
+          port: 9080  # Promtail
+    # Allow HAProxy ingress
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: haproxy-controller
+      ports:
+        - protocol: TCP
+          port: 3000  # Grafana
+        - protocol: TCP
+          port: 9093  # AlertManager
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow scraping all namespaces
+    - to:
+        - namespaceSelector: {}
+    # Allow external HTTPS for webhooks
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow Vault access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: vault
+      ports:
+        - protocol: TCP
+          port: 8200

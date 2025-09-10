@@ -1,0 +1,65 @@
+# Base audit policy for security operations
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: base-audit
+spec:
+  # Track all process execution
+  kprobes:
+    - call: "sys_execve"
+      syscall: true
+      return: true
+      args:
+        - index: 0
+          type: "string"
+        - index: 1
+          type: "string"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Prefix"
+              values:
+                - "/usr/bin/kubectl"
+                - "/usr/bin/docker"
+                - "/usr/bin/crictl"
+                - "/bin/sh"
+                - "/bin/bash"
+          matchActions:
+            - action: Post
+              rateLimit: "10/1s"
+              
+    # Track file access to sensitive paths
+    - call: "fd_install"
+      syscall: false
+      args:
+        - index: 1
+          type: "file"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "Prefix"
+              values:
+                - "/etc/kubernetes/pki/"
+                - "/var/lib/kubelet/pki/"
+                - "/etc/cni/"
+                - "/etc/kubernetes/manifests/"
+                - "/etc/systemd/system/"
+          matchActions:
+            - action: Post
+              
+    # Track network connections
+    - call: "tcp_connect"
+      syscall: false
+      args:
+        - index: 0
+          type: "sock"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "NotEqual"
+              values:
+                - "127.0.0.1"
+                - "::1"
+          matchActions:
+            - action: Post
+              rateLimit: "100/10s"

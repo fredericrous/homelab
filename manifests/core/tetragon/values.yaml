@@ -1,0 +1,95 @@
+# Tetragon Helm values for security audit logging
+tetragon:
+  # Enable export to external systems
+  export:
+    stdout:
+      # Enable JSON output for parsing
+      format: json
+      # Rate limiting to prevent log flooding
+      rateLimitInterval: 10s
+      rateLimitBurst: 100
+    
+    # Send to Loki for centralized logging
+    loki:
+      enabled: true
+      endpoint: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+      labels:
+        cluster: homelab
+        component: tetragon
+    
+  # Resource limits for production
+  resources:
+    limits:
+      memory: 2Gi
+      cpu: 2000m
+    requests:
+      memory: 512Mi
+      cpu: 500m
+
+  # Security contexts
+  securityContext:
+    privileged: true
+    capabilities:
+      add:
+        - SYS_ADMIN
+        - SYS_RESOURCE
+        - SYS_PTRACE
+        - NET_ADMIN
+        - NET_RAW
+        - IPC_LOCK
+        - CAP_BPF
+        - CAP_PERFMON
+
+  # Enable enforcement mode for critical policies
+  enforcementMode: "audit"  # Start with audit, move to enforce later
+
+  # Process cache size for correlation
+  processCacheSize: 65536
+
+  # Enable BTF (BPF Type Format) for better kernel compatibility
+  btf:
+    enabled: true
+
+  # Enable policy CRDs
+  crds:
+    installMethod: helm
+
+  # Prometheus metrics
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      labels:
+        prometheus: kube-prometheus
+
+  # Tolerations for system nodes
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+# Tetragon operator configuration
+tetragonOperator:
+  enabled: true
+  
+  # Automatic policy reload
+  watchConfigMaps: true
+  
+  resources:
+    limits:
+      memory: 512Mi
+      cpu: 500m
+    requests:
+      memory: 128Mi
+      cpu: 100m
+
+# Enable persistent storage for audit logs
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: ceph-filesystem
+  
+  # Retention policy
+  retention:
+    days: 30
+    maxSize: 40Gi

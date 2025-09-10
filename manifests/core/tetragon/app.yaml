@@ -1,0 +1,32 @@
+# ArgoCD Application for Tetragon
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tetragon
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: core
+  source:
+    repoURL: https://github.com/fredericrous/homelab
+    targetRevision: HEAD
+    path: manifests/core/tetragon
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tetragon
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,112 @@
+# Loki Helm values for log aggregation
+deploymentMode: SingleBinary
+
+loki:
+  # Loki configuration
+  commonConfig:
+    path_prefix: /var/loki
+    replication_factor: 1
+    
+  storage:
+    type: filesystem
+    
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+          
+  # Retention policy
+  limits_config:
+    retention_period: 30d
+    max_query_series: 5000
+    max_query_parallelism: 32
+    
+  # Performance tuning
+  querier:
+    max_concurrent: 10
+    
+  ingester:
+    chunk_idle_period: 30m
+    chunk_retain_period: 15m
+    max_chunk_age: 2h
+
+singleBinary:
+  replicas: 1
+  
+  persistence:
+    enabled: true
+    size: 30Gi  # Reasonable for homelab logs
+    storageClass: ceph-filesystem
+    
+  resources:
+    limits:
+      cpu: 2
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+# Gateway (nginx)
+gateway:
+  enabled: true
+  
+  ingress:
+    enabled: true
+    ingressClassName: haproxy
+    hosts:
+      - host: loki.daddyshome.fr
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: loki-tls
+        hosts:
+          - loki.daddyshome.fr
+
+# Monitoring
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels:
+      prometheus: kube-prometheus
+      
+  rules:
+    enabled: true
+    labels:
+      prometheus: kube-prometheus
+      
+  # Self-monitoring dashboard
+  dashboards:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"
+
+# Network policy
+networkPolicy:
+  enabled: true
+  
+# Backend storage for larger deployments
+backend:
+  persistence:
+    enabled: true
+    size: 50Gi  # Shared across Ceph cluster
+    storageClass: ceph-filesystem
+
+# Write path
+write:
+  persistence:
+    enabled: true
+    size: 10Gi  # Write-ahead log
+    storageClass: ceph-block
+
+# Read path  
+read:
+  persistence:
+    enabled: true
+    size: 10Gi  # Query cache
+    storageClass: ceph-block

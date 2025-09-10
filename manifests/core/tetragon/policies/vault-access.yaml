@@ -1,0 +1,75 @@
+# Track Vault access and operations
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: vault-access
+spec:
+  # Track Vault binary execution
+  kprobes:
+    - call: "sys_execve"
+      syscall: true
+      return: true
+      args:
+        - index: 0
+          type: "string"
+      selectors:
+        - matchBinaries:
+            - operator: "In"
+              values:
+                - "/usr/local/bin/vault"
+                - "/usr/bin/vault"
+          matchActions:
+            - action: Post
+              
+    # Track Vault API access
+    - call: "tcp_connect"
+      syscall: false
+      args:
+        - index: 0
+          type: "sock"
+      selectors:
+        - matchPorts:
+            - protocol: TCP
+              port: 8200  # Vault API port
+          matchActions:
+            - action: Post
+            
+    # Track secret file access
+    - call: "security_file_open"
+      syscall: false
+      args:
+        - index: 0
+          type: "file"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Prefix"
+              values:
+                - "/vault/data/"
+                - "/tmp/vault-token"
+                - "/var/run/secrets/vault"
+          matchActions:
+            - action: Post
+            
+  # Track Vault environment variables
+  list:
+    - name: "vault-env-vars"
+      type: "env"
+      values:
+        - "VAULT_TOKEN"
+        - "VAULT_ADDR"
+        - "VAULT_NAMESPACE"
+        - "VAULT_CACERT"
+        
+  # Enforcement rules (start in audit mode)
+  enforcementPolicy:
+    - call: "sys_ptrace"
+      syscall: true
+      selectors:
+        - matchBinaries:
+            - operator: "NotIn"
+              values:
+                - "/usr/bin/strace"
+                - "/usr/bin/gdb"
+          matchActions:
+            - action: "Audit"  # Change to "Block" for enforcement

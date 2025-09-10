@@ -1,0 +1,80 @@
+# Promtail Helm values for log collection
+daemonset:
+  enabled: true
+
+config:
+  clients:
+    - url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+      tenant_id: 1
+
+  snippets:
+    pipelineStages:
+      - cri: {}
+      - labeldrop:
+          - filename
+          - stream
+      
+    # Additional scrape configs
+    extraScrapeConfigs: |
+      # Vault audit logs
+      - job_name: vault-audit
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: vault-audit
+              __path__: /vault/logs/audit.log
+        pipeline_stages:
+          - json:
+              expressions:
+                auth_accessor: auth.accessor
+                auth_entity_id: auth.entity_id
+                path: path
+                type: type
+          - labels:
+              auth_accessor:
+              path:
+              type:
+      
+      # Talos system logs
+      - job_name: talos
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: talos
+              __path__: /var/log/talos/*.log
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Mount host paths
+volumeMounts:
+  - name: vault-audit
+    mountPath: /vault/logs
+    readOnly: true
+
+volumes:
+  - name: vault-audit
+    hostPath:
+      path: /var/lib/kubelet/pods/*/volumes/kubernetes.io~empty-dir/vault-logs
+
+# Service monitor for self-monitoring
+serviceMonitor:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+
+# Tolerations to run on all nodes
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule

@@ -217,6 +217,8 @@ wait_for_vault_pvc() {
 check_vault_deployment() {
     local timeout="${1:-300}"
     local elapsed=0
+    local token_refresh_attempts=0
+    local max_token_refresh_attempts=2
     
     log_info "Checking Vault deployment status"
     
@@ -256,6 +258,56 @@ check_vault_deployment() {
                 log_info "Waiting for Vault container to be ready (init containers may still be running)"
                 # Check for common errors in pod logs
                 if kubectl logs -n "$VAULT_NAMESPACE" vault-0 --tail=10 2>&1 | grep -q "invalid token\|permission denied"; then
+                    # Check if we've tried too many times
+                    if [ $token_refresh_attempts -ge $max_token_refresh_attempts ]; then
+                        log_error "Exceeded maximum token refresh attempts ($max_token_refresh_attempts)"
+                        log_error "Vault failed to start due to invalid transit token!"
+                        log_error "Run 'task refresh-transit-token' to get a new token from QNAP Vault"
+                        kubectl logs -n "$VAULT_NAMESPACE" vault-0 --tail=5
+                        return 1
+                    fi
+                    
+                    token_refresh_attempts=$((token_refresh_attempts + 1))
+                    log_warn "Vault failed due to invalid transit token, attempting to refresh (attempt $token_refresh_attempts/$max_token_refresh_attempts)..."
+                    
+                    # Try to refresh the token automatically
+                    if [ -n "$QNAP_VAULT_TOKEN" ] || [ -f "$HOME/.vault-token" ]; then
+                        # Set up environment for token refresh
+                        export VAULT_ADDR="http://192.168.1.42:61200"
+                        if [ -n "$QNAP_VAULT_TOKEN" ]; then
+                            export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
+                        fi
+                        
+                        # Try to get fresh token from QNAP Vault
+                        log_info "Attempting to retrieve fresh transit token from QNAP Vault..."
+                        NEW_TOKEN=$(vault kv get -field=token secret/k8s-transit 2>/dev/null || echo "")
+                        
+                        if [ -n "$NEW_TOKEN" ] && [ "$NEW_TOKEN" != "" ]; then
+                            log_success "Retrieved fresh transit token from QNAP Vault"
+                            
+                            # Update the secret
+                            kubectl delete secret vault-transit-token -n "$VAULT_NAMESPACE" --ignore-not-found=true
+                            kubectl create secret generic vault-transit-token \
+                                -n "$VAULT_NAMESPACE" \
+                                --from-literal=token="$NEW_TOKEN"
+                            
+                            # Delete the pod to force restart with new token
+                            log_info "Restarting Vault pod with new token..."
+                            kubectl delete pod vault-0 -n "$VAULT_NAMESPACE" --force --grace-period=0
+                            
+                            # Wait a bit for pod to be recreated
+                            sleep 10
+                            
+                            # Continue the loop to check again
+                            elapsed=$((elapsed + 10))
+                            continue
+                        else
+                            log_error "Failed to retrieve transit token from QNAP Vault"
+                            log_error "Please ensure QNAP_VAULT_TOKEN is set or you're authenticated to QNAP Vault"
+                        fi
+                    fi
+                    
+                    # If we couldn't auto-refresh, show manual instructions
                     log_error "Vault failed to start due to invalid transit token!"
                     log_error "Run 'task refresh-transit-token' to get a new token from QNAP Vault"
                     kubectl logs -n "$VAULT_NAMESPACE" vault-0 --tail=5

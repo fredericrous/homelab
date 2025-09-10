@@ -1,0 +1,206 @@
+# kube-prometheus-stack Helm values
+defaultRules:
+  create: true
+  rules:
+    alertmanager: true
+    etcd: false  # Not applicable for Talos
+    kubeApiserver: true
+    kubeApiserverAvailability: true
+    kubeApiserverSlos: true
+    kubelet: true
+    kubeProxy: false  # Using Cilium
+    kubePrometheusGeneral: true
+    kubePrometheusNodeRecording: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    kubeScheduler: false  # Talos managed
+    kubeStateMetrics: true
+    network: true
+    node: true
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: true
+    prometheusOperator: true
+
+alertmanager:
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: haproxy
+    annotations:
+      haproxy.org/auth-type: basic
+      haproxy.org/auth-secret: monitoring/alertmanager-basic-auth
+    hosts:
+      - alertmanager.daddyshome.fr
+    paths:
+      - /
+    tls:
+      - secretName: alertmanager-tls
+        hosts:
+          - alertmanager.daddyshome.fr
+
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ceph-block
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi  # Alert history and silences
+
+    # External Secrets for Slack/Email config
+    secrets:
+      - alertmanager-config
+
+grafana:
+  enabled: true
+  adminUser: admin
+  adminPassword: ""  # Will be set from Vault
+  
+  ingress:
+    enabled: true
+    ingressClassName: haproxy
+    annotations:
+      haproxy.org/ssl-redirect: "true"
+    hosts:
+      - grafana.daddyshome.fr
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.daddyshome.fr
+
+  persistence:
+    enabled: true
+    storageClassName: ceph-block
+    size: 10Gi  # Grafana dashboards and config
+
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+    datasources:
+      enabled: true
+      searchNamespace: ALL
+
+  # Additional datasources
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki:3100
+      jsonData:
+        maxLines: 1000
+    - name: Tetragon
+      type: prometheus
+      access: proxy
+      url: http://tetragon.tetragon.svc.cluster.local:2112
+
+  # Grafana plugins
+  plugins:
+    - grafana-piechart-panel
+    - grafana-worldmap-panel
+    - grafana-clock-panel
+
+prometheus:
+  enabled: true
+  
+  prometheusSpec:
+    # Resource limits
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+
+    # Retention
+    retention: 15d  # Reasonable for homelab with Ceph
+    retentionSize: 40GB  # Auto-cleanup when reached
+
+    # Storage
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ceph-block
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi  # Reasonable with Ceph replication
+
+    # Service monitors
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    
+    # Pod monitors
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+
+    # Scrape configs for external services
+    additionalScrapeConfigs:
+      - job_name: 'vault'
+        metrics_path: '/v1/sys/metrics'
+        params:
+          format: ['prometheus']
+        bearer_token_file: /etc/prometheus/secrets/vault-token/token
+        static_configs:
+          - targets: ['vault.vault.svc.cluster.local:8200']
+
+# Prometheus Operator
+prometheusOperator:
+  enabled: true
+  
+  resources:
+    limits:
+      cpu: 400m
+      memory: 1000Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 50Mi
+      limits:
+        cpu: 200m
+        memory: 200Mi
+
+# kube-state-metrics
+kubeStateMetrics:
+  enabled: true
+
+# prometheus-node-exporter
+nodeExporter:
+  enabled: true
+
+# Disable components we don't need
+kubeApiServer:
+  enabled: true
+kubeControllerManager:
+  enabled: false  # Talos
+kubeScheduler:
+  enabled: false  # Talos
+kubeProxy:
+  enabled: false  # Cilium
+kubeEtcd:
+  enabled: false  # Talos
+
+# ServiceMonitor for ArgoCD
+additionalServiceMonitors:
+  - name: argocd-metrics
+    namespace: argocd
+    endpoints:
+      - port: metrics
+    selector:
+      matchLabels:
+        app.kubernetes.io/part-of: argocd
