@@ -1,5 +1,0 @@
-name: vault-transit-unseal-operator
-namespace: vault-transit-unseal-operator
-project: core
-path: manifests/core/vault-transit-unseal-operator
-syncWave: "-17"  # Deploy before Vault (which is at -16)

@@ -3,18 +3,25 @@ kind: Kustomization
 
 namespace: vault-transit-unseal-operator
 
+helmCharts:
+- name: vault-transit-unseal-operator
+  repo: https://fredericrous.github.io/charts
+  version: 1.0.0
+  releaseName: vault-transit-unseal-operator
+  namespace: vault-transit-unseal-operator
+  valuesInline:
+    # Update to v1.0.5 image
+    image:
+      tag: "1.0.5"
+    
+    # Command-line flags configuration
+    watchNamespace: ""  # Watch all namespaces
+    enableLeaderElection: false  # Single replica, no leader election needed
+    maxConcurrentReconciles: 3  # Default value
+    
+    # Disable webhook for now (not needed for basic functionality)
+    webhook:
+      enabled: false
+
 resources:
 - namespace.yaml
-- crds/vault-transit-unseal-crd.yaml
-- rbac.yaml
-- deployment.yaml
-
-images:
-- name: ghcr.io/fredericrous/vault-transit-unseal-operator
-  newTag: 0.6.0
-
-patchesStrategicMerge:
-- deployment-patch.yaml
-
-# For local testing, you can override with:
-# kubectl set image deployment/vault-transit-unseal-operator manager=your-registry/vault-transit-unseal-operator:latest -n vault-transit-unseal-operator

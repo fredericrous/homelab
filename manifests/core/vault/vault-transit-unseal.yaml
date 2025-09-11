@@ -9,7 +9,12 @@ spec:
     selector:
       app: vault
   transitVault:
-    address: http://192.168.1.42:61200
+    # Use addressFrom to read from ConfigMap for better flexibility
+    addressFrom:
+      configMapKeyRef:
+        name: qnap-vault-config
+        key: config.yaml.transit.address
+      default: http://192.168.1.42:61200  # Fallback if ConfigMap is missing
     secretRef:
       name: vault-transit-token
       key: token

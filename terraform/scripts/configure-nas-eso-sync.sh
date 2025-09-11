@@ -30,32 +30,60 @@ echo "✅ NAS Vault token configured"
 
 # Wait for ClusterSecretStore to be ready
 echo "⏳ Waiting for NAS ClusterSecretStore..."
-MAX_ATTEMPTS=30
-ATTEMPT=1
 
-while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-  if kubectl get clustersecretstore nas-vault-backend >/dev/null 2>&1; then
-    STATUS=$(kubectl get clustersecretstore nas-vault-backend -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
-    if [ "$STATUS" = "True" ]; then
-      echo "✅ NAS Vault backend is ready"
-      break
+# First try kubectl wait for efficiency
+if kubectl wait clustersecretstore nas-vault-backend \
+  --for=condition=Ready \
+  --timeout=300s 2>&1 | grep -q "condition met"; then
+  echo "✅ NAS Vault backend is ready"
+else
+  # Fallback to manual checking with more details
+  echo "   kubectl wait didn't succeed, checking status manually..."
+  
+  MAX_ATTEMPTS=30
+  ATTEMPT=1
+  
+  while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+    if kubectl get clustersecretstore nas-vault-backend >/dev/null 2>&1; then
+      # Get detailed status information
+      STATUS=$(kubectl get clustersecretstore nas-vault-backend -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+      REASON=$(kubectl get clustersecretstore nas-vault-backend -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || echo "")
+      MESSAGE=$(kubectl get clustersecretstore nas-vault-backend -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "")
+      
+      # Display status with more context
+      echo -n "   Attempt $ATTEMPT/$MAX_ATTEMPTS - Status: $STATUS"
+      [ -n "$REASON" ] && echo -n " (Reason: $REASON)"
+      echo ""
+      [ -n "$MESSAGE" ] && echo "   Message: $MESSAGE"
+      
+      if [ "$STATUS" = "True" ]; then
+        echo "✅ NAS Vault backend is ready"
+        break
+      fi
+      
+      # Show provider status as well
+      PROVIDER_STATUS=$(kubectl get clustersecretstore nas-vault-backend -o jsonpath='{.status.conditions[?(@.type=="SecretStoreProvider")].status}' 2>/dev/null || echo "")
+      [ -n "$PROVIDER_STATUS" ] && echo "   Provider status: $PROVIDER_STATUS"
     else
-      echo "   ClusterSecretStore status: $STATUS"
+      echo "   ClusterSecretStore not found yet (Attempt $ATTEMPT/$MAX_ATTEMPTS)"
     fi
-  else
-    echo "   ClusterSecretStore not found yet"
-  fi
-  
-  if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-    echo "⚠️  ClusterSecretStore not ready after $MAX_ATTEMPTS attempts"
-    echo "   This may be normal if ESO is still starting"
-    echo "   Check status with: kubectl get clustersecretstore nas-vault-backend -o yaml"
-    break
-  fi
-  
-  sleep 5
-  ((ATTEMPT++))
-done
+    
+    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+      echo "⚠️  ClusterSecretStore not ready after $MAX_ATTEMPTS attempts"
+      echo "   Current status:"
+      kubectl get clustersecretstore nas-vault-backend -o yaml | grep -A20 "^status:" || echo "   No status found"
+      echo ""
+      echo "   Troubleshooting:"
+      echo "   - Check ESO logs: kubectl logs -n external-secrets deploy/external-secrets"
+      echo "   - Check secret: kubectl get secret -n external-secrets nas-vault-token -o yaml"
+      echo "   - Describe: kubectl describe clustersecretstore nas-vault-backend"
+      break
+    fi
+    
+    sleep 5
+    ((ATTEMPT++))
+  done
+fi
 
 # Create the CA sync ExternalSecret if it doesn't exist
 if ! kubectl get externalsecret sync-ca-from-nas -n vault >/dev/null 2>&1; then

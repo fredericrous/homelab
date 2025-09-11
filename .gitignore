@@ -6,3 +6,21 @@ charts/
 CLAUDE.local.md
 nas/scripts/download-cert.sh
 vault-transit-unseal-operator/
+
+# Environment-specific configurations
+.env
+manifests/core/vault/qnap-vault-config.yaml
+manifests/core/external-secrets-operator/clustersecretstore-nas-vault-backend.yaml
+manifests/**/ingress.yaml
+*-actual.yaml
+*-prod.yaml
+
+# Generated files
+manifests/**/*-patch.yaml
+
+# Build directory for prepared deployments
+.build/
+
+
+# Taskfile
+.task/
