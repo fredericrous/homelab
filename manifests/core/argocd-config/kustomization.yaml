@@ -7,8 +7,16 @@ resources:
   # External Secrets for ArgoCD
   - argocd-ldap-externalsecret.yaml
   
+  # Environment substitution plugin
+  - argocd-envsubst-plugin.yaml
+  - argocd-env-vars.yaml
+  
   # Any other ArgoCD configuration can be added here
   # Examples:
   # - argocd-cm-patch.yaml        # ArgoCD ConfigMap patches
   # - argocd-rbac-cm-patch.yaml   # RBAC configuration
   # - argocd-repositories.yaml    # Repository credentials
+
+# Patches to modify existing resources
+patchesStrategicMerge:
+  - argocd-repo-server-envsubst-sidecar.yaml

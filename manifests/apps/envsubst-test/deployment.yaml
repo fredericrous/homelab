@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envsubst-test
+  namespace: envsubst-test
+spec:
+  replicas: ${DEFAULT_REPLICAS:-1}
+  selector:
+    matchLabels:
+      app: envsubst-test
+  template:
+    metadata:
+      labels:
+        app: envsubst-test
+    spec:
+      containers:
+      - name: test-container
+        image: busybox:latest
+        command: ['sh', '-c', 'while true; do cat /config/*; sleep 30; done']
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        resources:
+          requests:
+            cpu: ${DEFAULT_CPU_REQUEST:-50m}
+            memory: ${DEFAULT_MEMORY_REQUEST:-64Mi}
+          limits:
+            cpu: ${DEFAULT_CPU_LIMIT:-100m}
+            memory: ${DEFAULT_MEMORY_LIMIT:-128Mi}
+      volumes:
+      - name: config
+        configMap:
+          name: test-config
