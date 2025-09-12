@@ -7,9 +7,6 @@ resources:
   # External Secrets for ArgoCD
   - argocd-ldap-externalsecret.yaml
   
-  # Environment variables for substitution
-  - argocd-env-vars.yaml
-  
   # Any other ArgoCD configuration can be added here
   # Examples:
   # - argocd-cm-patch.yaml        # ArgoCD ConfigMap patches
@@ -20,13 +17,11 @@ resources:
 helmCharts:
 - name: argocd-envsubst-plugin
   repo: https://fredericrous.github.io/charts
-  version: 2.0.1  # v2 requires explicit plugin specification
+  version: 2.1.0  # v2.1 adds .env file support
   releaseName: argocd-envsubst-plugin
   namespace: argocd
   valuesInline:
     image:
-      tag: "2.0.1"
-    # Use the environment variables from our ConfigMap
-    envFrom:
-    - configMapRef:
-        name: argocd-env-vars
+      tag: "2.1.0"
+    # The plugin will now load variables from .env files in the repository
+    # No need for ConfigMap reference anymore
