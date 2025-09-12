@@ -23,6 +23,11 @@ k8sServiceHost: "${ARGO_CONTROL_PLANE_IP}"
 k8sServicePort: 6443
 
 # Talos specifics (immutable host)
+# Use the proper settings for running on Talos
+# Talos handles most system-level operations, so we disable them in Cilium
+sysctlFix:
+  enabled: false
+
 securityContext:
   capabilities:
     ciliumAgent:
