@@ -31,3 +31,12 @@ path: manifests/apps/nextcloud   # Path to kustomization.yaml
 # namespaceExtraLabels:          # Optional: additional namespace labels
 #   team: storage
 #   environment: production
+
+# Plugin configuration (optional):
+# plugin: envsubst                # Simple plugin specification
+# OR
+# plugin:                         # Plugin with parameters
+#   name: envsubst
+#   env:
+#     - name: CUSTOM_VAR
+#       value: custom-value
