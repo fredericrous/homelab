@@ -6,6 +6,7 @@ namespace: argocd
 resources:
   # External Secrets for ArgoCD
   - argocd-ldap-externalsecret.yaml
+  - externalsecret-envsubst-values.yaml  # Fallback for envsubst values
   
   # Any other ArgoCD configuration can be added here
   # Examples:
@@ -17,11 +18,26 @@ resources:
 helmCharts:
 - name: argocd-envsubst-plugin
   repo: https://fredericrous.github.io/charts
-  version: 2.1.0  # v2.1 adds .env file support
+  version: 3.0.1  # v3.0 adds improved cache handling and strict mode
   releaseName: argocd-envsubst-plugin
   namespace: argocd
   valuesInline:
     image:
-      tag: "2.1.0"
-    # The plugin will now load variables from .env files in the repository
-    # No need for ConfigMap reference anymore
+      tag: "3.0.1"
+    # Mount both ConfigMap and Secret for values
+    volumes:
+    - name: envsubst-values
+      configMap:
+        name: argocd-envsubst-values
+        optional: true
+    - name: envsubst-values-external
+      secret:
+        secretName: argocd-envsubst-values-external
+        optional: true
+    volumeMounts:
+    - name: envsubst-values
+      mountPath: /envsubst-values
+      readOnly: true
+    - name: envsubst-values-external
+      mountPath: /envsubst-values-external
+      readOnly: true
