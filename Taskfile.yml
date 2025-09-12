@@ -22,6 +22,7 @@ tasks:
   deploy:
     desc: Deploy complete Kubernetes cluster
     cmds:
+      - task: sync-env
       - task: prereq
       - task: stage1
       - task: stage2
@@ -226,6 +227,10 @@ tasks:
     cmds:
       - 'echo "🚀 Stage 5: Deploying ArgoCD and bootstrapping GitOps..."'
       - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.argocd_install -target=null_resource.argocd_bootstrap -target=null_resource.argocd_info'
+      - |
+        # Bootstrap values ConfigMap for envsubst plugin
+        echo "📝 Creating values ConfigMap for ArgoCD envsubst plugin..."
+        cd .. && ./scripts/bootstrap-values.sh
     status:
       - 'kubectl get deployment -n argocd argocd-server 2>/dev/null'
 
@@ -670,3 +675,137 @@ tasks:
         
         echo "4️⃣ HAProxy CA secret:"
         kubectl get secret client-ca-cert -n haproxy-controller -o jsonpath='{.data.ca\.crt}' | base64 -d | head -n 3 || echo "Not found"
+
+  sync-env:
+    desc: Sync .env file to homelab-values repository
+    dotenv: ['.env']
+    preconditions:
+      - sh: 'test -f .env'
+        msg: ".env file not found. Copy .env.example to .env and configure it"
+      - sh: 'test -n "${HOMELAB_VALUES_REPO}"'
+        msg: "HOMELAB_VALUES_REPO not set in .env. Please configure your private values repository URL"
+    vars:
+      TEMP_DIR: '.task/homelab-values-{{.TASK | replace ":" "-"}}'
+    cmds:
+      - |
+        echo "🔄 Syncing environment configuration to homelab-values..."
+        
+        # Clean up any previous temp directory
+        rm -rf {{.TEMP_DIR}}
+        
+        # Clone the values repository
+        echo "📥 Cloning values repository: ${HOMELAB_VALUES_REPO}"
+        if ! git clone --depth 1 "${HOMELAB_VALUES_REPO}" {{.TEMP_DIR}} 2>&1 | grep -v "Cloning into"; then
+          echo "❌ Failed to clone values repository"
+          echo ""
+          
+          # Provide specific help based on URL type
+          if [[ "${HOMELAB_VALUES_REPO}" == git@* ]]; then
+            echo "📋 For SSH access:"
+            echo "   1. Make sure you have SSH access to GitHub:"
+            echo "      ssh -T git@github.com"
+            echo ""
+            echo "   2. If using a specific key, configure ~/.ssh/config:"
+            echo "      Host github.com"
+            echo "        IdentityFile ~/.ssh/your-key"
+            echo ""
+            echo "   3. Or add your SSH key to ssh-agent:"
+            echo "      ssh-add ~/.ssh/your-key"
+            echo ""
+            echo "   Alternative: Use HTTPS with token in .env:"
+            echo "   HOMELAB_VALUES_REPO='https://YOUR-TOKEN@github.com/YOUR-USERNAME/homelab-values.git'"
+          else
+            echo "📋 For HTTPS access:"
+            echo "   1. Create a GitHub token with 'repo' scope"
+            echo "   2. Include it in the URL in your .env:"
+            echo "      HOMELAB_VALUES_REPO='https://YOUR-TOKEN@github.com/YOUR-USERNAME/homelab-values.git'"
+            echo ""
+            echo "   Alternative: Use SSH (recommended) in .env:"
+            echo "   HOMELAB_VALUES_REPO='git@github.com:YOUR-USERNAME/homelab-values.git'"
+          fi
+          exit 1
+        fi
+        
+        # Filter only ARGO_ prefixed variables
+        echo "📝 Filtering ARGO_ prefixed variables..."
+        grep "^ARGO_" .env > {{.TEMP_DIR}}/.env.tmp || true
+        
+        # Check if we have any ARGO_ variables
+        if [ ! -s {{.TEMP_DIR}}/.env.tmp ]; then
+          echo "⚠️  No ARGO_ prefixed variables found in .env"
+          echo "   Make sure your .env contains variables like:"
+          echo "   ARGO_NAS_VAULT_ADDR=http://192.168.1.42:61200"
+          echo "   ARGO_EXTERNAL_DOMAIN=example.com"
+          rm -rf {{.TEMP_DIR}}
+          exit 1
+        fi
+        
+        # Move the filtered file to .env
+        mv {{.TEMP_DIR}}/.env.tmp {{.TEMP_DIR}}/.env
+        
+        # Show what we're syncing
+        echo "📋 Variables to sync:"
+        cat {{.TEMP_DIR}}/.env | sed 's/=.*/=.../' | head -10
+        TOTAL_VARS=$(wc -l < {{.TEMP_DIR}}/.env)
+        echo "   Total: $TOTAL_VARS variables"
+        echo ""
+        
+        # Check if .env changed
+        cd {{.TEMP_DIR}}
+        
+        # Check if this is an empty repository
+        if ! git rev-parse HEAD >/dev/null 2>&1; then
+          echo "📝 Initializing empty repository with .env"
+          git add .env
+          git commit -m "Initial commit with ARGO_ prefixed environment variables"
+          
+          # Create main branch if needed and push
+          git branch -M main
+          if git push -u origin main; then
+            echo "✅ Initialized repository and pushed .env"
+          else
+            echo "❌ Failed to push initial commit"
+            echo "   Check your repository permissions"
+            exit 1
+          fi
+        elif ! git diff --quiet .env 2>/dev/null || [ ! -f .env ]; then
+          echo "📝 Changes detected in .env"
+          git add .env
+          git commit -m "Update environment variables - $(date '+%Y-%m-%d %H:%M:%S')"
+          
+          # Push changes
+          if git push origin main; then
+            echo "✅ Pushed updated .env to homelab-values repository"
+          else
+            echo "❌ Failed to push changes"
+            echo "   Check your repository permissions"
+            exit 1
+          fi
+        else
+          echo "✅ No changes to sync"
+        fi
+        
+        # Clean up
+        cd - > /dev/null
+        rm -rf {{.TEMP_DIR}}
+
+  update-values:
+    desc: Update ArgoCD values ConfigMap from .env file
+    deps: [kubeconfig-exists]
+    cmds:
+      - ./scripts/bootstrap-values.sh
+      - |
+        echo "🔄 Restarting ArgoCD repo server to pick up new values..."
+        kubectl rollout restart deployment/argocd-repo-server -n argocd
+        echo "⏳ Waiting for rollout to complete..."
+        kubectl rollout status deployment/argocd-repo-server -n argocd
+
+  backup-values:
+    desc: Backup ArgoCD values to Vault for resilience
+    deps: [kubeconfig-exists]
+    cmds:
+      - ./scripts/backup-argocd-values-to-vault.sh
+      - |
+        echo ""
+        echo "💡 Values are now stored in Vault and will be synced by ESO"
+        echo "   This provides resilience against etcd failures"

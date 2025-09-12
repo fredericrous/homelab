@@ -18,9 +18,9 @@ data:
       path = "/vault/data"
     }
     
-    # Transit auto-unseal using QNAP Vault
+    # Transit auto-unseal using NAS Vault
     seal "transit" {
-      address = "${QNAP_VAULT_ADDR}"
+      address = "${ARGO_NAS_VAULT_ADDR}"
       disable_renewal = "false"
       key_name = "autounseal"
       mount_path = "transit"

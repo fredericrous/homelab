@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: minio-sync-to-qnap
+  name: minio-sync-to-nas
   namespace: velero
 spec:
   # Run daily at 2 AM
@@ -22,7 +22,7 @@ spec:
               
               # Configure MinIO clients
               mc alias set k8s-minio http://minio:9000 minio minio123
-              mc alias set qnap-minio http://192.168.1.42:9000 admin ${QNAP_MINIO_PASSWORD}
+              mc alias set qnap-minio ${ARGO_MINIO_QNAP_URL} admin ${QNAP_MINIO_PASSWORD}
               
               # Get date 2 days ago
               CUTOFF_DATE=$(date -d '2 days ago' +%Y-%m-%d)

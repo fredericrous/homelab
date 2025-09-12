@@ -5,7 +5,7 @@ namespace: velero
 
 resources:
   - minio-deployment.yaml
-  - cronjob-sync-to-qnap.yaml
+  - cronjob-sync-to-nas.yaml
   - configmap-lifecycle.yaml
   # Argo Workflow
   - argo-workflow-rbac.yaml

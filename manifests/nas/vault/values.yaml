@@ -11,7 +11,7 @@ server:
   dataStorage:
     enabled: true
     size: 10Gi
-    storageClass: qnap-local
+    storageClass: nas-local
     accessMode: ReadWriteOnce
 
   standalone:
@@ -32,8 +32,8 @@ server:
       # Mlock is not supported in containers
       disable_mlock = true
 
-      api_addr = "http://192.168.1.42:8200"
-      cluster_addr = "http://192.168.1.42:8201"
+      api_addr = "${ARGO_VAULT_API_ADDR}"
+      cluster_addr = "${ARGO_VAULT_CLUSTER_ADDR}"
 
   service:
     type: NodePort

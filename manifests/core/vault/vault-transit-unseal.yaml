@@ -12,9 +12,9 @@ spec:
     # Use addressFrom to read from ConfigMap for better flexibility
     addressFrom:
       configMapKeyRef:
-        name: qnap-vault-config
+        name: nas-vault-config
         key: config.yaml.transit.address
-      default: ${QNAP_VAULT_ADDR}  # Fallback if ConfigMap is missing
+      default: ${ARGO_NAS_VAULT_ADDR  # Fallback if ConfigMap is missing
     secretRef:
       name: vault-transit-token
       key: token
@@ -36,7 +36,7 @@ spec:
   monitoring:
     checkInterval: 30s
     retryInterval: 10s
-  
+
   # Post-unseal configuration
   postUnsealConfig:
     # Enable KV v2 secret engine
@@ -44,7 +44,7 @@ spec:
     kvConfig:
       path: "secret"
       version: 2
-    
+
     # Enable External Secrets Operator configuration
     enableExternalSecretsOperator: true
     externalSecretsOperatorConfig:

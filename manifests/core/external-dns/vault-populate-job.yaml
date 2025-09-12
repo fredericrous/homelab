@@ -22,13 +22,13 @@ spec:
             secretKeyRef:
               name: vault-admin-token
               key: token
-        # OVH credentials - these should be provided during deployment
-        - name: OVH_APPLICATION_KEY
-          value: "PLACEHOLDER_OVH_APPLICATION_KEY"
-        - name: OVH_APPLICATION_SECRET
-          value: "PLACEHOLDER_OVH_APPLICATION_SECRET"
-        - name: OVH_CONSUMER_KEY
-          value: "PLACEHOLDER_OVH_CONSUMER_KEY"
+        # External-DNS OVH credentials - these should be provided during deployment
+        - name: EXTERNAL_DNS_OVH_APPLICATION_KEY
+          value: "PLACEHOLDER_EXTERNAL_DNS_OVH_APPLICATION_KEY"
+        - name: EXTERNAL_DNS_OVH_APPLICATION_SECRET
+          value: "PLACEHOLDER_EXTERNAL_DNS_OVH_APPLICATION_SECRET"
+        - name: EXTERNAL_DNS_OVH_CONSUMER_KEY
+          value: "PLACEHOLDER_EXTERNAL_DNS_OVH_CONSUMER_KEY"
         command:
         - sh
         - -c
@@ -37,24 +37,24 @@ spec:
           echo "Checking if OVH DNS credentials exist in Vault..."
           
           # Check if the secret exists
-          if vault kv get secret/ovh-dns >/dev/null 2>&1; then
-            echo "OVH DNS credentials already exist in Vault"
+          if vault kv get secret/external-dns/ovh >/dev/null 2>&1; then
+            echo "External-DNS OVH credentials already exist in Vault"
             exit 0
           fi
           
           echo "Creating OVH DNS credentials in Vault..."
           
           # Validate that placeholders have been replaced
-          if [ "$OVH_APPLICATION_KEY" = "PLACEHOLDER_OVH_APPLICATION_KEY" ]; then
-            echo "ERROR: OVH credentials have not been configured!"
+          if [ "$EXTERNAL_DNS_OVH_APPLICATION_KEY" = "PLACEHOLDER_EXTERNAL_DNS_OVH_APPLICATION_KEY" ]; then
+            echo "ERROR: External-DNS OVH credentials have not been configured!"
             echo "Please update the vault-populate-job.yaml with actual credentials"
             exit 1
           fi
           
-          # Create the secret
-          vault kv put secret/ovh-dns \
-            OVH_APPLICATION_KEY="$OVH_APPLICATION_KEY" \
-            OVH_APPLICATION_SECRET="$OVH_APPLICATION_SECRET" \
-            OVH_CONSUMER_KEY="$OVH_CONSUMER_KEY"
+          # Create the secret with correct key names for external-dns
+          vault kv put secret/external-dns/ovh \
+            applicationKey="$EXTERNAL_DNS_OVH_APPLICATION_KEY" \
+            applicationSecret="$EXTERNAL_DNS_OVH_APPLICATION_SECRET" \
+            consumerKey="$EXTERNAL_DNS_OVH_CONSUMER_KEY"
           
           echo "OVH DNS credentials created successfully"

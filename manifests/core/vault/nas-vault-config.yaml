@@ -1,0 +1,13 @@
+# ConfigMap with transit vault configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nas-vault-config
+  namespace: vault
+data:
+  config.yaml: |
+    transit:
+      address: "${ARGO_NAS_VAULT_ADDR}"
+      mountPath: "transit"
+      keyName: "autounseal"
+      tlsSkipVerify: true

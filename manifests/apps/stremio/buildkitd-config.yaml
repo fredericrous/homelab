@@ -15,6 +15,6 @@ data:
       insecure = true
       ca=["/etc/ssl/certs/ca-certificates.crt"]
 
-    [registry."192.168.1.90:5000"]
+    [registry."${ARGO_HARBOR_REGISTRY}"]
       http = true
       insecure = true

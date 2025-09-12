@@ -155,7 +155,7 @@ kubectl -n minio logs -l app=minio
 ## Directory Structure
 
 ```
-manifests/qnap/
+manifests/nas/
 ├── base/                    # Shared base resources
 │   ├── kustomization.yaml
 │   └── storage-class.yaml   # QNAP local-path storage class

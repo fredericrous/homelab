@@ -4,7 +4,7 @@ metadata:
   name: nfs-vms
 provisioner: nfs.csi.k8s.io
 parameters:
-  server: "192.168.1.42"
+  server: "${ARGO_QNAP_NAS_IP}"
   share: "/VMs"
   csi.storage.k8s.io/node-stage-secret-name: "nfscreds"
   csi.storage.k8s.io/node-stage-secret-namespace: "default"

@@ -28,7 +28,7 @@ resources:
   # App-specific resources
   - namespace.yaml
   - vault-config.yaml
-  - qnap-vault-config.yaml  # ConfigMap with transit vault configuration
+  - nas-vault-config.yaml  # ConfigMap with transit vault configuration
   - vault-config-serviceaccount.yaml  # Service account for vault-config jobs
   - vault-storage.yaml
   # - job-vault-force-init.yaml  # Only use if you need to wipe vault data
@@ -37,6 +37,7 @@ resources:
   - rbac-vault-config-role.yaml
   - rbac-vault-secret-manager.yaml
   - vault-transit-token-secret-placeholder.yaml  # Placeholder to prevent ArgoCD from pruning the secret
+  - clustersecretstore-vault.yaml  # ClusterSecretStore for local vault
   # Core Vault configuration (KV, ESO) is now handled by vault-transit-unseal-operator's postUnsealConfig
   # Application-specific access should be configured by each application (e.g., cert-manager configures its own Vault access)
   # - vault-configure-argocd-job.yaml  # Replaced by workflow

@@ -3,7 +3,7 @@ version: '3'
 vars:
   TASK_DIR: '{{.TASKFILE_DIR}}'
   KUBECONFIG_QNAP: '{{.TASK_DIR}}/kubeconfig.yaml'
-  MANIFESTS_DIR: '{{.TASK_DIR}}/../manifests/qnap'
+  MANIFESTS_DIR: '{{.TASK_DIR}}/../manifests/nas'
   VAULT_ADDR: 'http://192.168.1.42:61200'
 
 env:
@@ -333,7 +333,7 @@ tasks:
         ignore_error: true
       - cmd: kubectl delete namespace vault --timeout=60s --ignore-not-found=true
         ignore_error: true
-      - cmd: kubectl delete storageclass qnap-local --ignore-not-found=true
+      - cmd: kubectl delete storageclass nas-local --ignore-not-found=true
         ignore_error: true
       - cmd: kubectl delete pv --all --timeout=30s
         ignore_error: true

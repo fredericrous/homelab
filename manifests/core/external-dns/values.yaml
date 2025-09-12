@@ -5,7 +5,7 @@
 image:
   registry: registry.k8s.io
   repository: external-dns/external-dns
-  tag: v0.19.0  # Version requested
+  tag: v0.14.2  # Stable version with OVH support
 
 # Service account configuration
 serviceAccount:

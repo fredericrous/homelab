@@ -72,7 +72,7 @@ spec:
         # Check if image exists (try LoadBalancer IP for reliability)
         echo "Checking if image already exists in Harbor..." >&2
         if curl -f -s -u "$HARBOR_USER:$HARBOR_PASS" \
-          "http://192.168.1.90:5000/v2/library/stremio-web/manifests/latest" >/dev/null; then
+          "http://${ARGO_HARBOR_REGISTRY}/v2/library/stremio-web/manifests/latest" >/dev/null; then
           echo "Image already exists in Harbor." >&2
           echo "exists" > /tmp/result
         else

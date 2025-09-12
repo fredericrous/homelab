@@ -47,28 +47,28 @@ if kubectl get secret ovh-credentials -n cert-manager >/dev/null 2>&1; then
   if [ "$APP_KEY" = "placeholder" ] || [ "$APP_KEY" = "YOUR_APPLICATION_KEY" ]; then
     echo "⚠️  OVH credentials are placeholders"
 
-    if [ -n "$OVH_APPLICATION_KEY" ] && [ -n "$OVH_APPLICATION_SECRET" ] && [ -n "$OVH_CONSUMER_KEY" ]; then
+    if [ -n "$CERT_MANAGER_OVH_APPLICATION_KEY" ] && [ -n "$CERT_MANAGER_OVH_APPLICATION_SECRET" ] && [ -n "$CERT_MANAGER_OVH_CONSUMER_KEY" ]; then
       echo "📤 Updating OVH credentials..."
       kubectl create secret generic ovh-credentials -n cert-manager \
-        --from-literal=applicationKey="$OVH_APPLICATION_KEY" \
-        --from-literal=applicationSecret="$OVH_APPLICATION_SECRET" \
-        --from-literal=consumerKey="$OVH_CONSUMER_KEY" \
+        --from-literal=applicationKey="$CERT_MANAGER_OVH_APPLICATION_KEY" \
+        --from-literal=applicationSecret="$CERT_MANAGER_OVH_APPLICATION_SECRET" \
+        --from-literal=consumerKey="$CERT_MANAGER_OVH_CONSUMER_KEY" \
         --dry-run=client -o yaml | kubectl apply -f -
       echo "✅ OVH credentials updated"
     else
-      echo "❌ OVH credentials not provided. Set OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, and OVH_CONSUMER_KEY"
+      echo "❌ OVH credentials not provided. Set CERT_MANAGER_OVH_APPLICATION_KEY, CERT_MANAGER_OVH_APPLICATION_SECRET, and CERT_MANAGER_OVH_CONSUMER_KEY"
     fi
   else
     echo "✅ OVH credentials configured"
   fi
 else
   echo "⚠️  OVH credentials secret missing"
-  if [ -n "$OVH_APPLICATION_KEY" ] && [ -n "$OVH_APPLICATION_SECRET" ] && [ -n "$OVH_CONSUMER_KEY" ]; then
+  if [ -n "$CERT_MANAGER_OVH_APPLICATION_KEY" ] && [ -n "$CERT_MANAGER_OVH_APPLICATION_SECRET" ] && [ -n "$CERT_MANAGER_OVH_CONSUMER_KEY" ]; then
     echo "📤 Creating OVH credentials..."
     kubectl create secret generic ovh-credentials -n cert-manager \
-      --from-literal=applicationKey="$OVH_APPLICATION_KEY" \
-      --from-literal=applicationSecret="$OVH_APPLICATION_SECRET" \
-      --from-literal=consumerKey="$OVH_CONSUMER_KEY" \
+      --from-literal=applicationKey="$CERT_MANAGER_OVH_APPLICATION_KEY" \
+      --from-literal=applicationSecret="$CERT_MANAGER_OVH_APPLICATION_SECRET" \
+      --from-literal=consumerKey="$CERT_MANAGER_OVH_CONSUMER_KEY" \
       --dry-run=client -o yaml | kubectl apply -f -
     echo "✅ OVH credentials created"
   fi

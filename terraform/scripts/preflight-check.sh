@@ -113,14 +113,14 @@ fi
 # Check 8: OVH Credentials for Let's Encrypt
 echo -n "Checking OVH credentials... "
 MISSING_OVH_VARS=()
-if [ -z "${OVH_APPLICATION_KEY:-}" ]; then
-    MISSING_OVH_VARS+=("OVH_APPLICATION_KEY")
+if [ -z "${CERT_MANAGER_OVH_APPLICATION_KEY:-}" ]; then
+    MISSING_OVH_VARS+=("CERT_MANAGER_OVH_APPLICATION_KEY")
 fi
-if [ -z "${OVH_APPLICATION_SECRET:-}" ]; then
-    MISSING_OVH_VARS+=("OVH_APPLICATION_SECRET")
+if [ -z "${CERT_MANAGER_OVH_APPLICATION_SECRET:-}" ]; then
+    MISSING_OVH_VARS+=("CERT_MANAGER_OVH_APPLICATION_SECRET")
 fi
-if [ -z "${OVH_CONSUMER_KEY:-}" ]; then
-    MISSING_OVH_VARS+=("OVH_CONSUMER_KEY")
+if [ -z "${CERT_MANAGER_OVH_CONSUMER_KEY:-}" ]; then
+    MISSING_OVH_VARS+=("CERT_MANAGER_OVH_CONSUMER_KEY")
 fi
 
 if [ ${#MISSING_OVH_VARS[@]} -eq 0 ]; then
@@ -130,9 +130,9 @@ else
     echo "  Missing: ${MISSING_OVH_VARS[*]}"
     echo "  These are REQUIRED for Let's Encrypt SSL certificates"
     echo "  Export them before running deploy:"
-    echo "    export OVH_APPLICATION_KEY=<your-key>"
-    echo "    export OVH_APPLICATION_SECRET=<your-secret>"
-    echo "    export OVH_CONSUMER_KEY=<your-consumer-key>"
+    echo "    export CERT_MANAGER_OVH_APPLICATION_KEY=<your-key>"
+    echo "    export CERT_MANAGER_OVH_APPLICATION_SECRET=<your-secret>"
+    echo "    export CERT_MANAGER_OVH_CONSUMER_KEY=<your-consumer-key>"
     CHECKS_PASSED=false
 fi
 

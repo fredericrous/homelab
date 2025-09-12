@@ -29,7 +29,7 @@ QNAP_VAULT_ADDR=http://NEW-IP:61200
 ### Configuration Files Using QNAP_VAULT_ADDR
 
 - `vault-config.yaml`: Vault's main configuration with transit seal block
-- `qnap-vault-config.yaml`: ConfigMap with transit vault configuration
+- `nas-vault-config.yaml`: ConfigMap with transit vault configuration
 - `vault-transit-unseal.yaml`: VaultTransitUnseal CRD default value
 
 ## External Secrets Operator (ESO) Configuration
@@ -50,7 +50,7 @@ spec:
       server:
         valueFrom:
           configMapKeyRef:
-            name: qnap-vault-config
+            name: nas-vault-config
             namespace: vault
             key: config.yaml
             # Extract just the address using JSONPath
