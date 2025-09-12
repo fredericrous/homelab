@@ -2,37 +2,35 @@
 
 ## QNAP Transit Vault Address Configuration
 
-The QNAP vault address is configured in `qnap-vault-config.yaml` ConfigMap.
+The QNAP vault address is now configured using the `argocd-envsubst-plugin` which reads from the `.env` file in the repository root.
 
 ### Current Configuration
-- **Address**: `http://192.168.1.42:61200`
+- **Address**: `${QNAP_VAULT_ADDR}` (configured in `.env` file)
 - **Mount Path**: `transit`
 - **Key Name**: `autounseal`
 
 ### To Change the QNAP Vault Address
 
-1. Edit `qnap-vault-config.yaml`:
-```yaml
-data:
-  config.yaml: |
-    transit:
-      address: "http://NEW-IP:61200"
+1. Edit the `.env` file in the repository root:
+```bash
+QNAP_VAULT_ADDR=http://NEW-IP:61200
 ```
 
 2. Commit and push the change
-3. ArgoCD will automatically sync the updated configuration
+3. ArgoCD will automatically sync and the envsubst plugin will replace the variable
 
-### Why Not Use Environment Variables?
+### How It Works
 
-ArgoCD operates on Git repositories and doesn't have access to local environment variables. While ArgoCD supports parameters and plugins, using them with ApplicationSets adds unnecessary complexity for a value that rarely changes.
+1. The `vault` app in ArgoCD is configured to use the `envsubst` plugin (see `app.yaml`)
+2. The plugin reads variables from `.env` file in the repository root
+3. All `${VARIABLE}` placeholders in YAML files are replaced with their values
+4. This allows centralized configuration management across the entire homelab
 
-### Alternative Approaches (Not Recommended for Homelab)
+### Configuration Files Using QNAP_VAULT_ADDR
 
-1. **ArgoCD Vault Plugin**: Could template values from Vault itself
-2. **Helm with ArgoCD**: Use Helm values with ArgoCD parameters
-3. **Multiple Overlays**: Create dev/prod overlays with different configs
-
-For a homelab, the static ConfigMap is the most maintainable approach.
+- `vault-config.yaml`: Vault's main configuration with transit seal block
+- `qnap-vault-config.yaml`: ConfigMap with transit vault configuration
+- `vault-transit-unseal.yaml`: VaultTransitUnseal CRD default value
 
 ## External Secrets Operator (ESO) Configuration
 

@@ -14,7 +14,7 @@ spec:
       configMapKeyRef:
         name: qnap-vault-config
         key: config.yaml.transit.address
-      default: http://192.168.1.42:61200  # Fallback if ConfigMap is missing
+      default: ${QNAP_VAULT_ADDR}  # Fallback if ConfigMap is missing
     secretRef:
       name: vault-transit-token
       key: token
