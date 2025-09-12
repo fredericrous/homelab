@@ -3,3 +3,4 @@ project: apps
 namespace: lldap
 path: manifests/apps/lldap
 syncWave: "22"
+plugin: envsubst

@@ -12,10 +12,10 @@ spec:
   ingressClassName: haproxy
   tls:
   - hosts:
-    - lldap.daddyshome.fr
+    - lldap.${EXTERNAL_DOMAIN}
     secretName: lldap-tls
   rules:
-  - host: lldap.daddyshome.fr
+  - host: lldap.${EXTERNAL_DOMAIN}
     http:
       paths:
       - path: /

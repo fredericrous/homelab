@@ -7,8 +7,7 @@ resources:
   # External Secrets for ArgoCD
   - argocd-ldap-externalsecret.yaml
   
-  # Environment substitution plugin
-  - argocd-envsubst-plugin.yaml
+  # Environment variables for substitution
   - argocd-env-vars.yaml
   
   # Any other ArgoCD configuration can be added here
@@ -17,6 +16,17 @@ resources:
   # - argocd-rbac-cm-patch.yaml   # RBAC configuration
   # - argocd-repositories.yaml    # Repository credentials
 
-# Patches to modify existing resources
-patchesStrategicMerge:
-  - argocd-repo-server-envsubst-sidecar.yaml
+# Install the envsubst plugin via Helm
+helmCharts:
+- name: argocd-envsubst-plugin
+  repo: https://fredericrous.github.io/charts
+  version: 2.0.1  # v2 requires explicit plugin specification
+  releaseName: argocd-envsubst-plugin
+  namespace: argocd
+  valuesInline:
+    image:
+      tag: "2.0.1"
+    # Use the environment variables from our ConfigMap
+    envFrom:
+    - configMapRef:
+        name: argocd-env-vars
