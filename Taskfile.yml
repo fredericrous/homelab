@@ -21,6 +21,7 @@ tasks:
 
   deploy:
     desc: Deploy complete Kubernetes cluster
+    dotenv: ['.env']
     cmds:
       - task: sync-env
       - task: prereq
@@ -679,6 +680,7 @@ tasks:
   sync-env:
     desc: Sync .env file to homelab-values repository
     dotenv: ['.env']
+    shell: bash
     preconditions:
       - sh: 'test -f .env'
         msg: ".env file not found. Copy .env.example to .env and configure it"
@@ -695,7 +697,7 @@ tasks:
         
         # Clone the values repository
         echo "📥 Cloning values repository: ${HOMELAB_VALUES_REPO}"
-        if ! git clone --depth 1 "${HOMELAB_VALUES_REPO}" {{.TEMP_DIR}} 2>&1 | grep -v "Cloning into"; then
+        if ! git clone --depth 1 "${HOMELAB_VALUES_REPO}" {{.TEMP_DIR}}; then
           echo "❌ Failed to clone values repository"
           echo ""
           
