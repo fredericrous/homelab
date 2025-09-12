@@ -7,6 +7,7 @@ CLAUDE.local.md
 nas/scripts/download-cert.sh
 vault-transit-unseal-operator/
 argocd-envsubst-plugin/
+homelab-values/
 
 # Environment-specific configurations
 .env
