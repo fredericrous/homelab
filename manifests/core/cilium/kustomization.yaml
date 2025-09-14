@@ -11,5 +11,9 @@ helmCharts:
     includeCRDs: true
     valuesFile: values.talos.yaml
 
-resources:
-  - hubble-ui-nginx-fix.yaml
+patches:
+  - path: patch-hubble-ui-nginx.yaml
+    target:
+      kind: ConfigMap
+      name: hubble-ui-nginx
+      namespace: kube-system
