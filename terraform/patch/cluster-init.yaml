@@ -12,11 +12,9 @@ cluster:
     # Disable default CNI - Cilium will be installed via Helm
     cni:
       name: none
-  # Let kube-proxy manage Services (iptables)
+  # Disable kube-proxy - Cilium will replace it
   proxy:
-    disabled: false
-    extraArgs:
-      proxy-mode: "iptables"
+    disabled: true
 machine:
   # Disable kubespan
   network:

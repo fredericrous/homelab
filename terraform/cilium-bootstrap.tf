@@ -48,13 +48,24 @@ resource "null_resource" "cilium_bootstrap" {
       fi
       echo "Using control plane IP: $ARGO_CONTROL_PLANE_IP"
       
-      # Debug: Check what will be substituted
-      echo "Checking template before substitution..."
-      kubectl kustomize ${path.module}/../manifests/core/cilium --enable-helm | grep -A2 "KUBERNETES_SERVICE_HOST" | head -5 || true
+      # Export the variable so envsubst can use it
+      export ARGO_CONTROL_PLANE_IP="$ARGO_CONTROL_PLANE_IP"
       
-      # Run kustomize with envsubst - ensure all ARGO_ variables are available
-      echo "Applying Cilium with environment substitution..."
-      kubectl kustomize ${path.module}/../manifests/core/cilium --enable-helm | ARGO_CONTROL_PLANE_IP="$ARGO_CONTROL_PLANE_IP" envsubst | kubectl apply -f -
+      # Create a temporary values file with substituted variables
+      echo "Creating temporary values file with substituted variables..."
+      TEMP_VALUES=$(mktemp)
+      cat ${path.module}/../manifests/core/cilium/values.talos.yaml | envsubst '$ARGO_CONTROL_PLANE_IP' > "$TEMP_VALUES"
+      
+      # Use Helm directly to install Cilium with the substituted values
+      echo "Installing Cilium with Helm..."
+      helm upgrade --install cilium cilium/cilium \
+        --version 1.18.1 \
+        --namespace kube-system \
+        --values "$TEMP_VALUES" \
+        --wait
+      
+      # Clean up temp file
+      rm -f "$TEMP_VALUES"
       
       # Verify the substitution worked
       echo "Verifying KUBERNETES_SERVICE_HOST was set correctly..."

@@ -75,21 +75,52 @@ EOF
       
       echo "⏳ Waiting for DNS endpoints to be ready..."
       for i in {1..30}; do
+        # Check if CoreDNS pods exist and are running
+        COREDNS_PODS=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        COREDNS_READY=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        
+        # Check endpoints
         ENDPOINTS=$(kubectl get endpoints -n kube-system kube-dns -o jsonpath='{.subsets[0].addresses}' 2>/dev/null || echo "")
-        if [ -n "$ENDPOINTS" ]; then
-          echo "✅ DNS endpoints are ready"
+        ENDPOINT_COUNT=$(kubectl get endpoints -n kube-system kube-dns -o jsonpath='{.subsets[0].addresses[*].ip}' 2>/dev/null | wc -w | tr -d ' ')
+        
+        echo "Status: CoreDNS pods: $COREDNS_READY/$COREDNS_PODS ready, Endpoints: $ENDPOINT_COUNT"
+        
+        # If no CoreDNS pods at all, provide specific guidance
+        if [ "$COREDNS_PODS" -eq 0 ]; then
+          echo "  ⚠️  No CoreDNS pods found. Talos should deploy CoreDNS automatically."
+          echo "  Checking node status..."
+          kubectl get nodes --no-headers | awk '{print "    " $1 ": " $2}'
+        elif [ "$COREDNS_READY" -lt "$COREDNS_PODS" ]; then
+          echo "  ⏳ CoreDNS pods are starting up..."
+          kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers | awk '{print "    " $1 ": " $2 " " $3}'
+        elif [ -n "$ENDPOINTS" ] && [ "$ENDPOINT_COUNT" -gt 0 ]; then
+          echo "  ✅ DNS endpoints are ready ($ENDPOINT_COUNT endpoints)"
           
           # Test DNS resolution is actually working
-          echo "🧪 Testing DNS resolution..."
-          if kubectl run dns-test-$RANDOM --image=busybox:1.28 --restart=Never --rm -i --timeout=10s --command -- nslookup kubernetes.default.svc.cluster.local 2>&1 | grep -q "Address.*10.96.0.1"; then
-            echo "✅ DNS resolution is working"
+          echo "  🧪 Testing DNS resolution..."
+          TEST_OUTPUT=$(kubectl run dns-test-$RANDOM --image=busybox:1.28 --restart=Never --rm -i --timeout=10s --command -- nslookup kubernetes.default.svc.cluster.local 2>&1 || echo "DNS test failed")
+          
+          if echo "$TEST_OUTPUT" | grep -q "Address.*10.96.0.1"; then
+            echo "  ✅ DNS resolution is working!"
             break
           else
-            echo "⚠️  DNS endpoints exist but resolution not working yet... ($i/30)"
+            echo "  ⚠️  DNS endpoints exist but resolution not working yet"
+            echo "  Test output: $(echo "$TEST_OUTPUT" | grep -E "(can't resolve|Address:|error)" | head -1)"
           fi
         else
-          echo "Waiting for DNS endpoints... ($i/30)"
+          echo "  ⏳ Waiting for endpoints to be created..."
         fi
+        
+        # Don't wait forever - after 20 attempts, show more debugging
+        if [ $i -eq 20 ]; then
+          echo ""
+          echo "  🔍 Extended diagnostics:"
+          echo "  CoreDNS deployment:"
+          kubectl get deployment -n kube-system coredns --no-headers 2>/dev/null || echo "    No coredns deployment found"
+          echo "  DNS service:"
+          kubectl get svc -n kube-system kube-dns -o wide --no-headers 2>/dev/null || echo "    No kube-dns service found"
+        fi
+        
         sleep 2
       done
       

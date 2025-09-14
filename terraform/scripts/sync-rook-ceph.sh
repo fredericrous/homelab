@@ -17,6 +17,14 @@ if ! kubectl cluster-info &>/dev/null; then
   exit 1
 fi
 
+# First, check if ArgoCD server is healthy
+echo "🔍 Checking ArgoCD server health..."
+if ! kubectl wait --for=condition=available --timeout=30s deployment/argocd-server -n argocd >/dev/null 2>&1; then
+  echo "⚠️  ArgoCD server is not healthy"
+  echo "Run: cd terraform && ./scripts/fix-argocd-env-vars.sh"
+  exit 1
+fi
+
 echo "💾 Waiting for Rook-Ceph application to be created by ApplicationSet..."
 KUBECONFIG_PATH="$KUBECONFIG"
 timeout 150s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; until kubectl get app -n argocd rook-ceph >/dev/null 2>&1; do
@@ -156,8 +164,20 @@ fi
 echo "🔍 Checking if Ceph cluster is ready to provision volumes..."
 
 # Wait for OSDs to be running
+echo "📊 Monitoring Ceph cluster deployment..."
 KUBECONFIG_PATH="$KUBECONFIG"
 timeout 300s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
+  # Check CephCluster status
+  if kubectl get cephcluster -n rook-ceph rook-ceph &>/dev/null; then
+    CEPH_PHASE=$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+    CEPH_MESSAGE=$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.message}' 2>/dev/null || echo "")
+    CEPH_HEALTH=$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.ceph.health}' 2>/dev/null || echo "")
+    
+    echo "CephCluster: Phase=$CEPH_PHASE, Message=\"$CEPH_MESSAGE\", Health=$CEPH_HEALTH"
+  else
+    echo "CephCluster resource not found yet..."
+  fi
+  
   # Check if any Ceph OSD pods are running
   osd_count=\$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c \"Running\" || echo \"0\")
   # Trim any whitespace/newlines

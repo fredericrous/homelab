@@ -7,6 +7,16 @@ export KUBECONFIG
 
 echo "⏳ Waiting for ApplicationSets to generate applications..."
 
+# First, check if ArgoCD server is healthy
+echo "🔍 Checking ArgoCD server health..."
+if ! kubectl wait --for=condition=available --timeout=30s deployment/argocd-server -n argocd >/dev/null 2>&1; then
+  echo "⚠️  ArgoCD server is not healthy, checking logs..."
+  kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server --tail=10 || true
+  echo ""
+  echo "⚠️  ArgoCD server may have configuration issues. Run ./scripts/fix-argocd-env-vars.sh to fix."
+  exit 1
+fi
+
 # Wait for specific apps to be created by ApplicationSets
 apps="vault cert-manager external-secrets-operator stakater-reloader rook-ceph"
 KUBECONFIG_PATH="$KUBECONFIG"

@@ -141,3 +141,22 @@ kubectl get secret vault-admin-token -n vault -o jsonpath='{.data.token}' | base
 # Get unseal key
 kubectl get secret vault-keys -n vault -o jsonpath='{.data.unseal-key}' | base64 -d
 ```
+
+## Known Issues
+
+### Cilium and kube-proxy
+- Cilium is configured with `kubeProxyReplacement: true` to replace kube-proxy functionality
+- Talos cluster configuration has `proxy.disabled: true` to prevent kube-proxy from being deployed
+- Environment variable substitution for `${ARGO_CONTROL_PLANE_IP}` in Cilium values must be done during terraform deployment
+- The terraform script also checks and removes any existing kube-proxy DaemonSet during Cilium deployment
+
+### Environment Variable Substitution
+- Both Cilium and ArgoCD require environment variable substitution during terraform deployment
+- Variables that need substitution:
+  - `${ARGO_CONTROL_PLANE_IP}` - Used in Cilium configuration
+  - `${ARGO_EXTERNAL_DOMAIN}` - Used in ArgoCD configuration
+- The terraform scripts:
+  - Load variables from the `.env` file
+  - Create temporary values files with substituted variables
+  - Install/upgrade using Helm with the substituted values
+  - Clean up temporary files

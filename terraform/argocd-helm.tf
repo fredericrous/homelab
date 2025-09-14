@@ -19,17 +19,48 @@ resource "null_resource" "argocd_install" {
         # Check if it's in a failed state
         if helm status argocd -n argocd | grep -q "STATUS: failed"; then
           echo "⚠️  ArgoCD is in failed state, upgrading..."
+          
+          # Load environment variables
+          if [ -f "${path.module}/../.env" ]; then
+            set -a
+            source "${path.module}/../.env"
+            set +a
+          fi
+          
+          # Create temporary values files with substituted variables
+          TEMP_VALUES_BASE=$(mktemp)
+          TEMP_VALUES_SUBSTITUTED=$(mktemp)
+          cp ${path.module}/argocd-values.yaml "$TEMP_VALUES_BASE"
+          cat ${path.module}/../manifests/argocd/values.yaml | envsubst '$ARGO_EXTERNAL_DOMAIN' > "$TEMP_VALUES_SUBSTITUTED"
+          
           helm upgrade argocd argo/argo-cd \
             --version 7.7.12 \
             --namespace argocd \
             --create-namespace \
             --wait --timeout 10m \
-            --values ${path.module}/argocd-values.yaml
+            --values "$TEMP_VALUES_BASE" \
+            --values "$TEMP_VALUES_SUBSTITUTED"
+          
+          rm -f "$TEMP_VALUES_BASE" "$TEMP_VALUES_SUBSTITUTED"
         else
           echo "✅ ArgoCD is already deployed and healthy"
         fi
         exit 0
       fi
+      
+      # Load environment variables
+      if [ -f "${path.module}/../.env" ]; then
+        set -a
+        source "${path.module}/../.env"
+        set +a
+      fi
+      
+      # Create temporary values files with substituted variables
+      echo "Creating temporary values files..."
+      TEMP_VALUES_BASE=$(mktemp)
+      TEMP_VALUES_SUBSTITUTED=$(mktemp)
+      cp ${path.module}/argocd-values.yaml "$TEMP_VALUES_BASE"
+      cat ${path.module}/../manifests/argocd/values.yaml | envsubst '$ARGO_EXTERNAL_DOMAIN' > "$TEMP_VALUES_SUBSTITUTED"
       
       echo "🚀 Installing ArgoCD..."
       helm install argocd argo/argo-cd \
@@ -37,7 +68,11 @@ resource "null_resource" "argocd_install" {
         --namespace argocd \
         --create-namespace \
         --wait --timeout 10m \
-        --values ${path.module}/argocd-values.yaml
+        --values "$TEMP_VALUES_BASE" \
+        --values "$TEMP_VALUES_SUBSTITUTED"
+      
+      # Clean up temp files
+      rm -f "$TEMP_VALUES_BASE" "$TEMP_VALUES_SUBSTITUTED"
       
       echo "✅ ArgoCD installed successfully"
     EOT
@@ -67,8 +102,23 @@ resource "null_resource" "argocd_bootstrap" {
       # Apply kustomize, but delete any existing jobs that might conflict
       kubectl delete job argocd-redis-secret-init -n argocd --ignore-not-found=true
       
-      # Use kustomize with --enable-helm flag to process Helm charts
-      kustomize build ${path.module}/../manifests/argocd --enable-helm | kubectl apply -f -
+      # Load environment variables from .env file
+      if [ -f "${path.module}/../.env" ]; then
+        echo "Loading environment variables..."
+        set -a
+        source "${path.module}/../.env"
+        set +a
+      fi
+      
+      # Verify the external domain is loaded
+      if [ -z "$ARGO_EXTERNAL_DOMAIN" ]; then
+        echo "ERROR: ARGO_EXTERNAL_DOMAIN not set!"
+        exit 1
+      fi
+      echo "Using external domain: $ARGO_EXTERNAL_DOMAIN"
+      
+      # Use kustomize with --enable-helm flag to process Helm charts and substitute variables
+      kustomize build ${path.module}/../manifests/argocd --enable-helm | envsubst '$ARGO_EXTERNAL_DOMAIN' | kubectl apply -f -
       
       # If kustomize fails, check what happened but don't fail the deployment
       if [ $? -ne 0 ]; then
