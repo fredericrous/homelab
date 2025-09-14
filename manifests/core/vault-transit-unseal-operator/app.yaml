@@ -1,0 +1,13 @@
+name: vault-transit-unseal-operator
+project: core
+namespace: vault-operators
+path: manifests/core/vault-transit-unseal-operator
+autoSync: "true"  # Operator should be auto-synced
+prune: "true"
+syncWave: "-25"  # Deploy before Vault (which is -20)
+serverSideApply: "true"
+syncOptions:
+  - CreateNamespace=true
+  - ServerSideApply=true
+retryLimit: 5
+syncTimeout: 300  # 5 minutes for operator deployment
