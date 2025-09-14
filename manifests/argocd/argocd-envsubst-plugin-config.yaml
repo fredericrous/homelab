@@ -10,16 +10,24 @@ data:
     metadata:
       name: argocd-envsubst-plugin
     spec:
-      version: v1.0
       generate:
         command: ["sh", "-c"]
         args:
           - |
-            # Try to fetch environment variables from the values repository
-            # Since git is not available, we'll use wget/curl if available
-            # For now, let's define the critical environment variables inline
-            export ARGO_EXTERNAL_DOMAIN="daddyshome.fr"
-            export ARGO_CONTROL_PLANE_IP="192.168.1.67"
+            # Fetch environment variables from the values repository
+            VALUES_REPO_URL="https://raw.githubusercontent.com/fredericrous/homelab-values/main/.env"
+            
+            # Try to fetch .env file with environment variables
+            if curl -s -f "$VALUES_REPO_URL" > /tmp/values.env 2>/dev/null; then
+              echo "Loading environment variables from values repository"
+              # Source the .env file to export all ARGO_ variables
+              set -a
+              . /tmp/values.env
+              set +a
+            else
+              echo "Warning: Could not fetch environment variables from $VALUES_REPO_URL"
+              echo "Continuing without environment substitution..."
+            fi
             
             # Render manifests with Kustomize, handling Helm charts
             kustomize build . --enable-helm > all.yaml
@@ -28,4 +36,4 @@ data:
             envsubst < all.yaml
       discover:
         find:
-          command: ["sh", "-c", "test -f kustomization.yaml || test -f kustomization.yml"]
+          command: ["sh", "-c", "find . -name 'kustomization.yaml' -o -name 'kustomization.yml' | grep -q . && echo 'kustomization found'"]
