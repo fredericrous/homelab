@@ -2,5 +2,6 @@ name: csi-driver-nfs
 project: core
 namespace: kube-system
 path: manifests/core/csi-driver-nfs
+plugin: argocd-envsubst-plugin
 syncWave: "-11"
 createNamespace: "false"  # kube-system already exists

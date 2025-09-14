@@ -2,4 +2,5 @@ name: metallb
 project: core
 namespace: metallb-system
 path: manifests/core/metallb
+plugin: argocd-envsubst-plugin
 syncWave: "-20"
