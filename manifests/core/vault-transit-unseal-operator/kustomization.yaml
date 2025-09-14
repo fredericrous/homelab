@@ -6,9 +6,10 @@ namespace: vault-transit-unseal-operator
 helmCharts:
 - name: vault-transit-unseal-operator
   repo: https://fredericrous.github.io/charts
-  version: 1.0.4
+  version: 1.0.5
   releaseName: vault-transit-unseal-operator
   namespace: vault-transit-unseal-operator
+  includeCrds: true
   valuesInline:
     # Update to v1.0.9 image
     image:
@@ -23,11 +24,7 @@ helmCharts:
     webhook:
       enabled: false
     
-    # Enable CRD installation
-    crds:
-      install: true
+    # CRDs are now installed by default (crds.install: true)
 
 resources:
 - namespace.yaml
-# Include CRD directly as Helm chart may not install it
-- charts/vault-transit-unseal-operator-1.0.0/vault-transit-unseal-operator/crds/vault-transit-unseal-crd.yaml
