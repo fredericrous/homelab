@@ -18,12 +18,12 @@ resources:
 helmCharts:
 - name: argocd-envsubst-plugin
   repo: https://fredericrous.github.io/charts
-  version: 3.0.1  # v3.0 adds improved cache handling and strict mode
+  version: 3.0.2  # v3.0 adds improved cache handling and strict mode
   releaseName: argocd-envsubst-plugin
   namespace: argocd
   valuesInline:
     image:
-      tag: "3.0.1"
+      tag: "3.0.3"
     # Mount both ConfigMap and Secret for values
     volumes:
     - name: envsubst-values

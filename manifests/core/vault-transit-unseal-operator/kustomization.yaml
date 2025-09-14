@@ -6,13 +6,13 @@ namespace: vault-transit-unseal-operator
 helmCharts:
 - name: vault-transit-unseal-operator
   repo: https://fredericrous.github.io/charts
-  version: 1.0.0
+  version: 1.0.4
   releaseName: vault-transit-unseal-operator
   namespace: vault-transit-unseal-operator
   valuesInline:
-    # Update to v1.0.5 image
+    # Update to v1.0.9 image
     image:
-      tag: "1.0.5"
+      tag: "1.0.9"
     
     # Command-line flags configuration
     watchNamespace: ""  # Watch all namespaces
