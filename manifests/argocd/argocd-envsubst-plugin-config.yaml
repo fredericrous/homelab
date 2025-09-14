@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-envsubst-plugin-config
+  namespace: argocd
+data:
+  plugin.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: argocd-envsubst-plugin
+    spec:
+      version: v1.0
+      generate:
+        command: ["sh", "-c"]
+        args:
+          - |
+            # Try to fetch environment variables from the values repository
+            # Since git is not available, we'll use wget/curl if available
+            # For now, let's define the critical environment variables inline
+            export ARGO_EXTERNAL_DOMAIN="daddyshome.fr"
+            export ARGO_CONTROL_PLANE_IP="192.168.1.67"
+            
+            # Render manifests with Kustomize, handling Helm charts
+            kustomize build . --enable-helm > all.yaml
+            
+            # Apply environment variable substitution
+            envsubst < all.yaml
+      discover:
+        find:
+          command: ["sh", "-c", "find . -name 'kustomization.yaml' -o -name 'kustomization.yml'"]

@@ -98,6 +98,39 @@ repoServer:
   metrics:
     enabled: true
 
+  # Add envsubst plugin as sidecar
+  extraContainers:
+    - name: envsubst
+      image: ghcr.io/fredericrous/argocd-envsubst-plugin:3.0.3
+      imagePullPolicy: IfNotPresent
+      command: [/var/run/argocd/argocd-cmp-server]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: cmp-tmp
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: plugin.yaml
+          name: envsubst-plugin-config
+  
+  volumes:
+    - name: envsubst-plugin-config
+      configMap:
+        name: argocd-envsubst-plugin-config
+    - name: cmp-tmp
+      emptyDir: {}
+
 # ApplicationSet controller
 applicationSet:
   enabled: true

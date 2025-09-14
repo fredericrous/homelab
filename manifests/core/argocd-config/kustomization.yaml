@@ -14,30 +14,5 @@ resources:
   # - argocd-rbac-cm-patch.yaml   # RBAC configuration
   # - argocd-repositories.yaml    # Repository credentials
 
-# Install the envsubst plugin via Helm
-helmCharts:
-- name: argocd-envsubst-plugin
-  repo: https://fredericrous.github.io/charts
-  version: 3.0.2  # v3.0 adds improved cache handling and strict mode
-  releaseName: argocd-envsubst-plugin
-  namespace: argocd
-  valuesInline:
-    image:
-      tag: "3.0.3"
-    # Mount both ConfigMap and Secret for values
-    volumes:
-    - name: envsubst-values
-      configMap:
-        name: argocd-envsubst-values
-        optional: true
-    - name: envsubst-values-external
-      secret:
-        secretName: argocd-envsubst-values-external
-        optional: true
-    volumeMounts:
-    - name: envsubst-values
-      mountPath: /envsubst-values
-      readOnly: true
-    - name: envsubst-values-external
-      mountPath: /envsubst-values-external
-      readOnly: true
+# Note: The envsubst plugin is now configured as a sidecar in the ArgoCD repo-server
+# See manifests/argocd/values.yaml for the configuration
