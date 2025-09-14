@@ -28,4 +28,4 @@ data:
             envsubst < all.yaml
       discover:
         find:
-          command: ["sh", "-c", "find . -name 'kustomization.yaml' -o -name 'kustomization.yml'"]
+          command: ["sh", "-c", "test -f kustomization.yaml || test -f kustomization.yml"]
