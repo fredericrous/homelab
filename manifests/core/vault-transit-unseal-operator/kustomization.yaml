@@ -22,6 +22,10 @@ helmCharts:
     # Disable webhook for now (not needed for basic functionality)
     webhook:
       enabled: false
+    
+    # Enable CRD installation
+    crds:
+      install: true
 
 resources:
 - namespace.yaml
