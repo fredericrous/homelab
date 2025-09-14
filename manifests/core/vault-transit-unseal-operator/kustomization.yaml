@@ -29,3 +29,5 @@ helmCharts:
 
 resources:
 - namespace.yaml
+# Include CRD directly as Helm chart may not install it
+- charts/vault-transit-unseal-operator-1.0.0/vault-transit-unseal-operator/crds/vault-transit-unseal-crd.yaml
