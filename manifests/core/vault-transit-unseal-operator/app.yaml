@@ -1,6 +1,6 @@
 name: vault-transit-unseal-operator
 project: core
-namespace: vault-operators
+namespace: vault-transit-unseal-operator
 path: manifests/core/vault-transit-unseal-operator
 autoSync: "true"  # Operator should be auto-synced
 prune: "true"
