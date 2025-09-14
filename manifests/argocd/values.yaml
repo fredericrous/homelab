@@ -101,7 +101,7 @@ repoServer:
   # Add envsubst plugin as sidecar
   extraContainers:
     - name: envsubst
-      image: ghcr.io/fredericrous/argocd-envsubst-plugin:3.0.4
+      image: ghcr.io/fredericrous/argocd-envsubst-plugin:3.0.5
       imagePullPolicy: IfNotPresent
       command: [/var/run/argocd/argocd-cmp-server]
       securityContext:
@@ -123,11 +123,16 @@ repoServer:
         - mountPath: /home/argocd/cmp-server/config/plugin.yaml
           subPath: plugin.yaml
           name: envsubst-plugin-config
-  
+        - mountPath: /envsubst-values
+          name: envsubst-values
+
   volumes:
     - name: envsubst-plugin-config
       configMap:
         name: argocd-envsubst-plugin-config
+    - name: envsubst-values
+      configMap:
+        name: argocd-envsubst-values
     - name: cmp-tmp
       emptyDir: {}
 
@@ -284,7 +289,7 @@ configs:
     # LDAP configuration for LLDAP via Dex
     dex.config: |
       issuer: https://argocd.${ARGO_EXTERNAL_DOMAIN}/api/dex
-      
+
       connectors:
       - type: ldap
         id: ldap
