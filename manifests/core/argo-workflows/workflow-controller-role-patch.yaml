@@ -1,0 +1,11 @@
+- op: add
+  path: /rules/-
+  value:
+    apiGroups:
+    - ""
+    resourceNames:
+    - argo-postgres-config
+    resources:
+    - secrets
+    verbs:
+    - get

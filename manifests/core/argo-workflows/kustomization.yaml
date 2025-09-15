@@ -5,7 +5,6 @@ namespace: argo-workflows
 
 resources:
   - namespace.yaml
-  - workflow-controller-cluster-role.yaml
   - workflow-controller-vault-rbac.yaml
 
 patches:
@@ -14,6 +13,9 @@ patches:
     name: argo-workflows-workflow-controller
     namespace: argo-workflows
   path: workflow-controller-role-patch.yaml
+
+patchesStrategicMerge:
+- workflow-controller-cluster-role.yaml
 
 helmCharts:
 - name: argo-workflows
