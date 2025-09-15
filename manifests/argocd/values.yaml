@@ -94,6 +94,11 @@ repoServer:
   # Single replica (can increase to 2 for better performance)
   replicas: 1
 
+  # Tolerations for Cilium networking issues
+  tolerations:
+    - key: node.cilium.io/agent-not-ready
+      operator: Exists
+
   # Metrics
   metrics:
     enabled: true
@@ -101,7 +106,7 @@ repoServer:
   # Add envsubst plugin as sidecar
   extraContainers:
     - name: envsubst
-      image: ghcr.io/fredericrous/argocd-envsubst-plugin:4.0.3
+      image: ghcr.io/fredericrous/argocd-envsubst-plugin:4.0.5
       imagePullPolicy: IfNotPresent
       command: [/var/run/argocd/argocd-cmp-server]
       securityContext:
@@ -359,7 +364,12 @@ extraObjects:
         metadata:
           name: argocd-envsubst-plugin
         spec:
+          version: v1.0
+          discover:
+            find:
+              glob: "**/kustomization.yaml"
           generate:
             command: ["/usr/local/bin/argocd-envsubst-plugin"]
             args: ["generate"]
+          preserveFileMode: true
 
