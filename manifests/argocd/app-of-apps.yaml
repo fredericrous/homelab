@@ -17,6 +17,8 @@ spec:
     repoURL: https://github.com/fredericrous/homelab.git
     targetRevision: main
     path: manifests/argocd/root
+    plugin:
+      name: argocd-envsubst-plugin
   
   destination:
     server: https://kubernetes.default.svc

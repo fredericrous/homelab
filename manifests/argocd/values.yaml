@@ -366,7 +366,7 @@ extraObjects:
         spec:
           discover:
             find:
-              glob: "**/kustomization.yaml"
+              glob: "**/kustomization.{yaml,yml}"
           generate:
             command: ["/usr/local/bin/argocd-envsubst-plugin"]
             args: ["generate"]
