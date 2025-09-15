@@ -4,40 +4,22 @@ This homelab repository is designed to be fully open-source while keeping enviro
 
 ## Architecture
 
-1. **Public Repository** (`fredericrous/homelab`): Contains all manifests with placeholders like `${QNAP_VAULT_ADDR}`
-2. **Private Repository** (`fredericrous/homelab-values`): Contains your `.env` file with actual values
-3. **ConfigMap Bootstrap**: Creates a ConfigMap in ArgoCD namespace from your `.env` file
+1. **Public Repository** (`fredericrous/homelab`): Contains all manifests with placeholders like `${ARGO_NAS_VAULT_ADDR}`
+2. **Local Environment File**: Your `.env` file with actual values (never committed to Git)
+3. **ConfigMap Bootstrap**: Terraform creates a ConfigMap in ArgoCD namespace from your `.env` file
 4. **ArgoCD Plugin**: The envsubst plugin reads from the ConfigMap and substitutes placeholders
 
 ## Initial Setup
 
-### 1. Fork/Clone Repositories
+### 1. Clone Repository
 
 ```bash
 # Clone the public homelab repository
 git clone https://github.com/fredericrous/homelab
 cd homelab
-
-# Create your private homelab-values repository on GitHub
-# Make sure it's PRIVATE!
 ```
 
-### 2. Configure Your Private Repository
-
-1. Create a **private** repository named `homelab-values` on GitHub
-2. Configure the repository URL in your `.env` file:
-
-```bash
-# For SSH (recommended - uses your existing GitHub SSH access)
-HOMELAB_VALUES_REPO=git@github.com:YOUR-USERNAME/homelab-values.git
-
-# For HTTPS (include token in URL)
-HOMELAB_VALUES_REPO=https://YOUR-TOKEN@github.com/YOUR-USERNAME/homelab-values.git
-```
-
-No special SSH configuration needed - the `sync-env` task will use your existing Git credentials.
-
-### 3. Configure Your Environment
+### 2. Configure Your Environment
 
 ```bash
 # Copy the example environment file
@@ -45,20 +27,16 @@ cp .env.example .env
 
 # Edit with your values
 vim .env
-
-# Sync to your private repository (automatic)
-task sync-env
 ```
 
-### 4. Deploy
+### 3. Deploy
 
 The deployment process automatically handles the environment configuration:
 
 ```bash
 # This will:
-# 1. Run sync-env to update homelab-values repository
-# 2. Deploy the cluster
-# 3. Create the values ConfigMap during ArgoCD installation
+# 1. Deploy the cluster
+# 2. Create the values ConfigMap during ArgoCD installation (Stage 5)
 task deploy
 ```
 
@@ -66,10 +44,12 @@ task deploy
 
 ### During Deployment
 
-1. `task deploy` runs `task sync-env` which copies `.env` to your private `homelab-values` repository
-2. Stage 5 of deployment creates a ConfigMap from `.env`:
+1. Terraform reads your local `.env` file and filters `ARGO_*` prefixed variables
+2. Stage 5 of deployment creates a ConfigMap from filtered variables:
    ```bash
-   kubectl create configmap argocd-envsubst-values --from-env-file=.env -n argocd
+   kubectl create configmap argocd-envsubst-values \
+     --namespace argocd \
+     --from-file=values="/tmp/argo-values.env"
    ```
 3. The ArgoCD envsubst plugin mounts this ConfigMap at `/envsubst-values/values`
 4. When processing manifests, the plugin loads these values as environment variables
@@ -104,11 +84,12 @@ When you need to change environment values:
 # Edit your local .env
 vim .env
 
-# Sync to private repository
-task sync-env
+# Recreate the ConfigMap
+cd terraform
+terraform apply -target=null_resource.argocd_install
 
-# Update the ConfigMap in cluster
-task update-values
+# Restart ArgoCD repo-server to pick up changes
+kubectl rollout restart deployment/argocd-repo-server -n argocd
 
 # (Optional) Backup to Vault for resilience
 ./scripts/backup-argocd-values-to-vault.sh
@@ -170,47 +151,22 @@ This separation ensures:
    plugin: envsubst
    ```
 
-4. Sync and update:
-   ```bash
-   task sync-env
-   task update-values
-   ```
+4. The plugin will automatically use these values during manifest generation
 
 ## Security Considerations
 
-- **Never commit `.env` to the public repository** (it's in `.gitignore`)
-- Keep `homelab-values` repository **private**
+- **Never commit `.env` to any repository** (it's in `.gitignore`)
+- Keep your `.env` file local and secure
 - The ConfigMap is created in `argocd` namespace with cluster access
 - For truly sensitive data (passwords, API keys), use Vault instead
 - The plugin only substitutes variables, it doesn't execute code
 
-### Git Access Security
+### Local File Security
 
-The `sync-env` task needs push access to your private repository:
-
-1. **SSH Keys** (Recommended):
-   - Use deploy keys with write access
-   - Limit key to single repository
-   - Rotate keys periodically
-
-2. **Personal Access Tokens**:
-   - Create fine-grained tokens
-   - Limit scope to single repository
-   - Set expiration dates
-   - Never commit tokens
-
-3. **Repository Settings**:
-   - Enable branch protection on main
-   - Require PR reviews (if team environment)
-   - Enable audit logging
-   - Regular access reviews
-
-### Temporary Files
-
-The `sync-env` task uses `.task/` directory for temporary clones:
-- Automatically cleaned up after each run
-- Already in `.gitignore`
-- Never leaves sensitive data on disk
+- Keep your `.env` file permissions restrictive: `chmod 600 .env`
+- Never share or commit the `.env` file
+- Store backups securely (e.g., encrypted password manager)
+- Rotate sensitive values periodically
 
 ## Troubleshooting
 
