@@ -1,21 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: argo-workflows
-
 resources:
   - namespace.yaml
   - workflow-controller-vault-rbac.yaml
 
 patches:
 - target:
-    kind: Role
-    name: argo-workflows-workflow-controller
-    namespace: argo-workflows
-  path: workflow-controller-role-patch.yaml
-
-patchesStrategicMerge:
-- workflow-controller-cluster-role.yaml
+    kind: ClusterRole
+    name: argo-workflows-workflow-controller-cluster-template
+  path: workflow-controller-cluster-role.yaml
 
 helmCharts:
 - name: argo-workflows
