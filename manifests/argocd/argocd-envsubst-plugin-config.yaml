@@ -13,6 +13,3 @@ data:
       generate:
         command: ["/usr/local/bin/argocd-envsubst-plugin"]
         args: ["generate"]
-      discover:
-        find:
-          command: ["sh", "-c", "find . -name 'kustomization.yaml' -o -name 'kustomization.yml' | grep -q . && echo 'kustomization found'"]
