@@ -91,7 +91,7 @@ This reads your `.env` file and creates:
 ```bash
 kubectl create configmap argocd-envsubst-values \
   --namespace argocd \
-  --from-env-file=/tmp/argo-values.env
+  --from-file=values=/tmp/argo-values.env
 ```
 
 ## Why This Architecture?
