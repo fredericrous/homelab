@@ -27,12 +27,19 @@ resource "null_resource" "argocd_install" {
             set +a
           fi
           
-          # Ensure namespace exists
+          # Create namespace first
+          echo "📦 Creating ArgoCD namespace..."
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           
-          # Create required ConfigMaps first
-          kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-plugin-config.yaml || true
-          kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-values.yaml || true
+          # Create temporary ConfigMap for initial deployment
+          echo "📦 Creating temporary ConfigMap for initial deployment..."
+          TEMP_ENV_FILE=$(mktemp)
+          grep "^ARGO_" "${path.module}/../.env" > "$TEMP_ENV_FILE" || true
+          kubectl create configmap argocd-envsubst-values \
+            --namespace argocd \
+            --from-file=values="$TEMP_ENV_FILE" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          rm -f "$TEMP_ENV_FILE"
           
           # Create temporary values files with substituted variables
           TEMP_VALUES_BASE=$(mktemp)
@@ -66,10 +73,15 @@ resource "null_resource" "argocd_install" {
       echo "📦 Creating ArgoCD namespace..."
       kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
       
-      # Create required ConfigMaps
-      echo "📦 Creating required ConfigMaps..."
-      kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-plugin-config.yaml || true
-      kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-values.yaml || true
+      # Create temporary ConfigMap for initial deployment
+      echo "📦 Creating temporary ConfigMap for initial deployment..."
+      TEMP_ENV_FILE=$(mktemp)
+      grep "^ARGO_" "${path.module}/../.env" > "$TEMP_ENV_FILE" || true
+      kubectl create configmap argocd-envsubst-values \
+        --namespace argocd \
+        --from-file=values="$TEMP_ENV_FILE" \
+        --dry-run=client -o yaml | kubectl apply -f -
+      rm -f "$TEMP_ENV_FILE"
       
       # Create temporary values files with substituted variables
       echo "Creating temporary values files..."

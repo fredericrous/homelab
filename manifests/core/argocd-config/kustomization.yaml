@@ -6,7 +6,8 @@ namespace: argocd
 resources:
   # External Secrets for ArgoCD
   - argocd-ldap-externalsecret.yaml
-  - externalsecret-envsubst-values.yaml  # Fallback for envsubst values
+  # Note: envsubst values come from ConfigMap created by task deploy
+  # This ensures private values are never committed to Git
   
   # Any other ArgoCD configuration can be added here
   # Examples:

@@ -23,10 +23,6 @@ resources:
 # Ingress for ArgoCD
 - ingress.yaml
 
-# Plugin configuration
-- argocd-envsubst-plugin-config.yaml
-- argocd-envsubst-values.yaml
-
 # Vault integration moved to manifests/core/argocd-config/
 # This follows the self-management pattern where ArgoCD manages its own config
 # after VSO CRDs are available
