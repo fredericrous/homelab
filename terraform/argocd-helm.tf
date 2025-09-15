@@ -27,6 +27,9 @@ resource "null_resource" "argocd_install" {
             set +a
           fi
           
+          # Ensure namespace exists
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          
           # Create required ConfigMaps first
           kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-plugin-config.yaml || true
           kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-values.yaml || true
@@ -59,7 +62,11 @@ resource "null_resource" "argocd_install" {
         set +a
       fi
       
-      # Create required ConfigMaps first
+      # Create namespace first
+      echo "📦 Creating ArgoCD namespace..."
+      kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+      
+      # Create required ConfigMaps
       echo "📦 Creating required ConfigMaps..."
       kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-plugin-config.yaml || true
       kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-values.yaml || true
