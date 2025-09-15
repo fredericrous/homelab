@@ -11,14 +11,8 @@ data:
       name: argocd-envsubst-plugin
     spec:
       generate:
-        command: ["sh", "-c"]
-        args:
-          - |
-            # Render manifests with Kustomize, handling Helm charts
-            kustomize build . --enable-helm > all.yaml
-            
-            # Apply environment variable substitution
-            envsubst < all.yaml
+        command: ["/usr/local/bin/argocd-envsubst-plugin"]
+        args: ["generate"]
       discover:
         find:
           command: ["sh", "-c", "find . -name 'kustomization.yaml' -o -name 'kustomization.yml' | grep -q . && echo 'kustomization found'"]
