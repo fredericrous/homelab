@@ -27,6 +27,10 @@ resource "null_resource" "argocd_install" {
             set +a
           fi
           
+          # Create required ConfigMaps first
+          kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-plugin-config.yaml || true
+          kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-values.yaml || true
+          
           # Create temporary values files with substituted variables
           TEMP_VALUES_BASE=$(mktemp)
           TEMP_VALUES_SUBSTITUTED=$(mktemp)
@@ -54,6 +58,11 @@ resource "null_resource" "argocd_install" {
         source "${path.module}/../.env"
         set +a
       fi
+      
+      # Create required ConfigMaps first
+      echo "📦 Creating required ConfigMaps..."
+      kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-plugin-config.yaml || true
+      kubectl apply -f ${path.module}/../manifests/argocd/argocd-envsubst-values.yaml || true
       
       # Create temporary values files with substituted variables
       echo "Creating temporary values files..."
