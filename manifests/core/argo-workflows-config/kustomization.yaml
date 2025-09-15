@@ -11,4 +11,4 @@ resources:
   - workflow-template-vault-populate.yaml
   - ingress.yaml
   - persistence-config.yaml
-  - ../../base/argo-workflows/workflow-templates
+  - workflow-templates/
