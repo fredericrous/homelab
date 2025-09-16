@@ -384,7 +384,7 @@ To deploy, you need to:
 1. Ensure QNAP Vault is accessible
 2. Either:
    - Export QNAP_VAULT_TOKEN environment variable
-   - Or ensure transit token exists in $TRANSIT_TOKEN_FILE
+   - Or ensure transit token exists in ../.task/.homelab-deploy-env
    - Or run 'task nas:vault-transit' to set up tokens
 EOF
         exit 1
