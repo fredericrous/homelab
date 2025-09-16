@@ -6,7 +6,10 @@ set -euo pipefail
 
 # Parameters
 KUBECONFIG="${1:?Error: KUBECONFIG path required as first argument}"
-K8S_VAULT_TRANSIT_TOKEN="${2:-}"  # Optional second argument for transit token
+ARG_TOKEN="${2:-}"  # Optional second argument for transit token
+
+# Use argument if provided, otherwise use environment
+K8S_VAULT_TRANSIT_TOKEN="${ARG_TOKEN:-${K8S_VAULT_TRANSIT_TOKEN:-}}"
 export KUBECONFIG
 
 # Configuration

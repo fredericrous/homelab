@@ -46,7 +46,10 @@ resource "null_resource" "vault_sync" {
   ]
 
   provisioner "local-exec" {
-    command = "${path.module}/scripts/vault-sync-enhanced.sh '${abspath(local_file.kubeconfig[0].filename)}' '${var.k8s_vault_transit_token}'"
+    command = "${path.module}/scripts/vault-sync-enhanced.sh '${abspath(local_file.kubeconfig[0].filename)}'"
+    environment = {
+      K8S_VAULT_TRANSIT_TOKEN = var.k8s_vault_transit_token
+    }
   }
 
   triggers = {

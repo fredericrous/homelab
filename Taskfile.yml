@@ -312,6 +312,7 @@ tasks:
           # Export for terraform to pick up
           export TF_VAR_k8s_vault_transit_token="${K8S_VAULT_TRANSIT_TOKEN:-}"
         fi
+        # Run terraform in the same shell to preserve environment
         terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.wait_for_appsets -target=null_resource.rook_ceph_sync -target=null_resource.vault_sync -target=null_resource.eso_sync -target=null_resource.cert_manager_sync
     status:
       - 'kubectl get app -n argocd vault 2>/dev/null | grep -q "Synced"'

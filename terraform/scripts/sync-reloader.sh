@@ -66,6 +66,8 @@ kubectl wait --for=condition=ready --timeout=120s pod -n stakater-reloader -l ap
 echo "🔍 Checking Reloader status..."
 if kubectl get deployment -n stakater-reloader reloader-reloader >/dev/null 2>&1; then
   replicas=$(kubectl get deployment -n stakater-reloader reloader-reloader -o jsonpath="{.status.readyReplicas}" 2>/dev/null || echo "0")
+  # Handle empty string case
+  replicas="${replicas:-0}"
   if [ "$replicas" -gt 0 ]; then
     echo "✅ Reloader is running with $replicas ready replicas"
     
