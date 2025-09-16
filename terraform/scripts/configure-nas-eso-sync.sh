@@ -28,6 +28,12 @@ kubectl create secret generic nas-vault-token \
 
 echo "✅ NAS Vault token configured"
 
+# Trigger reconciliation of ClusterSecretStore if it exists
+if kubectl get clustersecretstore nas-vault-backend >/dev/null 2>&1; then
+  echo "🔄 Triggering ClusterSecretStore reconciliation..."
+  kubectl annotate clustersecretstore nas-vault-backend reconcile-trigger="$(date +%s)" --overwrite >/dev/null
+fi
+
 # Wait for ClusterSecretStore to be ready
 echo "⏳ Waiting for NAS ClusterSecretStore..."
 
@@ -122,8 +128,10 @@ else
   echo "✅ CA sync ExternalSecret already exists"
 fi
 
-# Create sync job to push CA to main Vault
-echo "🔄 Creating CA sync job..."
+# Create sync job to push CA from NAS to main Vault
+# This job reads the CA that ExternalSecret synced from NAS and stores it in the local Vault
+echo "🔄 Creating job to push CA from NAS to local Vault..."
+kubectl delete job sync-ca-to-vault -n vault --ignore-not-found >/dev/null 2>&1
 kubectl apply -f - <<'EOF'
 apiVersion: batch/v1
 kind: Job
