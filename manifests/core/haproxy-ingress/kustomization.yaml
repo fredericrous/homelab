@@ -6,8 +6,7 @@ namespace: haproxy-controller
 resources:
   - haproxy-ingress.yaml
   - ingressclass.yaml
-  - client-ca-secret-placeholder.yaml  # Temporary placeholder
-  - client-ca-externalsecret.yaml
+  - client-ca-sync.yaml  # Direct sync from NAS Vault
   - default-ssl-certificate.yaml
 
 patches:

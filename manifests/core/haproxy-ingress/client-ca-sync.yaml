@@ -1,0 +1,31 @@
+# Sync CA certificate from NAS Vault for mTLS client verification
+# This replaces the complex Vault-to-Vault sync with a simple ESO sync
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: client-ca-cert-sync
+  namespace: haproxy-controller
+  annotations:
+    argocd.argoproj.io/sync-wave: "15"  # After ClusterSecretStore is ready
+spec:
+  refreshInterval: 24h  # Check daily, though CA changes are rare
+  
+  secretStoreRef:
+    name: nas-vault-backend
+    kind: ClusterSecretStore
+  
+  target:
+    name: client-ca-cert
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      type: Opaque
+      data:
+        # HAProxy expects 'ca.crt' key
+        ca.crt: '{{ .ca | toString }}'
+  
+  data:
+  - secretKey: ca
+    remoteRef:
+      key: secret/data/pki/ca
+      property: ca.crt
