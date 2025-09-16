@@ -379,14 +379,22 @@ tasks:
         # Source tokens from prereq if available
         if [ -f "../.task/.homelab-deploy-env" ]; then
           source "../.task/.homelab-deploy-env"
+          echo "   Loaded environment from ../.task/.homelab-deploy-env"
+          echo "   NAS_ESO_TOKEN length: ${#NAS_ESO_TOKEN}"
+        else
+          echo "   Warning: ../.task/.homelab-deploy-env not found"
         fi
         
         # Configure NAS ESO sync if token is available
-        if [ -n "$NAS_ESO_TOKEN" ]; then
+        if [ -n "$NAS_ESO_TOKEN" ] && [ "$NAS_ESO_TOKEN" != "hvs.PLACEHOLDER" ]; then
           echo "🔄 Configuring NAS Vault sync..."
+          echo "   Token starts with: ${NAS_ESO_TOKEN:0:20}..."
           ./scripts/configure-nas-eso-sync.sh "{{.KUBECONFIG}}" "$NAS_ESO_TOKEN"
         else
-          echo "⚠️  NAS_ESO_TOKEN not set. To sync CA from NAS:"
+          echo "ℹ️  NAS ESO sync not configured (token not available)"
+          echo "   NAS_ESO_TOKEN value: '$NAS_ESO_TOKEN'"
+          echo "   This is normal for initial deployment"
+          echo "   To enable CA sync from NAS later:"
           echo "   1. Deploy NAS: task nas:deploy"
           echo "   2. Get ESO token: task nas:show-eso-token"
           echo "   3. Run: NAS_ESO_TOKEN=<token> task configure-nas-sync"

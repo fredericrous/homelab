@@ -73,10 +73,15 @@ else
       echo "   Current status:"
       kubectl get clustersecretstore nas-vault-backend -o yaml | grep -A20 "^status:" || echo "   No status found"
       echo ""
-      echo "   Troubleshooting:"
-      echo "   - Check ESO logs: kubectl logs -n external-secrets deploy/external-secrets"
-      echo "   - Check secret: kubectl get secret -n external-secrets nas-vault-token -o yaml"
-      echo "   - Describe: kubectl describe clustersecretstore nas-vault-backend"
+      echo "   This is expected if:"
+      echo "   - NAS Vault is not accessible from this cluster"
+      echo "   - The ESO token is invalid or expired"
+      echo ""
+      echo "   The ClusterSecretStore will become ready when:"
+      echo "   1. NAS Vault is accessible at http://192.168.1.42:61200"
+      echo "   2. A valid ESO token is configured"
+      echo ""
+      echo "   Continuing deployment - CA sync will not work until this is resolved"
       break
     fi
     
