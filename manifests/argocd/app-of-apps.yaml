@@ -6,6 +6,9 @@ kind: Application
 metadata:
   name: root
   namespace: argocd
+  annotations:
+    # Include all files in the path for the plugin
+    argocd.argoproj.io/manifest-generate-paths: .
   # Ensure proper cleanup on delete
   finalizers:
   - resources-finalizer.argocd.argoproj.io
@@ -17,8 +20,7 @@ spec:
     repoURL: https://github.com/fredericrous/homelab.git
     targetRevision: main
     path: manifests/argocd/root
-    plugin:
-      name: argocd-envsubst-plugin
+    # No plugin - use native kustomize
   
   destination:
     server: https://kubernetes.default.svc

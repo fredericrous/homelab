@@ -106,7 +106,7 @@ repoServer:
   # Add envsubst plugin as sidecar
   extraContainers:
     - name: envsubst
-      image: ghcr.io/fredericrous/argocd-envsubst-plugin:4.0.8
+      image: ghcr.io/fredericrous/argocd-envsubst-plugin:4.1.0
       imagePullPolicy: IfNotPresent
       command: [/var/run/argocd/argocd-cmp-server]
       securityContext:
@@ -127,18 +127,12 @@ repoServer:
           name: plugins
         - mountPath: /tmp
           name: cmp-tmp
-        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
-          subPath: plugin.yaml
-          name: envsubst-plugin-config
         # Mount the ConfigMap created by task deploy
         - mountPath: /envsubst-values
           name: envsubst-values
           readOnly: true
 
   volumes:
-    - name: envsubst-plugin-config
-      configMap:
-        name: argocd-envsubst-plugin-config
     - name: envsubst-values
       configMap:
         name: argocd-envsubst-values
@@ -174,6 +168,8 @@ configs:
     users.anonymous.enabled: "false"
     # Enable Helm for Kustomize
     kustomize.buildOptions: "--enable-helm"
+    # Enable manifest-generate-paths for CMP plugins
+    reposerver.plugin.use.manifest.generate.paths: "true"
 
   # Main configuration
   cm:
@@ -350,25 +346,5 @@ configs:
 createNamespace: false
 
 # Extra objects to deploy with ArgoCD
-extraObjects:
-  # ConfigMap for envsubst plugin configuration
-  - apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: argocd-envsubst-plugin-config
-      namespace: argocd
-    data:
-      plugin.yaml: |
-        apiVersion: argoproj.io/v1alpha1
-        kind: ConfigManagementPlugin
-        metadata:
-          name: argocd-envsubst-plugin
-        spec:
-          discover:
-            find:
-              glob: "**/kustomization.{yaml,yml}"
-          generate:
-            command: ["/usr/local/bin/argocd-envsubst-plugin"]
-            args: ["generate"]
-          preserveFileMode: true
+extraObjects: []
 
