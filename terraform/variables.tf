@@ -205,3 +205,11 @@ variable "talos_install_wipe" {
   type        = bool
   default     = true
 }
+
+# Vault configuration
+variable "k8s_vault_transit_token" {
+  description = "Vault transit token for auto-unseal (can be set via K8S_VAULT_TRANSIT_TOKEN or TF_VAR_k8s_vault_transit_token env var)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

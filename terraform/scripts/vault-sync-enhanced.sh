@@ -11,8 +11,8 @@ export KUBECONFIG
 # Configuration
 VAULT_NAMESPACE="vault"
 ARGOCD_NAMESPACE="argocd"
-TRANSIT_TOKEN_FILE="${VAULT_TRANSIT_TOKEN_FILE:-/tmp/vault-transit-token}"
-TRANSIT_ENV_FILE="/tmp/vault-transit-env"
+# Check for deployment environment file
+TRANSIT_ENV_FILE="$(dirname "$0")/../../.task/.homelab-deploy-env"
 MAX_WAIT=600
 
 # Import common functions
@@ -34,15 +34,14 @@ trap cleanup EXIT
 read_transit_token() {
     local token=""
     
-    # Priority 1: Secure file
-    if [ -f "$TRANSIT_TOKEN_FILE" ] && [ -r "$TRANSIT_TOKEN_FILE" ]; then
-        log_info "Reading transit token from secure file"
-        token=$(cat "$TRANSIT_TOKEN_FILE")
-        chmod 600 "$TRANSIT_TOKEN_FILE" 2>/dev/null || true
-    # Priority 2: Environment file from Taskfile
+    # Priority 1: Environment variable directly
+    if [ -n "${K8S_VAULT_TRANSIT_TOKEN:-}" ]; then
+        log_info "Using transit token from environment variable"
+        token="$K8S_VAULT_TRANSIT_TOKEN"
+    # Priority 2: Deployment environment file
     elif [ -f "$TRANSIT_ENV_FILE" ]; then
-        log_info "Reading transit token from Taskfile environment"
-        token=$(grep "K8S_VAULT_TRANSIT_TOKEN=" "$TRANSIT_ENV_FILE" | cut -d'=' -f2- | tr -d '"')
+        log_info "Reading transit token from deployment environment file: $TRANSIT_ENV_FILE"
+        token=$(grep "K8S_VAULT_TRANSIT_TOKEN=" "$TRANSIT_ENV_FILE" | cut -d'=' -f2- | tr -d '"' | sed 's/^export //')
     # Priority 3: QNAP Vault lookup
     elif [ -n "${QNAP_VAULT_TOKEN:-}" ] && command -v vault >/dev/null 2>&1; then
         log_info "Fetching transit token from QNAP Vault"
@@ -91,12 +90,6 @@ setup_transit_token() {
             --dry-run=client -o yaml | kubectl apply -f -
     else
         log_success "Transit token secret already up to date"
-    fi
-    
-    # Save to secure file for future runs
-    if [ ! -f "$TRANSIT_TOKEN_FILE" ]; then
-        echo "$token" > "$TRANSIT_TOKEN_FILE"
-        chmod 600 "$TRANSIT_TOKEN_FILE"
     fi
 }
 
