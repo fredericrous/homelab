@@ -23,8 +23,8 @@ MAX_WAIT=600
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Logging functions
-log_info() { echo "ℹ️  $*"; }
-log_success() { echo "✅ $*"; }
+log_info() { echo "ℹ️  $*" >&2; }
+log_success() { echo "✅ $*" >&2; }
 log_error() { echo "❌ $*" >&2; }
 log_warn() { echo "⚠️  $*" >&2; }
 

@@ -34,7 +34,9 @@ tasks:
       - task: stage5
       - task: stage6
       - task: stage7
-      - task: stage8
+      - task: stage8a
+      - task: stage8b
+      - task: stage8c
       - task: stage8-post
       - task: stage9
       - task: stage10
@@ -188,7 +190,6 @@ tasks:
   stage2:
     desc: "Stage 2: Configure control plane and bootstrap"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage1]
     cmds:
       - task: stage2a
       - task: stage2b
@@ -205,7 +206,6 @@ tasks:
   stage2b:
     desc: "Stage 2b: Bootstrap cluster and get kubeconfig"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage2a]
     cmds:
       - 'echo "🚀 Stage 2b: Bootstrapping Kubernetes and getting kubeconfig..."'
       - 'terraform apply -auto-approve -var="configure_talos=true" -target=talos_machine_bootstrap.this -target=talos_cluster_kubeconfig.this -target=local_file.kubeconfig'
@@ -216,7 +216,6 @@ tasks:
   stage3:
     desc: "Stage 3: Add Helm repos and install Cilium CNI"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage2b]
     cmds:
       - 'echo "📦 Stage 3: Adding Helm repositories..."'
       - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.helm_repos'
@@ -228,7 +227,6 @@ tasks:
   stage4:
     desc: "Stage 4: Configure workers"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage3]
     cmds:
       - 'echo "👷 Stage 4: Configuring workers..."'
       - 'terraform apply -auto-approve -parallelism=10 -var="configure_talos=true" -target=null_resource.apply_worker_configs_smart -target=talos_machine_configuration_apply.workers'
@@ -238,7 +236,6 @@ tasks:
   stage5:
     desc: "Stage 5: Deploy ArgoCD and bootstrap GitOps"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage4]
     cmds:
       - 'echo "🚀 Stage 5: Deploying ArgoCD and bootstrapping GitOps..."'
       - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.argocd_install -target=null_resource.argocd_bootstrap -target=null_resource.argocd_info'
@@ -248,7 +245,6 @@ tasks:
   stage6:
     desc: "Stage 6: Bootstrap DNS service"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage5]
     cmds:
       - 'echo "🌐 Stage 6: Bootstrapping DNS service..."'
       - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.dns_bootstrap'
@@ -258,7 +254,6 @@ tasks:
   stage7:
     desc: "Stage 7: Setup Vault transit token and bootstrap"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [kubeconfig-exists]
     cmds:
       - 'echo "🔑 Stage 7: Setting up Vault transit unseal and bootstrapping..."'
       - |
@@ -299,12 +294,11 @@ tasks:
       - 'kubectl get secret vault-transit-token -n vault 2>/dev/null'
       - 'kubectl get secret ovh-credentials -n cert-manager 2>/dev/null'
 
-  stage8:
-    desc: "Stage 8: Deploy core services (Storage, Vault, VSO, cert-manager)"
+  stage8a:
+    desc: "Stage 8a: Deploy Vault"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage7]
     cmds:
-      - 'echo "🔐 Stage 8: Deploying core services..."'
+      - 'echo "🔐 Stage 8a: Deploying Vault..."'
       - |
         # Source the transit token environment for terraform
         if [ -f "../.task/.homelab-deploy-env" ]; then
@@ -313,15 +307,36 @@ tasks:
           export TF_VAR_k8s_vault_transit_token="${K8S_VAULT_TRANSIT_TOKEN:-}"
         fi
         # Run terraform in the same shell to preserve environment
-        terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.wait_for_appsets -target=null_resource.rook_ceph_sync -target=null_resource.vault_sync -target=null_resource.eso_sync -target=null_resource.cert_manager_sync
+        terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.wait_for_appsets -target=null_resource.vault_sync
     status:
       - 'kubectl get app -n argocd vault 2>/dev/null | grep -q "Synced"'
+
+  stage8b:
+    desc: "Stage 8b: Deploy Rook-Ceph storage"
+    dir: '{{.TERRAFORM_DIR}}'
+    cmds:
+      - 'echo "💾 Stage 8b: Deploying Rook-Ceph storage..."'
+      - |
+        # Run terraform
+        terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.rook_ceph_sync
+    status:
       - 'kubectl get app -n argocd rook-ceph 2>/dev/null | grep -q "Synced"'
+
+  stage8c:
+    desc: "Stage 8c: Deploy other core services (ESO, cert-manager)"
+    dir: '{{.TERRAFORM_DIR}}'
+    cmds:
+      - 'echo "📦 Stage 8c: Deploying ESO and cert-manager..."'
+      - |
+        # Run terraform
+        terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.eso_sync -target=null_resource.cert_manager_sync
+    status:
+      - 'kubectl get app -n argocd external-secrets-operator 2>/dev/null | grep -q "Synced"'
+      - 'kubectl get app -n argocd cert-manager 2>/dev/null | grep -q "Synced"'
 
   stage8-post:
     desc: "Stage 8.5: Vault configuration (after auto-initialization by operator)"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage8]
     dotenv: ['../.env']
     env:
       OVH_APPLICATION_KEY: '{{.CERT_MANAGER_OVH_APPLICATION_KEY}}'
@@ -336,7 +351,6 @@ tasks:
   stage9:
     desc: "Stage 9: Wait for all nodes to be ready"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage8-post]
     cmds:
       - 'echo "⏳ Stage 9: Final verification..."'
       - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.wait_nodes_ready_updated'
@@ -345,7 +359,6 @@ tasks:
 
   stage10:
     desc: "Stage 10: Verify cluster"
-    deps: [stage9]
     cmds:
       - 'echo "✅ Stage 10: Verifying cluster..."'
       - 'kubectl get nodes'
@@ -355,7 +368,6 @@ tasks:
   stage11:
     desc: "Stage 11: Post-deployment fixes"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [stage10]
     dotenv: ['../.env']
     env:
       OVH_APPLICATION_KEY: '{{.CERT_MANAGER_OVH_APPLICATION_KEY}}'

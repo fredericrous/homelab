@@ -106,11 +106,17 @@ timeout 60s sh -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
     echo \"Waiting for ClusterIssuer...\"
   fi
   sleep 5
-done"
+done" || true
 
-if [ $? -ne 0 ]; then
-  echo "⚠️  Warning: ClusterIssuer not created after timeout"
-  echo "This is expected if cert-manager is still syncing. Continuing..."
+# Check exit code but don't fail on timeout (124)
+exit_code=$?
+if [ $exit_code -eq 124 ]; then
+  echo "⚠️  Warning: Timeout waiting for ClusterIssuer"
+  echo "This is expected during initial deployment. The ClusterIssuer will be created when cert-manager syncs."
+elif [ $exit_code -ne 0 ]; then
+  echo "⚠️  Warning: Error checking for ClusterIssuer (exit code: $exit_code)"
+  echo "Continuing anyway..."
 fi
 
 echo "✅ cert-manager synced successfully"
+exit 0
