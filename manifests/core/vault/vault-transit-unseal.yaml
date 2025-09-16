@@ -9,12 +9,7 @@ spec:
     selector:
       app: vault
   transitVault:
-    # Use addressFrom to read from ConfigMap for better flexibility
-    addressFrom:
-      configMapKeyRef:
-        name: nas-vault-config
-        key: config.yaml.transit.address
-      default: ${ARGO_NAS_VAULT_ADDR  # Fallback if ConfigMap is missing
+    address: ${ARGO_NAS_VAULT_ADDR}
     secretRef:
       name: vault-transit-token
       key: token
