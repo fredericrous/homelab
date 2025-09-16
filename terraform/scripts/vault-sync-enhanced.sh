@@ -6,6 +6,7 @@ set -euo pipefail
 
 # Parameters
 KUBECONFIG="${1:?Error: KUBECONFIG path required as first argument}"
+K8S_VAULT_TRANSIT_TOKEN="${2:-}"  # Optional second argument for transit token
 export KUBECONFIG
 
 # Configuration
@@ -26,7 +27,7 @@ log_warn() { echo "⚠️  $*" >&2; }
 
 # Cleanup on exit
 cleanup() {
-    unset K8S_VAULT_TRANSIT_TOKEN VAULT_TOKEN
+    unset VAULT_TOKEN
 }
 trap cleanup EXIT
 
@@ -34,9 +35,9 @@ trap cleanup EXIT
 read_transit_token() {
     local token=""
     
-    # Priority 1: Environment variable directly
+    # Priority 1: Passed as argument (already in K8S_VAULT_TRANSIT_TOKEN)
     if [ -n "${K8S_VAULT_TRANSIT_TOKEN:-}" ]; then
-        log_info "Using transit token from environment variable"
+        log_info "Using transit token from argument/environment"
         token="$K8S_VAULT_TRANSIT_TOKEN"
     # Priority 2: Deployment environment file
     elif [ -f "$TRANSIT_ENV_FILE" ]; then
@@ -380,12 +381,12 @@ main() {
         log_error "Failed to obtain transit token"
         cat >&2 <<EOF
 
-To deploy, you need to:
-1. Ensure QNAP Vault is accessible
-2. Either:
-   - Export QNAP_VAULT_TOKEN environment variable
-   - Or ensure transit token exists in ../.task/.homelab-deploy-env
-   - Or run 'task nas:vault-transit' to set up tokens
+To deploy, you need to provide the transit token via one of:
+1. Pass as second argument: $0 /path/to/kubeconfig <transit-token>
+2. Export K8S_VAULT_TRANSIT_TOKEN environment variable
+3. Ensure transit token exists in ../.task/.homelab-deploy-env
+4. Export QNAP_VAULT_TOKEN and ensure connectivity to QNAP Vault
+5. Run 'task nas:vault-transit' to set up tokens
 EOF
         exit 1
     }
