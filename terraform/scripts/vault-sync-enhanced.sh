@@ -37,7 +37,7 @@ trap cleanup EXIT
 # Read transit token with fallback options
 read_transit_token() {
     local token=""
-    
+
     # Priority 1: Passed as argument (already in K8S_VAULT_TRANSIT_TOKEN)
     if [ -n "${K8S_VAULT_TRANSIT_TOKEN:-}" ]; then
         log_info "Using transit token from argument/environment"
@@ -54,36 +54,36 @@ read_transit_token() {
         token=$(vault kv get -field=token secret/k8s-transit 2>/dev/null || echo "")
         unset VAULT_ADDR VAULT_TOKEN
     fi
-    
+
     if [ -z "$token" ]; then
         log_error "Transit token not found"
         return 1
     fi
-    
+
     # Quick validation - check if token looks valid (not a placeholder)
     if [ "$token" = "PLACEHOLDER_WILL_BE_REPLACED_BY_TERRAFORM" ]; then
         log_error "Transit token is still a placeholder!"
         log_error "You need to provide a valid transit token"
         return 1
     fi
-    
+
     echo "$token"
 }
 
 # Ensure transit token secret exists
 setup_transit_token() {
     local token="${1}"
-    
+
     log_info "Setting up transit token secret"
-    
+
     # Create namespace
     kubectl create namespace "$VAULT_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-    
+
     # Check existing secret
     local existing_token
     existing_token=$(kubectl get secret vault-transit-token -n "$VAULT_NAMESPACE" \
         -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
-    
+
     if [ "$existing_token" = "PLACEHOLDER_WILL_BE_REPLACED_BY_TERRAFORM" ] || \
        [ -z "$existing_token" ] || \
        [ "$existing_token" != "$token" ]; then
@@ -100,13 +100,13 @@ setup_transit_token() {
 # Clear ArgoCD cache if needed
 clear_argocd_cache() {
     local app_name="${1}"
-    
+
     log_warn "Clearing ArgoCD cache for $app_name"
-    
+
     # Force hard refresh
     kubectl patch app -n "$ARGOCD_NAMESPACE" "$app_name" --type merge \
         -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' || true
-    
+
     # If persistent issues, restart repo-server
     if kubectl get app -n "$ARGOCD_NAMESPACE" "$app_name" -o json | \
        jq -r '.status.conditions[0].message // ""' | \
@@ -121,9 +121,9 @@ clear_argocd_cache() {
 wait_for_app() {
     local app_name="${1}"
     local timeout="${2:-150}"
-    
+
     log_info "Waiting for $app_name application"
-    
+
     local elapsed=0
     while [ $elapsed -lt $timeout ]; do
         if kubectl get app -n "$ARGOCD_NAMESPACE" "$app_name" &>/dev/null; then
@@ -133,7 +133,7 @@ wait_for_app() {
         sleep 5
         ((elapsed+=5))
     done
-    
+
     log_error "Timeout waiting for $app_name application"
     return 1
 }
@@ -142,16 +142,16 @@ wait_for_app() {
 sync_app() {
     local app_name="${1}"
     local retries=3
-    
+
     for i in $(seq 1 $retries); do
         log_info "Syncing $app_name application (attempt $i/$retries)"
-        
+
         # Clear cache if not first attempt
         if [ $i -gt 1 ]; then
             clear_argocd_cache "$app_name"
             sleep 10
         fi
-        
+
         # Trigger sync
         kubectl patch app -n "$ARGOCD_NAMESPACE" "$app_name" --type merge -p '{
             "operation": {
@@ -163,21 +163,21 @@ sync_app() {
                 }
             }
         }'
-        
+
         # Wait for sync to start
         sleep 5
-        
+
         # Check if sync started successfully
         local op_phase=$(kubectl get app -n "$ARGOCD_NAMESPACE" "$app_name" \
             -o jsonpath='{.status.operationState.phase}' 2>/dev/null || echo "")
-        
+
         if [ "$op_phase" != "Error" ] && [ "$op_phase" != "Failed" ]; then
             return 0
         fi
-        
+
         log_warn "Sync failed with phase: $op_phase"
     done
-    
+
     return 1
 }
 
@@ -185,13 +185,13 @@ sync_app() {
 wait_for_vault_pvc() {
     local timeout="${1:-300}"
     local elapsed=0
-    
+
     log_info "Waiting for Vault PVC to be bound"
-    
+
     while [ $elapsed -lt $timeout ]; do
         local pvc_status=$(kubectl get pvc -n "$VAULT_NAMESPACE" vault-data \
             -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
-        
+
         if [ "$pvc_status" = "Bound" ]; then
             log_success "Vault PVC is bound"
             return 0
@@ -201,11 +201,11 @@ wait_for_vault_pvc() {
                 --field-selector involvedObject.name=vault-data \
                 --sort-by='.lastTimestamp' | tail -3
         fi
-        
+
         sleep 5
         ((elapsed+=5))
     done
-    
+
     log_error "Timeout waiting for Vault PVC"
     return 1
 }
@@ -216,27 +216,27 @@ check_vault_deployment() {
     local elapsed=0
     local token_refresh_attempts=0
     local max_token_refresh_attempts=2
-    
+
     log_info "Checking Vault deployment status"
-    
+
     # First wait for PVC
     if ! wait_for_vault_pvc; then
         return 1
     fi
-    
+
     # Wait for pod to be created
     while [ $elapsed -lt $timeout ]; do
         if kubectl get pod -n "$VAULT_NAMESPACE" vault-0 &>/dev/null; then
             local pod_phase=$(kubectl get pod -n "$VAULT_NAMESPACE" vault-0 -o jsonpath='{.status.phase}')
             local containers_ready=$(kubectl get pod -n "$VAULT_NAMESPACE" vault-0 \
                 -o jsonpath='{.status.containerStatuses[?(@.name=="vault")].ready}')
-            
+
             if [ "$pod_phase" = "Running" ] && [ "$containers_ready" = "true" ]; then
                 log_success "Vault pod is running and ready"
-                
+
                 # Wait a bit for Vault to fully initialize
                 sleep 10
-                
+
                 # Run initialization helper
                 if "$SCRIPT_DIR/vault-init-helper.sh"; then
                     log_success "Vault initialized successfully"
@@ -263,38 +263,38 @@ check_vault_deployment() {
                         kubectl logs -n "$VAULT_NAMESPACE" vault-0 --tail=5
                         return 1
                     fi
-                    
+
                     token_refresh_attempts=$((token_refresh_attempts + 1))
                     log_warn "Vault failed due to invalid transit token, attempting to refresh (attempt $token_refresh_attempts/$max_token_refresh_attempts)..."
-                    
+
                     # Try to refresh the token automatically
-                    if [ -n "$QNAP_VAULT_TOKEN" ] || [ -f "$HOME/.vault-token" ]; then
+                    if [ -n "${QNAP_VAULT_TOKEN:-}" ]; then
                         # Set up environment for token refresh
                         export VAULT_ADDR="http://192.168.1.42:61200"
-                        if [ -n "$QNAP_VAULT_TOKEN" ]; then
-                            export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
+                        if [ -n "${QNAP_VAULT_TOKEN:-}" ]; then
+                            export VAULT_TOKEN="${QNAP_VAULT_TOKEN}"
                         fi
-                        
+
                         # Try to get fresh token from QNAP Vault
                         log_info "Attempting to retrieve fresh transit token from QNAP Vault..."
                         NEW_TOKEN=$(vault kv get -field=token secret/k8s-transit 2>/dev/null || echo "")
-                        
+
                         if [ -n "$NEW_TOKEN" ] && [ "$NEW_TOKEN" != "" ]; then
                             log_success "Retrieved fresh transit token from QNAP Vault"
-                            
+
                             # Update the secret
                             kubectl delete secret vault-transit-token -n "$VAULT_NAMESPACE" --ignore-not-found=true
                             kubectl create secret generic vault-transit-token \
                                 -n "$VAULT_NAMESPACE" \
                                 --from-literal=token="$NEW_TOKEN"
-                            
+
                             # Delete the pod to force restart with new token
                             log_info "Restarting Vault pod with new token..."
                             kubectl delete pod vault-0 -n "$VAULT_NAMESPACE" --force --grace-period=0
-                            
+
                             # Wait a bit for pod to be recreated
                             sleep 10
-                            
+
                             # Continue the loop to check again
                             elapsed=$((elapsed + 10))
                             continue
@@ -303,7 +303,7 @@ check_vault_deployment() {
                             log_error "Please ensure QNAP_VAULT_TOKEN is set or you're authenticated to QNAP Vault"
                         fi
                     fi
-                    
+
                     # If we couldn't auto-refresh, show manual instructions
                     log_error "Vault failed to start due to invalid transit token!"
                     log_error "Run 'task refresh-transit-token' to get a new token from QNAP Vault"
@@ -314,11 +314,11 @@ check_vault_deployment() {
                 log_info "Vault pod status: $pod_phase"
             fi
         fi
-        
+
         sleep 10
         ((elapsed+=10))
     done
-    
+
     log_error "Timeout waiting for Vault deployment"
     return 1
 }
@@ -328,9 +328,9 @@ monitor_sync() {
     local app_name="${1}"
     local timeout="${2:-600}"
     local elapsed=0
-    
+
     log_info "Monitoring $app_name sync progress"
-    
+
     while [ $elapsed -lt $timeout ]; do
         local sync_status=$(kubectl get app -n "$ARGOCD_NAMESPACE" "$app_name" \
             -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
@@ -338,7 +338,7 @@ monitor_sync() {
             -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
         local op_phase=$(kubectl get app -n "$ARGOCD_NAMESPACE" "$app_name" \
             -o jsonpath='{.status.operationState.phase}' 2>/dev/null || echo "")
-        
+
         if [ "$sync_status" = "Synced" ]; then
             log_success "$app_name synced successfully (Health: $health_status)"
             return 0
@@ -364,13 +364,13 @@ monitor_sync() {
             log_error "Sync failed: $error_msg"
             return 1
         fi
-        
+
         log_info "Status - Sync: $sync_status, Health: $health_status, Operation: $op_phase"
-        
+
         sleep 10
         ((elapsed+=10))
     done
-    
+
     log_error "Timeout waiting for sync completion"
     return 1
 }
@@ -378,7 +378,12 @@ monitor_sync() {
 # Main execution
 main() {
     log_info "Starting Vault synchronization (Enhanced)"
-    
+
+    # Debug: Check if token is already set
+    if [ -n "${K8S_VAULT_TRANSIT_TOKEN:-}" ]; then
+        log_info "Token already available from environment: ${#K8S_VAULT_TRANSIT_TOKEN} chars"
+    fi
+
     # Get transit token
     K8S_VAULT_TRANSIT_TOKEN=$(read_transit_token) || {
         log_error "Failed to obtain transit token"
@@ -393,36 +398,36 @@ To deploy, you need to provide the transit token via one of:
 EOF
         exit 1
     }
-    
+
     # Setup transit token secret
     setup_transit_token "$K8S_VAULT_TRANSIT_TOKEN"
-    
+
     # Clear token from memory
     unset K8S_VAULT_TRANSIT_TOKEN
-    
+
     # Wait for Vault app
     if ! wait_for_app "vault"; then
         exit 1
     fi
-    
+
     # Sync Vault with retry
     if ! sync_app "vault"; then
         log_error "Failed to initiate Vault sync after retries"
         exit 1
     fi
-    
+
     # Monitor sync completion
     if ! monitor_sync "vault"; then
         log_error "Vault sync failed"
         exit 1
     fi
-    
+
     # Check deployment and initialize
     if ! check_vault_deployment; then
         log_error "Vault deployment failed"
         exit 1
     fi
-    
+
     log_success "Vault synchronization complete"
     log_info "Vault is initialized and ready for use"
 }

@@ -83,7 +83,8 @@ spec:
           # Copy the config from ConfigMap volume
           cp /vault/config-template/vault.hcl /vault/config/vault.hcl
           # Replace the placeholder with the actual token
-          sed -i "s/TRANSIT_TOKEN_PLACEHOLDER/$VAULT_SEAL_TRANSIT_TOKEN/g" /vault/config/vault.hcl
+          # Use | as delimiter since the token may contain special characters
+          sed -i "s|TRANSIT_TOKEN_PLACEHOLDER|$VAULT_SEAL_TRANSIT_TOKEN|g" /vault/config/vault.hcl
           echo "Config templating complete"
         env:
         - name: VAULT_SEAL_TRANSIT_TOKEN
