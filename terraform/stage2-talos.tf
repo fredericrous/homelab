@@ -72,30 +72,31 @@ resource "null_resource" "bootstrap_cluster" {
       set -e
       echo "🔍 Checking if cluster needs bootstrap..."
       
-      # Use the talosconfig from root directory (where it's moved for user convenience)
+      # Use the talosconfig from root directory
       TALOSCONFIG="${path.module}/../talosconfig"
       
-      if [ ! -f "$TALOSCONFIG" ]; then
-        echo "ERROR: talosconfig not found at $TALOSCONFIG"
-        exit 1
-      fi
-      
-      # Check if we can connect first
-      if ! talosctl --talosconfig="$TALOSCONFIG" -n ${local.all_nodes.controlplane.ip} version --short >/dev/null 2>&1; then
-        echo "⚠️  Cannot connect to Talos API, waiting..."
-        sleep 10
-      fi
-      
-      # Check if already bootstrapped by trying to get etcd members
-      if talosctl --talosconfig="$TALOSCONFIG" -n ${local.all_nodes.controlplane.ip} etcd members 2>/dev/null | grep -q "isLearner: false"; then
-        echo "✅ Cluster is already bootstrapped"
+      # First check if kubectl works - that's the best indicator
+      if kubectl --kubeconfig="${path.module}/../kubeconfig" get nodes >/dev/null 2>&1; then
+        echo "✅ Cluster is already bootstrapped (kubectl works)"
         exit 0
       fi
       
-      echo "🚀 Bootstrapping Talos cluster..."
-      talosctl --talosconfig="$TALOSCONFIG" bootstrap -n ${local.all_nodes.controlplane.ip}
-      
-      echo "✅ Bootstrap completed"
+      # Try to bootstrap, but handle "already exists" error gracefully
+      echo "🚀 Attempting to bootstrap Talos cluster..."
+      if talosctl --talosconfig="$TALOSCONFIG" bootstrap -n ${local.all_nodes.controlplane.ip} 2>&1 | tee /tmp/bootstrap.log; then
+        echo "✅ Bootstrap completed successfully"
+      else
+        # Check if it failed because already bootstrapped
+        if grep -q "etcd data directory is not empty" /tmp/bootstrap.log || \
+           grep -q "AlreadyExists" /tmp/bootstrap.log; then
+          echo "✅ Cluster was already bootstrapped"
+          exit 0
+        else
+          echo "❌ Bootstrap failed"
+          cat /tmp/bootstrap.log
+          exit 1
+        fi
+      fi
     EOT
   }
   
