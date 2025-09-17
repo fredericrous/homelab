@@ -5,3 +5,5 @@ path: manifests/apps/lldap
 syncWave: "22"
 # Optional: Override the default external domain
 # externalDomain: custom-domain.com
+# Use plugin for variable substitution until we find a better solution
+plugin: argocd-envsubst-plugin

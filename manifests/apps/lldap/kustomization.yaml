@@ -20,8 +20,8 @@ resources:
   - service.yaml
   - ingress.yaml
 
-# Note: Domain substitution is handled by ArgoCD ApplicationSet
-# The ApplicationSet applies Kustomize patches with the correct domain
+# Note: Domain substitution happens via ArgoCD plugin
+# The plugin replaces ${ARGO_EXTERNAL_DOMAIN} variables
 
 patches:
   # Add backup annotations for persistent volumes
