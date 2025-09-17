@@ -11,6 +11,7 @@ helmCharts:
     includeCRDs: true
     valuesFile: values.talos.yaml
 
+
 patches:
   - path: patch-hubble-ui-nginx.yaml
     target:
