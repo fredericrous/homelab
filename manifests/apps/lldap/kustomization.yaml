@@ -20,6 +20,9 @@ resources:
   - service.yaml
   - ingress.yaml
 
+# Note: Domain substitution is handled by ArgoCD ApplicationSet
+# The ApplicationSet applies Kustomize patches with the correct domain
+
 patches:
   # Add backup annotations for persistent volumes
   - target:

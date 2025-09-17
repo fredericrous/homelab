@@ -106,7 +106,7 @@ repoServer:
   # Add envsubst plugin as sidecar
   extraContainers:
     - name: envsubst
-      image: ghcr.io/fredericrous/argocd-envsubst-plugin:4.1.0
+      image: ghcr.io/fredericrous/argocd-envsubst-plugin:4.1.1
       imagePullPolicy: IfNotPresent
       command: [/var/run/argocd/argocd-cmp-server]
       securityContext:

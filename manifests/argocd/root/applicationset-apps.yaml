@@ -26,6 +26,23 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
+        # Use Kustomize with strategic merge patches for domain substitution
+        kustomize:
+          patches:
+          - target:
+              kind: Ingress
+              name: '{{name}}'
+            patch: |
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata:
+                name: '{{name}}'
+              spec:
+                tls:
+                - hosts:
+                  - '{{name}}.{{externalDomain}}'
+                rules:
+                - host: '{{name}}.{{externalDomain}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'
