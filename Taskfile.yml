@@ -93,7 +93,7 @@ tasks:
     cmds:
       - echo "Waiting for VMs to get IP addresses..."
       - sleep 30
-      - terraform apply -auto-approve
+      - terraform apply -var="configure_talos=true" -auto-approve
 
   stage3:
     desc: "Stage 3: Bootstrap Talos cluster"
