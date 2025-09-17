@@ -6,7 +6,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
     haproxy.org/ssl-redirect: "true"
-    haproxy.org/auth-tls-secret: "haproxy-controller/client-ca-cert"
+    haproxy.org/client-ca: "haproxy-controller/client-ca-cert"
     haproxy.org/auth-tls-verify-client: "optional"
     # WebSocket support for streaming
     haproxy.org/timeout-client: "3600s"
