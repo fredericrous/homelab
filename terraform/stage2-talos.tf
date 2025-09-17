@@ -58,10 +58,41 @@ resource "talos_machine_configuration_apply" "cp" {
 }
 
 # Bootstrap the cluster after control plane is configured
-resource "talos_machine_bootstrap" "this" {
+# Using null_resource to make it idempotent - checks if already bootstrapped
+resource "null_resource" "bootstrap_cluster" {
   count = var.configure_talos ? 1 : 0
   
   depends_on = [talos_machine_configuration_apply.cp]
+  
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      echo "🔍 Checking if cluster needs bootstrap..."
+      
+      # Check if already bootstrapped by trying to get etcd members
+      if talosctl --talosconfig=${path.module}/talosconfig -n ${local.all_nodes.controlplane.ip} etcd members 2>/dev/null | grep -q "isLearner: false"; then
+        echo "✅ Cluster is already bootstrapped"
+        exit 0
+      fi
+      
+      echo "🚀 Bootstrapping Talos cluster..."
+      talosctl --talosconfig=${path.module}/talosconfig bootstrap -n ${local.all_nodes.controlplane.ip}
+      
+      echo "✅ Bootstrap completed"
+    EOT
+  }
+  
+  # Force replacement if the cluster changes
+  triggers = {
+    cluster_id = talos_machine_secrets.this.id
+    endpoint   = local.all_nodes.controlplane.ip
+  }
+}
+
+# Keep the original resource but only use it for importing existing state
+# This prevents breaking existing deployments
+resource "talos_machine_bootstrap" "this" {
+  count = 0  # Disabled - we use null_resource above
   
   client_configuration = talos_machine_secrets.this.client_configuration
   node                 = local.all_nodes.controlplane.ip
@@ -75,7 +106,7 @@ resource "talos_machine_configuration_apply" "workers" {
   for_each = var.configure_talos ? { for k, n in local.all_nodes : k => n if k != "controlplane" } : {}
   
   depends_on = [
-    talos_machine_bootstrap.this, 
+    null_resource.bootstrap_cluster, 
     null_resource.apply_worker_configs_smart,
     null_resource.cilium_bootstrap  # Workers need CNI before joining
   ]
@@ -93,7 +124,7 @@ resource "talos_cluster_kubeconfig" "this" {
   count = var.configure_talos ? 1 : 0
   
   depends_on = [
-    talos_machine_bootstrap.this
+    null_resource.bootstrap_cluster
   ]
   
   client_configuration = talos_machine_secrets.this.client_configuration

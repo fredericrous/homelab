@@ -4,7 +4,7 @@ resource "null_resource" "dns_bootstrap" {
   count = var.configure_talos ? 1 : 0
   
   depends_on = [
-    talos_machine_bootstrap.this,
+    null_resource.bootstrap_cluster,
     talos_cluster_kubeconfig.this,
     local_file.kubeconfig
   ]

@@ -54,7 +54,7 @@ resource "null_resource" "apply_worker_configs_smart" {
   count = var.configure_talos ? 1 : 0
   
   depends_on = [
-    talos_machine_bootstrap.this, 
+    null_resource.bootstrap_cluster, 
     local_file.machine_configs,
     local_file.talosconfig,
     null_resource.wait_talos_ready
