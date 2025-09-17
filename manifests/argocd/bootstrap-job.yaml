@@ -21,7 +21,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: bootstrap
-        image: bitnami/kubectl:1.29
+        image: bitnami/kubectl:latest
         securityContext:
           allowPrivilegeEscalation: false
           runAsNonRoot: true

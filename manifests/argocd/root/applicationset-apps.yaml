@@ -15,9 +15,6 @@ spec:
           revision: main
           files:
           - path: "manifests/apps/**/app.yaml"
-          exclude:
-          - path: "manifests/apps/harbor/app.yaml"
-          - path: "manifests/apps/stremio/app.yaml"
       # Second: Get global configuration
       - git:
           repoURL: https://github.com/fredericrous/homelab.git
