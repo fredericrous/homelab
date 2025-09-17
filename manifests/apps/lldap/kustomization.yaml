@@ -20,8 +20,8 @@ resources:
   - service.yaml
   - ingress.yaml
 
-# Note: Domain substitution happens via ArgoCD plugin
-# The plugin replaces ${ARGO_EXTERNAL_DOMAIN} variables
+# Note: Domain substitution happens via ArgoCD ApplicationSet patches
+# The ApplicationSet uses values from global-config.yaml
 
 patches:
   # Add backup annotations for persistent volumes

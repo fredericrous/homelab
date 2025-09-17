@@ -146,3 +146,54 @@ spec:
                             }
                           }
                         }`}}
+          # Workflow patch for Harbor registry URL
+          - target:
+              kind: Workflow
+              name: build-stremio
+            patch: |
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                name: build-stremio
+              spec:
+                templates:
+                - name: check-image
+                  container:
+                    command:
+                    - sh
+                    - -c
+                    - |
+                      export HARBOR_USER=$(cat ~/.docker/config.json | jq -r '.auths["harbor-registry.harbor.svc.cluster.local:5000"].username')
+                      export HARBOR_PASS=$(cat ~/.docker/config.json | jq -r '.auths["harbor-registry.harbor.svc.cluster.local:5000"].password')
+                      
+                      # Check if image exists (try LoadBalancer IP for reliability)
+                      echo "Checking if image already exists in Harbor..." >&2
+                      if curl -f -s -u "$HARBOR_USER:$HARBOR_PASS" \
+                        "http://{{harborRegistry}}/v2/library/stremio-web/manifests/latest" >/dev/null; then
+                        echo "Image already exists in Harbor." >&2
+                        echo "exists" > /tmp/result
+                      else
+                        echo "Image not found in Harbor." >&2
+                        echo "not-found" > /tmp/result
+                      fi
+                      
+                      # Output only the result to stdout
+                      cat /tmp/result
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+        - PrunePropagationPolicy=foreground
+        - ApplyOutOfSyncOnly=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+      revisionHistoryLimit: 3
