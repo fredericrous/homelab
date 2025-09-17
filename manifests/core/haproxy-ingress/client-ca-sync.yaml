@@ -21,8 +21,8 @@ spec:
     template:
       type: Opaque
       data:
-        # HAProxy expects 'ca.crt' key
-        ca.crt: '{{ .ca | toString }}'
+        # HAProxy expects 'tls.crt' key for CA certificates
+        tls.crt: '{{ .ca | toString }}'
   
   data:
   - secretKey: ca
