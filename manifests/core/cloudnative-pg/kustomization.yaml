@@ -19,4 +19,6 @@ resources:
   # PostgreSQL cluster for apps
   - postgres-cluster.yaml
 
-# Patches can be added here if needed
+patches:
+  # Fix webhook connectivity on Talos Linux
+  - patch-cnpg-hostnetwork.yaml
