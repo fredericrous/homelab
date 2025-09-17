@@ -9,6 +9,7 @@ resources:
   # - vault-token-reader-rbac.yaml  # No longer needed with Reflector
   # Argo Workflow
   - argo-workflow-rbac.yaml
+  - vault-admin-token-reflector.yaml  # Reflects vault-admin-token to postgres namespace
   - workflow-populate-vault-secrets.yaml  # PreSync: Creates postgres superuser secret
   - workflow-init-databases.yaml  # PostSync: Creates app databases
   # - job-post-sync-configure.yaml  # Replaced by workflow-init-databases.yaml
