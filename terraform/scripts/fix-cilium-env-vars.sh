@@ -26,18 +26,18 @@ echo "Using control plane IP: $CONTROL_PLANE_IP"
 # Fix Cilium ConfigMap
 echo "📝 Patching Cilium ConfigMap..."
 kubectl get cm cilium-config -n kube-system -o yaml | \
-  sed "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" | \
+  sed -e "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" -e "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" | \
   kubectl apply -f -
 
 # Fix environment variables in DaemonSet and Deployment by patching the entire manifest
 echo "📝 Patching Cilium DaemonSet..."
 kubectl get ds cilium -n kube-system -o yaml | \
-  sed "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" | \
+  sed -e "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" -e "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" | \
   kubectl apply -f -
 
 echo "📝 Patching Cilium Operator Deployment..."
 kubectl get deployment cilium-operator -n kube-system -o yaml | \
-  sed "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" | \
+  sed -e "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" -e "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" | \
   kubectl apply -f -
 
 # Restart Cilium components

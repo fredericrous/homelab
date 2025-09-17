@@ -37,7 +37,7 @@ resource "null_resource" "argocd_install" {
           TEMP_VALUES_BASE=$(mktemp)
           TEMP_VALUES_SUBSTITUTED=$(mktemp)
           cp ${path.module}/argocd-values.yaml "$TEMP_VALUES_BASE"
-          sed "s/\${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" ${path.module}/../manifests/argocd/values.yaml > "$TEMP_VALUES_SUBSTITUTED"
+          sed "s/\$${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" ${path.module}/../manifests/argocd/values.yaml > "$TEMP_VALUES_SUBSTITUTED"
           
           helm upgrade argocd argo/argo-cd \
             --version 7.7.12 \
@@ -122,7 +122,7 @@ resource "null_resource" "argocd_bootstrap" {
       # Direct substitution - no need for ARGO_ prefix
       
       # Use kustomize with --enable-helm flag to process Helm charts and substitute variables
-      kustomize build ${path.module}/../manifests/argocd --enable-helm | sed "s/\${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" | kubectl apply -f -
+      kustomize build ${path.module}/../manifests/argocd --enable-helm | sed "s/\$${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" | kubectl apply -f -
       
       # If kustomize fails, check what happened but don't fail the deployment
       if [ $? -ne 0 ]; then
