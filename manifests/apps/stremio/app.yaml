@@ -2,5 +2,5 @@ name: stremio
 project: apps
 namespace: stremio
 path: manifests/apps/stremio
-plugin: argocd-envsubst-plugin
+# plugin: argocd-envsubst-plugin  # Using ArgoCD native patches instead
 syncWave: "30"

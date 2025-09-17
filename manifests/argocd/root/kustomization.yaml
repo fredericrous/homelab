@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
 - applicationset-core.yaml
 - applicationset-apps.yaml
+- applicationset-apps-patched.yaml

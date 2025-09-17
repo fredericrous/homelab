@@ -18,7 +18,7 @@ spec:
       - name: harbor-registry-manual
       initContainers:
       - name: copy-build
-        image: ${ARGO_HARBOR_REGISTRY}/library/stremio-web:latest
+        image: PLACEHOLDER_HARBOR_REGISTRY/library/stremio-web:latest  # patched by ArgoCD
         imagePullPolicy: Always
         command: ["sh", "-c", "cp -r /var/www/stremio-web/build/* /build-output/"]
         volumeMounts:

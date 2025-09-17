@@ -15,6 +15,10 @@ spec:
           revision: main
           files:
           - path: "manifests/apps/**/app.yaml"
+          exclude:
+          - path: "manifests/apps/lldap/app.yaml"
+          - path: "manifests/apps/harbor/app.yaml"
+          - path: "manifests/apps/stremio/app.yaml"
       # Second: Get global configuration
       - git:
           repoURL: https://github.com/fredericrous/homelab.git
@@ -36,24 +40,6 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
-        # Use Kustomize with strategic merge patches for domain substitution
-        kustomize:
-          patches:
-          - target:
-              kind: Ingress
-              name: '{{name}}'
-            patch: |
-              apiVersion: networking.k8s.io/v1
-              kind: Ingress
-              metadata:
-                name: '{{name}}'
-              spec:
-                tls:
-                - hosts:
-                  # Use app-specific domain if provided, otherwise use global default
-                  - '{{name}}.{{if .externalDomain}}{{.externalDomain}}{{else}}{{.defaultExternalDomain}}{{end}}'
-                rules:
-                - host: '{{name}}.{{if .externalDomain}}{{.externalDomain}}{{else}}{{.defaultExternalDomain}}{{end}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'

@@ -2,5 +2,5 @@ name: harbor
 project: apps
 namespace: harbor
 path: manifests/apps/harbor
-plugin: argocd-envsubst-plugin
+# plugin: argocd-envsubst-plugin  # Using ArgoCD native patches instead
 syncWave: "25"
