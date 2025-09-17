@@ -8,7 +8,7 @@ export KUBECONFIG
 echo "✅ Core services deployed. Cluster is ready!"
 echo ""
 echo "📋 Service Status:"
-kubectl get app -n argocd vault vault-secrets-operator cert-manager -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+kubectl get app -n argocd vault cert-manager -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status 2>/dev/null || echo "Some applications not found yet"
 echo ""
 echo "🌐 To access ArgoCD:"
 echo "  - URL: https://argocd.daddyshome.fr/"

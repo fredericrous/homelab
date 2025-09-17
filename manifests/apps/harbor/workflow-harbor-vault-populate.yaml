@@ -20,12 +20,14 @@ spec:
         templateRef:
           name: vault-populate-template
           template: wait-vault-ready
+          clusterScope: true
       
       # Check and create admin secret
       - name: check-admin-secret
         templateRef:
           name: vault-populate-template
           template: check-vault-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -36,6 +38,7 @@ spec:
         templateRef:
           name: vault-populate-template
           template: create-vault-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -50,6 +53,7 @@ spec:
         templateRef:
           name: vault-populate-template
           template: check-vault-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -60,6 +64,7 @@ spec:
         templateRef:
           name: vault-populate-template
           template: create-vault-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -74,6 +79,7 @@ spec:
         templateRef:
           name: vault-populate-template
           template: check-vault-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -85,6 +91,7 @@ spec:
         templateRef:
           name: vault-populate-template
           template: generate-password
+          clusterScope: true
         arguments:
           parameters:
           - name: length
@@ -97,6 +104,7 @@ spec:
         templateRef:
           name: vault-populate-template
           template: generate-htpasswd
+          clusterScope: true
         arguments:
           parameters:
           - name: username
@@ -116,6 +124,7 @@ spec:
         templateRef:
           name: vault-populate-template
           template: check-vault-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -126,6 +135,7 @@ spec:
         templateRef:
           name: vault-populate-template
           template: create-vault-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -166,4 +176,3 @@ spec:
           htpasswd="$HTPASSWD" \
           http_secret="$HTTP_SECRET"
         
-        echo "Harbor registry secret created successfully"

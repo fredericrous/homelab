@@ -8,3 +8,4 @@ resources:
   - vault-operations.yaml
   - application-setup.yaml
   - build-operations.yaml
+  - cluster-workflow-templates.yaml  # ClusterWorkflowTemplates for cross-namespace access

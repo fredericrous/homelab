@@ -28,6 +28,7 @@ spec:
         templateRef:
           name: application-setup
           template: wait-deployment-ready
+          clusterScope: true
         arguments:
           parameters:
           - name: namespace
@@ -67,12 +68,14 @@ spec:
         templateRef:
           name: vault-operations
           template: wait-vault-ready
+          clusterScope: true
       
       - name: check-admin-secret
         dependencies: [wait-vault]
         templateRef:
           name: vault-operations
           template: check-secret-exists
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -84,6 +87,7 @@ spec:
         templateRef:
           name: vault-operations
           template: generate-password
+          clusterScope: true
         arguments:
           parameters:
           - name: length
@@ -95,6 +99,7 @@ spec:
         templateRef:
           name: vault-operations
           template: populate-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -114,12 +119,14 @@ spec:
         templateRef:
           name: database-operations
           template: wait-postgres
+          clusterScope: true
       
       - name: check-database
         dependencies: [wait-postgres]
         templateRef:
           name: database-operations
           template: check-database-exists
+          clusterScope: true
         arguments:
           parameters:
           - name: host
@@ -133,6 +140,7 @@ spec:
         templateRef:
           name: database-operations
           template: create-database-and-user
+          clusterScope: true
         arguments:
           parameters:
           - name: host
@@ -193,6 +201,7 @@ spec:
     templateRef:
       name: application-setup
       template: nextcloud-occ
+      clusterScope: true
     arguments:
       parameters:
       - name: occ-command
@@ -225,6 +234,7 @@ spec:
     templateRef:
       name: application-setup
       template: fix-permissions
+      clusterScope: true
     arguments:
       parameters:
       - name: namespace
@@ -243,6 +253,7 @@ spec:
     templateRef:
       name: application-setup
       template: nextcloud-occ
+      clusterScope: true
     arguments:
       parameters:
       - name: occ-command
@@ -253,4 +264,3 @@ spec:
     valueFrom:
       secretKeyRef:
         name: nextcloud-db
-        key: password

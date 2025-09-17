@@ -19,6 +19,7 @@ spec:
         templateRef:
           name: database-operations
           template: wait-postgres
+          clusterScope: true
         arguments:
           parameters:
           - name: host
@@ -29,6 +30,7 @@ spec:
         templateRef:
           name: database-operations
           template: check-database-exists
+          clusterScope: true
         arguments:
           parameters:
           - name: host
@@ -42,6 +44,7 @@ spec:
         templateRef:
           name: database-operations
           template: create-database-and-user
+          clusterScope: true
         arguments:
           parameters:
           - name: host
@@ -58,4 +61,3 @@ spec:
     valueFrom:
       secretKeyRef:
         name: authelia-db-secret
-        key: password

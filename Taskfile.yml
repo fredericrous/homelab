@@ -175,14 +175,13 @@ tasks:
       - kubectl wait --for=condition=Ready -n cert-manager pods --all --timeout=300s
 
   stage8b:
-    desc: "Stage 8b: Deploy VSO"
+    desc: "Stage 8b: Deploy VSO (skipped - using ESO instead)"
     deps: [check-prereq]
     env:
       CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
       EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
-      - kubectl apply -k manifests/core/vault-secrets-operator
-      - kubectl wait --for=condition=Ready -n vault-secrets-operator-system pods --all --timeout=300s || true
+      - echo "Skipping VSO deployment - using External Secrets Operator instead"
 
   stage8c:
     desc: "Stage 8c: Deploy External Secrets Operator"

@@ -18,6 +18,7 @@ spec:
         templateRef:
           name: database-operations
           template: wait-postgres
+          clusterScope: true
       
       # Create multiple databases in parallel
       - name: create-nextcloud-db
@@ -80,6 +81,7 @@ spec:
         templateRef:
           name: database-operations
           template: check-database-exists
+          clusterScope: true
         arguments:
           parameters:
           - name: host
@@ -109,6 +111,7 @@ spec:
         templateRef:
           name: database-operations
           template: create-database-and-user
+          clusterScope: true
         arguments:
           parameters:
           - name: host
@@ -118,4 +121,3 @@ spec:
           - name: username
             value: "{{inputs.parameters.username}}"
           - name: password
-            value: "{{tasks.get-password.outputs.parameters.password}}"

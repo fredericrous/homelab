@@ -1,0 +1,263 @@
+# This file converts namespace-scoped WorkflowTemplates to ClusterWorkflowTemplates
+# This allows workflows in any namespace to reference these templates
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: vault-operations
+spec:
+  templates:
+  # Wait for Vault to be ready and unsealed
+  - name: wait-vault-ready
+    inputs:
+      parameters:
+      - name: vault-addr
+        value: "http://vault.vault.svc.cluster.local:8200"
+    container:
+      image: curlimages/curl:latest
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Waiting for Vault at {{inputs.parameters.vault-addr}}..."
+        until curl -sf {{inputs.parameters.vault-addr}}/v1/sys/health | grep -q "initialized"; do
+          echo "Waiting for Vault to be initialized..."
+          sleep 5
+        done
+        echo "Vault is ready!"
+
+  # Check if secret exists in Vault
+  - name: check-secret-exists
+    inputs:
+      parameters:
+      - name: vault-addr
+        value: "http://vault.vault.svc.cluster.local:8200"
+      - name: secret-path
+      - name: token-secret
+        value: "vault-admin-token"
+      - name: token-namespace
+        value: "vault"
+    container:
+      image: hashicorp/vault:1.20.1
+      env:
+      - name: VAULT_ADDR
+        value: "{{inputs.parameters.vault-addr}}"
+      - name: VAULT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.token-secret}}"
+            key: token
+            namespace: "{{inputs.parameters.token-namespace}}"
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        if vault kv get "{{inputs.parameters.secret-path}}" >/dev/null 2>&1; then
+          echo "Secret exists at {{inputs.parameters.secret-path}}"
+          echo "exists" > /tmp/result
+        else
+          echo "Secret does not exist at {{inputs.parameters.secret-path}}"
+          echo "not-exists" > /tmp/result
+        fi
+        cat /tmp/result
+    outputs:
+      parameters:
+      - name: exists
+        valueFrom:
+          path: /tmp/result
+
+  # Generate random password
+  - name: generate-password
+    inputs:
+      parameters:
+      - name: length
+        value: "24"
+    script:
+      image: alpine:latest
+      command: [sh]
+      source: |
+        set -e
+        apk add --no-cache openssl >/dev/null 2>&1
+        password=$(openssl rand -base64 48 | tr -d "=+/" | head -c {{inputs.parameters.length}})
+        echo -n "$password" > /tmp/password
+    outputs:
+      parameters:
+      - name: password
+        valueFrom:
+          path: /tmp/password
+
+  # Populate secret in Vault
+  - name: populate-secret
+    inputs:
+      parameters:
+      - name: vault-addr
+        value: "http://vault.vault.svc.cluster.local:8200"
+      - name: secret-path
+      - name: secret-data
+      - name: token-secret
+        value: "vault-admin-token"
+      - name: token-namespace
+        value: "vault"
+    container:
+      image: hashicorp/vault:1.20.1
+      env:
+      - name: VAULT_ADDR
+        value: "{{inputs.parameters.vault-addr}}"
+      - name: VAULT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.token-secret}}"
+            key: token
+            namespace: "{{inputs.parameters.token-namespace}}"
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Creating secret at {{inputs.parameters.secret-path}}"
+        echo '{{inputs.parameters.secret-data}}' | vault kv put {{inputs.parameters.secret-path}} -
+        echo "Secret created successfully"
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: database-operations
+spec:
+  templates:
+  # Wait for PostgreSQL to be ready
+  - name: wait-postgres
+    inputs:
+      parameters:
+      - name: cluster-name
+        value: "postgres-apps"
+      - name: namespace
+        value: "postgres"
+    container:
+      image: bitnami/kubectl:latest
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Waiting for PostgreSQL cluster {{inputs.parameters.cluster-name}}..."
+        until kubectl get cluster {{inputs.parameters.cluster-name}} -n {{inputs.parameters.namespace}} >/dev/null 2>&1; do
+          echo "Waiting for Cluster resource to exist..."
+          sleep 5
+        done
+        kubectl wait --for=condition=Ready cluster/{{inputs.parameters.cluster-name}} -n {{inputs.parameters.namespace}} --timeout=600s
+        echo "PostgreSQL cluster is ready!"
+
+  # Create database and user
+  - name: create-database
+    inputs:
+      parameters:
+      - name: cluster-name
+        value: "postgres-apps"
+      - name: namespace
+        value: "postgres"
+      - name: database-name
+      - name: username
+      - name: password-secret
+      - name: password-key
+      - name: app-namespace
+    container:
+      image: postgres:16-alpine
+      env:
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.cluster-name}}-superuser"
+            key: password
+            namespace: "{{inputs.parameters.namespace}}"
+      - name: APP_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: "{{inputs.parameters.password-secret}}"
+            key: "{{inputs.parameters.password-key}}"
+            namespace: "{{inputs.parameters.app-namespace}}"
+      command:
+      - sh
+      - -c
+      - |
+        set -e
+        PGHOST="{{inputs.parameters.cluster-name}}-rw.{{inputs.parameters.namespace}}.svc.cluster.local"
+        PGUSER="postgres"
+        
+        echo "Connecting to PostgreSQL at $PGHOST..."
+        
+        # Check if database exists
+        if psql -h "$PGHOST" -U "$PGUSER" -lqt | cut -d \| -f 1 | grep -qw "{{inputs.parameters.database-name}}"; then
+          echo "Database {{inputs.parameters.database-name}} already exists"
+        else
+          echo "Creating database {{inputs.parameters.database-name}}..."
+          psql -h "$PGHOST" -U "$PGUSER" -c "CREATE DATABASE \"{{inputs.parameters.database-name}}\";"
+        fi
+        
+        # Create user if not exists and grant privileges
+        psql -h "$PGHOST" -U "$PGUSER" <<EOF
+        DO \$\$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_user WHERE usename = '{{inputs.parameters.username}}') THEN
+            CREATE USER "{{inputs.parameters.username}}" WITH PASSWORD '$APP_PASSWORD';
+          END IF;
+        END
+        \$\$;
+        
+        GRANT ALL PRIVILEGES ON DATABASE "{{inputs.parameters.database-name}}" TO "{{inputs.parameters.username}}";
+        EOF
+        
+        echo "Database setup completed successfully"
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: application-setup
+spec:
+  templates:
+  # Combined setup for applications with Vault and Database
+  - name: setup-app
+    inputs:
+      parameters:
+      - name: app-name
+      - name: vault-path
+      - name: database-name
+        value: ""  # Optional
+      - name: database-user
+        value: ""  # Optional
+    dag:
+      tasks:
+      - name: wait-vault
+        templateRef:
+          name: vault-operations
+          template: wait-vault-ready
+          clusterScope: true
+      
+      - name: check-vault-secret
+        dependencies: [wait-vault]
+        templateRef:
+          name: vault-operations
+          template: check-secret-exists
+          clusterScope: true
+        arguments:
+          parameters:
+          - name: secret-path
+            value: "{{inputs.parameters.vault-path}}"
+      
+      # Only setup database if database-name is provided
+      - name: setup-database
+        dependencies: [wait-vault]
+        when: "'{{inputs.parameters.database-name}}' != ''"
+        templateRef:
+          name: database-operations
+          template: create-database
+          clusterScope: true
+        arguments:
+          parameters:
+          - name: database-name
+            value: "{{inputs.parameters.database-name}}"
+          - name: username
+            value: "{{inputs.parameters.database-user}}"

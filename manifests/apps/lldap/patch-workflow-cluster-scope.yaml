@@ -1,0 +1,20 @@
+# Patch to update workflows to use ClusterWorkflowTemplates
+# This allows workflows to reference templates from the argo-workflows namespace
+- op: add
+  path: /spec/templates/0/dag/tasks/0/templateRef/clusterScope
+  value: true
+- op: add
+  path: /spec/templates/0/dag/tasks/1/templateRef/clusterScope
+  value: true
+- op: add
+  path: /spec/templates/0/dag/tasks/2/templateRef/clusterScope
+  value: true
+- op: add
+  path: /spec/templates/0/dag/tasks/3/templateRef/clusterScope
+  value: true
+- op: add
+  path: /spec/templates/0/dag/tasks/4/templateRef/clusterScope
+  value: true
+- op: add
+  path: /spec/templates/0/dag/tasks/5/templateRef/clusterScope
+  value: true

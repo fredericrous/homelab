@@ -15,12 +15,14 @@ spec:
         templateRef:
           name: database-operations
           template: wait-postgres
+          clusterScope: true
       
       - name: cleanup-sessions
         dependencies: [wait-postgres]
         templateRef:
           name: database-operations
           template: execute-sql
+          clusterScope: true
         arguments:
           parameters:
           - name: host
@@ -41,4 +43,3 @@ spec:
               DELETE FROM totp_configurations WHERE confirmed = false AND created_at < NOW() - INTERVAL '7 days';
               
               -- Vacuum to reclaim space
-              VACUUM ANALYZE;

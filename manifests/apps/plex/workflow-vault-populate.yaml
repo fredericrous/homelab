@@ -18,12 +18,14 @@ spec:
         templateRef:
           name: vault-operations
           template: wait-vault-ready
+          clusterScope: true
       
       - name: check-secret
         dependencies: [wait-vault]
         templateRef:
           name: vault-operations
           template: check-secret-exists
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -35,6 +37,7 @@ spec:
         templateRef:
           name: vault-operations
           template: populate-secret
+          clusterScope: true
         arguments:
           parameters:
           - name: secret-path
@@ -44,4 +47,3 @@ spec:
               {
                 "claim": "claim-ABC123REPLACEME",
                 "timezone": "Europe/Paris"
-              }
