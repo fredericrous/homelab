@@ -6,11 +6,21 @@ metadata:
   namespace: argocd
 spec:
   generators:
-  - git:
-      repoURL: https://github.com/fredericrous/homelab.git
-      revision: main
-      files:
-      - path: "manifests/apps/**/app.yaml"
+  # Matrix generator combines app configs with global defaults
+  - matrix:
+      generators:
+      # First: Get all app configurations
+      - git:
+          repoURL: https://github.com/fredericrous/homelab.git
+          revision: main
+          files:
+          - path: "manifests/apps/**/app.yaml"
+      # Second: Get global configuration
+      - git:
+          repoURL: https://github.com/fredericrous/homelab.git
+          revision: main
+          files:
+          - path: "manifests/argocd/root/global-config.yaml"
   
   template:
     metadata:
@@ -40,9 +50,10 @@ spec:
               spec:
                 tls:
                 - hosts:
-                  - '{{name}}.{{externalDomain}}'
+                  # Use app-specific domain if provided, otherwise use global default
+                  - '{{name}}.{{if .externalDomain}}{{.externalDomain}}{{else}}{{.defaultExternalDomain}}{{end}}'
                 rules:
-                - host: '{{name}}.{{externalDomain}}'
+                - host: '{{name}}.{{if .externalDomain}}{{.externalDomain}}{{else}}{{.defaultExternalDomain}}{{end}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'

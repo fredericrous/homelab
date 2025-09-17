@@ -1,0 +1,3 @@
+# Global configuration values for all applications
+# This file is read by the ApplicationSet matrix generator
+defaultExternalDomain: daddyshome.fr

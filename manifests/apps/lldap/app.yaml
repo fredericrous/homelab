@@ -3,5 +3,5 @@ project: apps
 namespace: lldap
 path: manifests/apps/lldap
 syncWave: "22"
-# Parameters for ArgoCD to substitute
-externalDomain: daddyshome.fr
+# Optional: Override the default external domain
+# externalDomain: custom-domain.com
