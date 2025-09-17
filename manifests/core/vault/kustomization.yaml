@@ -36,7 +36,7 @@ resources:
   - ingress.yaml
   - rbac-vault-config-role.yaml
   - rbac-vault-secret-manager.yaml
-  - clustersecretstore-vault.yaml  # ClusterSecretStore for local vault
+  # - clustersecretstore-vault.yaml  # ClusterSecretStore for local vault - MISSING FILE
   # Core Vault configuration (KV, ESO) is now handled by vault-transit-unseal-operator's postUnsealConfig
   # Application-specific access should be configured by each application (e.g., cert-manager configures its own Vault access)
   # - vault-configure-argocd-job.yaml  # Replaced by workflow
