@@ -34,13 +34,15 @@ resource "null_resource" "cilium_bootstrap" {
       
       # Load variables from global-config.yaml
       echo "Loading variables from global-config.yaml..."
-      python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > /tmp/global-config.env
+      TEMP_ENV=$(mktemp)
+      python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > "$TEMP_ENV"
       if [ -f "${path.module}/../.env" ]; then
-        grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> /tmp/global-config.env || true
+        grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> "$TEMP_ENV" || true
       fi
       set -a
-      source /tmp/global-config.env
+      source "$TEMP_ENV"
       set +a
+      rm -f "$TEMP_ENV"
       
       # Verify the control plane IP is loaded
       if [ -z "$ARGO_CONTROL_PLANE_IP" ]; then

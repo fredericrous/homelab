@@ -11,7 +11,7 @@ metadata:
 spec:
   ingressClassName: haproxy
   rules:
-  - host: vault.${ARGO_CLUSTER_DOMAIN}
+  - host: vault.PLACEHOLDER_CLUSTER_DOMAIN
     http:
       paths:
       - path: /
@@ -23,5 +23,5 @@ spec:
               number: 8200
   tls:
   - hosts:
-    - vault.${ARGO_CLUSTER_DOMAIN}
+    - vault.PLACEHOLDER_CLUSTER_DOMAIN
     secretName: vault-tls-ovh

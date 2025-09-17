@@ -10,6 +10,8 @@ vars:
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/terraform/talosconfig'
   GLOBAL_CONFIG: '{{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml'
+  TEMP_ENV:
+    sh: mktemp
 
 env:
   KUBECONFIG: '{{.KUBECONFIG}}'
@@ -28,17 +30,17 @@ tasks:
     cmds:
       - |
         # Convert YAML to env vars and source them
-        python3 scripts/yaml-to-env.py {{.GLOBAL_CONFIG}} > /tmp/global-config.env
+        python3 scripts/yaml-to-env.py {{.GLOBAL_CONFIG}} > {{.TEMP_ENV}}
         # Also preserve any local overrides from .env if it exists
         if [ -f .env ]; then
-          grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' .env >> /tmp/global-config.env || true
+          grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' .env >> {{.TEMP_ENV}} || true
         fi
 
   deploy:
     desc: Deploy complete Kubernetes cluster
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     defer:
       - task: cleanup
     cmds:
@@ -63,7 +65,7 @@ tasks:
     dir: '{{.TERRAFORM_DIR}}'
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     preconditions:
       - sh: test -f terraform.tfvars
       - msg: "terraform.tfvars not found. Copy terraform.tfvars.example and update with your values"
@@ -75,7 +77,7 @@ tasks:
     dir: '{{.TERRAFORM_DIR}}'
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Creating VMs..."
       - terraform apply -target=module.vms -auto-approve
@@ -85,7 +87,7 @@ tasks:
     dir: '{{.TERRAFORM_DIR}}'
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Waiting for VMs to get IP addresses..."
       - sleep 30
@@ -95,7 +97,7 @@ tasks:
     desc: "Stage 3: Bootstrap Talos cluster"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
       TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
       - echo "Bootstrapping Talos cluster..."
@@ -107,7 +109,7 @@ tasks:
     desc: "Stage 4: Get kubeconfig"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
       TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
       - talosctl kubeconfig -n $ARGO_CONTROL_PLANE_IP -f {{.KUBECONFIG}}
@@ -119,7 +121,7 @@ tasks:
     desc: "Stage 5: Apply initial Cilium and MetalLB configs"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Applying core networking..."
       - kubectl kustomize manifests/core/cilium | kubectl apply -f -
@@ -131,7 +133,7 @@ tasks:
     desc: "Stage 6: Deploy storage (local-path and optional rook)"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Installing storage providers..."
       - kubectl apply -k manifests/core/local-path-provisioner
@@ -143,7 +145,7 @@ tasks:
     desc: "Stage 7: Deploy Vault"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Installing Vault..."
       - kubectl apply -k manifests/core/vault
@@ -155,7 +157,7 @@ tasks:
     desc: "Stage 8a: Deploy cert-manager"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - kubectl apply -k manifests/core/cert-manager
       - kubectl wait --for=condition=Ready -n cert-manager pods --all --timeout=300s
@@ -164,7 +166,7 @@ tasks:
     desc: "Stage 8b: Deploy VSO"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - kubectl apply -k manifests/core/vault-secrets-operator
       - kubectl wait --for=condition=Ready -n vault-secrets-operator-system pods --all --timeout=300s || true
@@ -173,7 +175,7 @@ tasks:
     desc: "Stage 8c: Deploy External Secrets Operator"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - kubectl apply -k manifests/core/external-secrets-operator
       - kubectl wait --for=condition=Ready -n external-secrets-system deployment/external-secrets-operator --timeout=300s
@@ -182,7 +184,7 @@ tasks:
     desc: "Post stage 8: Apply cluster secret stores"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Configuring cluster secret stores..."
       - kubectl apply -f manifests/core/external-secrets-operator/cluster-secret-store.yaml
@@ -193,7 +195,7 @@ tasks:
     dir: '{{.TERRAFORM_DIR}}'
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Installing ArgoCD..."
       - ./deploy-argocd.sh
@@ -202,7 +204,7 @@ tasks:
     desc: "Stage 10: Deploy remaining core services via ArgoCD"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Deploying remaining core services..."
       - kubectl apply -k manifests/argocd/root
@@ -213,7 +215,7 @@ tasks:
     desc: "Stage 11: Deploy applications"
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     cmds:
       - echo "Applications will be automatically deployed by ArgoCD ApplicationSets"
       - kubectl get applications -n argocd
@@ -221,14 +223,14 @@ tasks:
   cleanup:
     desc: Clean up temporary files
     cmds:
-      - rm -f /tmp/global-config.env
+      - rm -f {{.TEMP_ENV}} 2>/dev/null || true
 
   destroy:
     desc: Destroy the cluster
     dir: '{{.TERRAFORM_DIR}}'
     deps: [load-env]
     env:
-      sh: cat /tmp/global-config.env 2>/dev/null || true
+      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
     prompt: This will destroy the entire cluster. Are you sure?
     cmds:
       - terraform destroy -auto-approve

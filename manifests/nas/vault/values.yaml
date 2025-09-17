@@ -32,8 +32,8 @@ server:
       # Mlock is not supported in containers
       disable_mlock = true
 
-      api_addr = "${ARGO_VAULT_API_ADDR}"
-      cluster_addr = "${ARGO_VAULT_CLUSTER_ADDR}"
+      api_addr = "PLACEHOLDER_VAULT_API_ADDR"
+      cluster_addr = "PLACEHOLDER_VAULT_CLUSTER_ADDR"
 
   service:
     type: NodePort
