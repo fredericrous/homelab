@@ -20,5 +20,5 @@ resources:
   - postgres-cluster.yaml
 
 patches:
-  # Fix webhook connectivity on Talos Linux
-  - patch-cnpg-hostnetwork.yaml
+  # Fix webhook connectivity on Talos Linux with Cilium
+  - patch-webhook-failure-policy.yaml

@@ -1,0 +1,36 @@
+# Patch to make CNPG webhooks non-blocking in case of failures
+# This is a workaround for Talos + Cilium webhook connectivity issues
+# 
+# Issue: With Cilium kube-proxy replacement mode on Talos Linux,
+# the kube-apiserver (running on host network) cannot reach ClusterIP
+# services, causing webhook timeouts.
+#
+# This patch changes failurePolicy from "Fail" to "Ignore" to allow
+# PostgreSQL resources to be created even if the webhook is unreachable.
+# The CNPG operator will still validate resources after creation.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: cnpg-mutating-webhook-configuration
+webhooks:
+- name: mcluster.cnpg.io
+  failurePolicy: Ignore
+- name: mbackup.cnpg.io
+  failurePolicy: Ignore
+- name: mscheduledbackup.cnpg.io
+  failurePolicy: Ignore
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: cnpg-validating-webhook-configuration
+webhooks:
+- name: vcluster.cnpg.io
+  failurePolicy: Ignore
+- name: vbackup.cnpg.io
+  failurePolicy: Ignore
+- name: vscheduledbackup.cnpg.io
+  failurePolicy: Ignore
+- name: vpooler.cnpg.io
+  failurePolicy: Ignore
