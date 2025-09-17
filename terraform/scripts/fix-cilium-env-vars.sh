@@ -6,40 +6,38 @@ export KUBECONFIG
 
 echo "🔧 Fixing Cilium environment variables..."
 
-# Load environment variables from .env file
-if [ -f "$(dirname "$0")/../../.env" ]; then
-  echo "Loading environment variables..."
-  set -a
-  source "$(dirname "$0")/../../.env"
-  set +a
-else
-  echo "ERROR: .env file not found!"
+# Load control plane IP from global-config.yaml
+GLOBAL_CONFIG="$(dirname "$0")/../../manifests/argocd/root/global-config.yaml"
+if [ ! -f "$GLOBAL_CONFIG" ]; then
+  echo "ERROR: global-config.yaml not found!"
   exit 1
 fi
 
-# Verify required variables
-if [ -z "$ARGO_CONTROL_PLANE_IP" ]; then
-  echo "ERROR: ARGO_CONTROL_PLANE_IP not set!"
+CONTROL_PLANE_IP=$(yq '.controlPlaneIP' "$GLOBAL_CONFIG")
+
+# Verify the control plane IP is loaded
+if [ -z "$CONTROL_PLANE_IP" ]; then
+  echo "ERROR: Control plane IP not found in global-config.yaml!"
   exit 1
 fi
 
-echo "Using control plane IP: $ARGO_CONTROL_PLANE_IP"
+echo "Using control plane IP: $CONTROL_PLANE_IP"
 
 # Fix Cilium ConfigMap
 echo "📝 Patching Cilium ConfigMap..."
 kubectl get cm cilium-config -n kube-system -o yaml | \
-  sed "s/\${ARGO_CONTROL_PLANE_IP}/$ARGO_CONTROL_PLANE_IP/g" | \
+  sed "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" | \
   kubectl apply -f -
 
 # Fix environment variables in DaemonSet and Deployment by patching the entire manifest
 echo "📝 Patching Cilium DaemonSet..."
 kubectl get ds cilium -n kube-system -o yaml | \
-  sed "s/\${ARGO_CONTROL_PLANE_IP}/$ARGO_CONTROL_PLANE_IP/g" | \
+  sed "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" | \
   kubectl apply -f -
 
 echo "📝 Patching Cilium Operator Deployment..."
 kubectl get deployment cilium-operator -n kube-system -o yaml | \
-  sed "s/\${ARGO_CONTROL_PLANE_IP}/$ARGO_CONTROL_PLANE_IP/g" | \
+  sed "s/\${ARGO_CONTROL_PLANE_IP}/$CONTROL_PLANE_IP/g" | \
   kubectl apply -f -
 
 # Restart Cilium components

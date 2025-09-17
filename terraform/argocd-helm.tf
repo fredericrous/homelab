@@ -20,36 +20,24 @@ resource "null_resource" "argocd_install" {
         if helm status argocd -n argocd | grep -q "STATUS: failed"; then
           echo "⚠️  ArgoCD is in failed state, upgrading..."
           
-          # Load variables from global-config.yaml
-          TEMP_ENV=$(mktemp)
-          python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > "$TEMP_ENV"
-          if [ -f "${path.module}/../.env" ]; then
-            grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> "$TEMP_ENV" || true
-          fi
-          set -a
-          source "$TEMP_ENV"
-          set +a
-          rm -f "$TEMP_ENV"
+          # Load external domain from global-config.yaml
+          EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../manifests/argocd/root/global-config.yaml)
+          # Direct substitution - no need for ARGO_ prefix
           
           # Create namespace first
           echo "📦 Creating ArgoCD namespace..."
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           
-          # Load variables from global-config.yaml
-          echo "📦 Loading variables from global-config.yaml..."
-          TEMP_ENV=$(mktemp)
-          python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > "$TEMP_ENV"
-          if [ -f "${path.module}/../.env" ]; then
-            grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> "$TEMP_ENV" || true
-          fi
-          source "$TEMP_ENV"
-          rm -f "$TEMP_ENV"
+          # Load external domain from global-config.yaml
+          echo "📦 Loading external domain from global-config.yaml..."
+          EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../manifests/argocd/root/global-config.yaml)
+          # Direct substitution - no need for ARGO_ prefix
           
           # Create temporary values files with substituted variables
           TEMP_VALUES_BASE=$(mktemp)
           TEMP_VALUES_SUBSTITUTED=$(mktemp)
           cp ${path.module}/argocd-values.yaml "$TEMP_VALUES_BASE"
-          cat ${path.module}/../manifests/argocd/values.yaml | envsubst '$ARGO_EXTERNAL_DOMAIN' > "$TEMP_VALUES_SUBSTITUTED"
+          sed "s/\${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" ${path.module}/../manifests/argocd/values.yaml > "$TEMP_VALUES_SUBSTITUTED"
           
           helm upgrade argocd argo/argo-cd \
             --version 7.7.12 \
@@ -66,17 +54,10 @@ resource "null_resource" "argocd_install" {
         exit 0
       fi
       
-      # Load variables from global-config.yaml
-      echo "📦 Loading variables from global-config.yaml..."
-      TEMP_ENV=$(mktemp)
-      python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > "$TEMP_ENV"
-      if [ -f "${path.module}/../.env" ]; then
-        grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> "$TEMP_ENV" || true
-      fi
-      set -a
-      source "$TEMP_ENV"
-      set +a
-      rm -f "$TEMP_ENV"
+      # Load external domain from global-config.yaml
+      echo "📦 Loading external domain from global-config.yaml..."
+      EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../manifests/argocd/root/global-config.yaml)
+      # Direct substitution - no need for ARGO_ prefix
       
       # Create namespace first
       echo "📦 Creating ArgoCD namespace..."
@@ -129,23 +110,19 @@ resource "null_resource" "argocd_bootstrap" {
       # Apply kustomize, but delete any existing jobs that might conflict
       kubectl delete job argocd-redis-secret-init -n argocd --ignore-not-found=true
       
-      # Load environment variables from .env file
-      if [ -f "${path.module}/../.env" ]; then
-        echo "Loading environment variables..."
-        set -a
-        source "${path.module}/../.env"
-        set +a
-      fi
+      # Load external domain from global-config.yaml
+      EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../manifests/argocd/root/global-config.yaml)
       
       # Verify the external domain is loaded
-      if [ -z "$ARGO_EXTERNAL_DOMAIN" ]; then
-        echo "ERROR: ARGO_EXTERNAL_DOMAIN not set!"
+      if [ -z "$EXTERNAL_DOMAIN" ]; then
+        echo "ERROR: External domain not found in global-config.yaml!"
         exit 1
       fi
-      echo "Using external domain: $ARGO_EXTERNAL_DOMAIN"
+      echo "Using external domain: $EXTERNAL_DOMAIN"
+      # Direct substitution - no need for ARGO_ prefix
       
       # Use kustomize with --enable-helm flag to process Helm charts and substitute variables
-      kustomize build ${path.module}/../manifests/argocd --enable-helm | envsubst '$ARGO_EXTERNAL_DOMAIN' | kubectl apply -f -
+      kustomize build ${path.module}/../manifests/argocd --enable-helm | sed "s/\${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" | kubectl apply -f -
       
       # If kustomize fails, check what happened but don't fail the deployment
       if [ $? -ne 0 ]; then

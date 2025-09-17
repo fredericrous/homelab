@@ -10,8 +10,10 @@ vars:
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/terraform/talosconfig'
   GLOBAL_CONFIG: '{{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml'
-  TEMP_ENV:
-    sh: mktemp
+  CONTROL_PLANE_IP:
+    sh: yq '.controlPlaneIP' {{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml
+  EXTERNAL_DOMAIN:
+    sh: yq '.defaultExternalDomain' {{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml
 
 env:
   KUBECONFIG: '{{.KUBECONFIG}}'
@@ -23,26 +25,23 @@ tasks:
     cmds:
       - task: deploy
 
-  # Helper task to load environment from global-config.yaml
-  load-env:
-    desc: Load environment variables from global-config.yaml
+  # Helper task to check prerequisites
+  check-prereq:
+    desc: Check prerequisites
     silent: true
     cmds:
       - |
-        # Convert YAML to env vars and source them
-        python3 scripts/yaml-to-env.py {{.GLOBAL_CONFIG}} > {{.TEMP_ENV}}
-        # Also preserve any local overrides from .env if it exists
-        if [ -f .env ]; then
-          grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' .env >> {{.TEMP_ENV}} || true
+        if ! command -v yq &> /dev/null; then
+          echo "ERROR: yq is required but not installed. Install with: brew install yq"
+          exit 1
         fi
 
   deploy:
     desc: Deploy complete Kubernetes cluster
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
-    defer:
-      - task: cleanup
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - task: prereq
       - task: stage1
@@ -63,9 +62,10 @@ tasks:
   prereq:
     desc: Pre-flight checks
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     preconditions:
       - sh: test -f terraform.tfvars
       - msg: "terraform.tfvars not found. Copy terraform.tfvars.example and update with your values"
@@ -75,9 +75,10 @@ tasks:
   stage1:
     desc: "Stage 1: Create VMs with Terraform"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Creating VMs..."
       - terraform apply -target=module.vms -auto-approve
@@ -85,9 +86,10 @@ tasks:
   stage2:
     desc: "Stage 2: Wait for VMs and configure Talos"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Waiting for VMs to get IP addresses..."
       - sleep 30
@@ -95,33 +97,36 @@ tasks:
 
   stage3:
     desc: "Stage 3: Bootstrap Talos cluster"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
       TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
       - echo "Bootstrapping Talos cluster..."
-      - talosctl bootstrap -n $ARGO_CONTROL_PLANE_IP
+      - talosctl bootstrap -n {{.CONTROL_PLANE_IP}}
       - echo "Waiting for cluster to be ready..."
       - sleep 60
 
   stage4:
     desc: "Stage 4: Get kubeconfig"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
       TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
-      - talosctl kubeconfig -n $ARGO_CONTROL_PLANE_IP -f {{.KUBECONFIG}}
+      - talosctl kubeconfig -n {{.CONTROL_PLANE_IP}} -f {{.KUBECONFIG}}
       - chmod 600 {{.KUBECONFIG}}
       - echo "Waiting for Kubernetes API..."
       - kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
   stage5:
     desc: "Stage 5: Apply initial Cilium and MetalLB configs"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Applying core networking..."
       - kubectl kustomize manifests/core/cilium | kubectl apply -f -
@@ -131,9 +136,10 @@ tasks:
 
   stage6:
     desc: "Stage 6: Deploy storage (local-path and optional rook)"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Installing storage providers..."
       - kubectl apply -k manifests/core/local-path-provisioner
@@ -143,9 +149,10 @@ tasks:
 
   stage7:
     desc: "Stage 7: Deploy Vault"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Installing Vault..."
       - kubectl apply -k manifests/core/vault
@@ -155,36 +162,40 @@ tasks:
 
   stage8a:
     desc: "Stage 8a: Deploy cert-manager"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - kubectl apply -k manifests/core/cert-manager
       - kubectl wait --for=condition=Ready -n cert-manager pods --all --timeout=300s
 
   stage8b:
     desc: "Stage 8b: Deploy VSO"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - kubectl apply -k manifests/core/vault-secrets-operator
       - kubectl wait --for=condition=Ready -n vault-secrets-operator-system pods --all --timeout=300s || true
 
   stage8c:
     desc: "Stage 8c: Deploy External Secrets Operator"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - kubectl apply -k manifests/core/external-secrets-operator
       - kubectl wait --for=condition=Ready -n external-secrets-system deployment/external-secrets-operator --timeout=300s
 
   stage8-post:
     desc: "Post stage 8: Apply cluster secret stores"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Configuring cluster secret stores..."
       - kubectl apply -f manifests/core/external-secrets-operator/cluster-secret-store.yaml
@@ -193,18 +204,20 @@ tasks:
   stage9:
     desc: "Stage 9: Deploy ArgoCD"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Installing ArgoCD..."
       - ./deploy-argocd.sh
 
   stage10:
     desc: "Stage 10: Deploy remaining core services via ArgoCD"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Deploying remaining core services..."
       - kubectl apply -k manifests/argocd/root
@@ -213,9 +226,10 @@ tasks:
 
   stage11:
     desc: "Stage 11: Deploy applications"
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Applications will be automatically deployed by ArgoCD ApplicationSets"
       - kubectl get applications -n argocd
@@ -228,9 +242,10 @@ tasks:
   destroy:
     desc: Destroy the cluster
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [load-env]
+    deps: [check-prereq]
     env:
-      sh: cat {{.TEMP_ENV}} 2>/dev/null || true
+      CONTROL_PLANE_IP: '{{.CONTROL_PLANE_IP}}'
+      EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     prompt: This will destroy the entire cluster. Are you sure?
     cmds:
       - terraform destroy -auto-approve
@@ -238,6 +253,7 @@ tasks:
 
   show-env:
     desc: Show environment variables from global-config.yaml
-    deps: [load-env]
+    deps: [check-prereq]
     cmds:
-      - cat /tmp/global-config.env
+      - echo "CONTROL_PLANE_IP={{.CONTROL_PLANE_IP}}"
+      - echo "EXTERNAL_DOMAIN={{.EXTERNAL_DOMAIN}}"

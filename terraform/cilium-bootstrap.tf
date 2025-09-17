@@ -32,32 +32,23 @@ resource "null_resource" "cilium_bootstrap" {
 
       echo "🚀 Installing Cilium CNI..."
       
-      # Load variables from global-config.yaml
-      echo "Loading variables from global-config.yaml..."
-      TEMP_ENV=$(mktemp)
-      python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > "$TEMP_ENV"
-      if [ -f "${path.module}/../.env" ]; then
-        grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> "$TEMP_ENV" || true
-      fi
-      set -a
-      source "$TEMP_ENV"
-      set +a
-      rm -f "$TEMP_ENV"
+      # Load control plane IP from global-config.yaml
+      echo "Loading control plane IP from global-config.yaml..."
+      CONTROL_PLANE_IP=$(yq '.controlPlaneIP' ${path.module}/../manifests/argocd/root/global-config.yaml)
       
       # Verify the control plane IP is loaded
-      if [ -z "$ARGO_CONTROL_PLANE_IP" ]; then
-        echo "ERROR: ARGO_CONTROL_PLANE_IP not set!"
+      if [ -z "$CONTROL_PLANE_IP" ]; then
+        echo "ERROR: Control plane IP not found in global-config.yaml!"
         exit 1
       fi
-      echo "Using control plane IP: $ARGO_CONTROL_PLANE_IP"
+      echo "Using control plane IP: $CONTROL_PLANE_IP"
       
-      # Export the variable so envsubst can use it
-      export ARGO_CONTROL_PLANE_IP="$ARGO_CONTROL_PLANE_IP"
+      # Direct substitution - no need for ARGO_ prefix
       
       # Create a temporary values file with substituted variables
       echo "Creating temporary values file with substituted variables..."
       TEMP_VALUES=$(mktemp)
-      cat ${path.module}/../manifests/core/cilium/values.talos.yaml | envsubst '$ARGO_CONTROL_PLANE_IP' > "$TEMP_VALUES"
+      sed "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" ${path.module}/../manifests/core/cilium/values.talos.yaml > "$TEMP_VALUES"
       
       # Use Helm directly to install Cilium with the substituted values
       echo "Installing Cilium with Helm..."

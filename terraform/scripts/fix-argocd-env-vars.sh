@@ -6,29 +6,27 @@ export KUBECONFIG
 
 echo "🔧 Fixing ArgoCD environment variables..."
 
-# Load environment variables from .env file
-if [ -f "$(dirname "$0")/../../.env" ]; then
-  echo "Loading environment variables..."
-  set -a
-  source "$(dirname "$0")/../../.env"
-  set +a
-else
-  echo "ERROR: .env file not found!"
+# Load external domain from global-config.yaml
+GLOBAL_CONFIG="$(dirname "$0")/../../manifests/argocd/root/global-config.yaml"
+if [ ! -f "$GLOBAL_CONFIG" ]; then
+  echo "ERROR: global-config.yaml not found!"
   exit 1
 fi
 
-# Verify required variables
-if [ -z "$ARGO_EXTERNAL_DOMAIN" ]; then
-  echo "ERROR: ARGO_EXTERNAL_DOMAIN not set!"
+EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' "$GLOBAL_CONFIG")
+
+# Verify the external domain is loaded
+if [ -z "$EXTERNAL_DOMAIN" ]; then
+  echo "ERROR: External domain not found in global-config.yaml!"
   exit 1
 fi
 
-echo "Using external domain: $ARGO_EXTERNAL_DOMAIN"
+echo "Using external domain: $EXTERNAL_DOMAIN"
 
 # Get the current ArgoCD ConfigMap and substitute variables
 echo "📝 Patching ArgoCD ConfigMap..."
 kubectl get cm argocd-cm -n argocd -o yaml | \
-  sed "s/\${ARGO_EXTERNAL_DOMAIN}/$ARGO_EXTERNAL_DOMAIN/g" | \
+  sed "s/\${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" | \
   kubectl apply -f -
 
 # Restart ArgoCD server to pick up the changes
