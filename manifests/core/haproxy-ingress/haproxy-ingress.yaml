@@ -134,8 +134,8 @@ data:
   strict-sni: "true"
   # Default wildcard certificate for *.daddyshome.fr (fallback for missing certs)
   ssl-certificate: "haproxy-controller/haproxy-default-ssl-tls"
-  # Client CA for mTLS authentication on *.daddyshome.fr domains
-  client-ca: "haproxy-controller/client-ca-cert"
+  # Client CA is configured per-ingress via annotations instead of globally
+  # client-ca: "haproxy-controller/client-ca-cert"
 
 ---
 apiVersion: apps/v1
