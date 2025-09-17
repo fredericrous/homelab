@@ -15,7 +15,7 @@ spec:
       - name: service-port
         value: "80"
     container:
-      image: bitnami/kubectl:1.28
+      image: alpine/kubectl:1.34.1
       command:
       - sh
       - -c
@@ -26,10 +26,10 @@ spec:
           echo "Waiting for deployment to be created..."
           sleep 5
         done
-        
+
         # Wait for at least one pod to be ready
         kubectl wait --for=condition=available --timeout=600s deployment/{{inputs.parameters.deployment-name}} -n {{inputs.parameters.namespace}}
-        
+
         # Wait for service to respond
         echo "Waiting for service {{inputs.parameters.service-name}} to be ready..."
         for i in $(seq 1 60); do
@@ -53,7 +53,7 @@ spec:
         value: ""
       - name: command
     container:
-      image: bitnami/kubectl:1.28
+      image: alpine/kubectl:1.34.1
       command:
       - sh
       - -c
@@ -66,12 +66,12 @@ spec:
           exit 1
         fi
         echo "Found pod: $POD"
-        
+
         CONTAINER_ARG=""
         if [ -n "{{inputs.parameters.container}}" ]; then
           CONTAINER_ARG="-c {{inputs.parameters.container}}"
         fi
-        
+
         echo "Executing command in pod..."
         kubectl exec -n {{inputs.parameters.namespace}} $POD $CONTAINER_ARG -- sh -c '{{inputs.parameters.command}}'
 
@@ -83,7 +83,7 @@ spec:
         value: "nextcloud"
       - name: occ-command
     container:
-      image: bitnami/kubectl:1.28
+      image: alpine/kubectl:1.34.1
       command:
       - sh
       - -c
@@ -95,7 +95,7 @@ spec:
           echo "ERROR: No Nextcloud pod found"
           exit 1
         fi
-        
+
         kubectl exec -n {{inputs.parameters.namespace}} $POD -- su -s /bin/bash www-data -c "php occ {{inputs.parameters.occ-command}}"
 
   # HTTP health check
@@ -117,21 +117,21 @@ spec:
         echo "Checking health of {{inputs.parameters.url}}..."
         START=$(date +%s)
         TIMEOUT={{inputs.parameters.timeout}}
-        
+
         while true; do
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" {{inputs.parameters.url}} || echo "000")
           if [ "$STATUS" = "{{inputs.parameters.expected-status}}" ]; then
             echo "Health check passed! Status: $STATUS"
             exit 0
           fi
-          
+
           NOW=$(date +%s)
           ELAPSED=$((NOW - START))
           if [ $ELAPSED -ge $TIMEOUT ]; then
             echo "ERROR: Health check timeout after ${ELAPSED}s. Last status: $STATUS"
             exit 1
           fi
-          
+
           echo "Status: $STATUS, waiting... (${ELAPSED}s/${TIMEOUT}s)"
           sleep 5
         done
@@ -148,7 +148,7 @@ spec:
       - name: permissions
         value: ""
     container:
-      image: bitnami/kubectl:1.28
+      image: alpine/kubectl:1.34.1
       command:
       - sh
       - -c
@@ -159,10 +159,10 @@ spec:
           echo "ERROR: No pod found with selector {{inputs.parameters.pod-selector}}"
           exit 1
         fi
-        
+
         echo "Fixing permissions on {{inputs.parameters.path}} in pod $POD..."
         kubectl exec -n {{inputs.parameters.namespace}} $POD -- sh -c "chown -R {{inputs.parameters.user}}:{{inputs.parameters.group}} {{inputs.parameters.path}}"
-        
+
         if [ -n "{{inputs.parameters.permissions}}" ]; then
           kubectl exec -n {{inputs.parameters.namespace}} $POD -- sh -c "chmod -R {{inputs.parameters.permissions}} {{inputs.parameters.path}}"
         fi

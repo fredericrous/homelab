@@ -52,12 +52,12 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: configure
-        image: bitnami/kubectl:1.28
+        image: alpine/kubectl:1.34.1
         command: ["/bin/bash", "-c"]
         args:
         - |
           set -e
-          
+
           # Wait for vault-admin-token to be available (reflected by Reflector)
           echo "Waiting for vault-admin-token..."
           for i in {1..60}; do
@@ -68,24 +68,24 @@ spec:
             echo "⏳ Waiting for vault-admin-token to be reflected... ($i/60)"
             sleep 5
           done
-          
+
           # Get the token
           export VAULT_TOKEN=$(kubectl get secret vault-admin-token -n cert-manager -o jsonpath='{.data.token}' | base64 -d)
           export VAULT_ADDR=http://vault.vault.svc.cluster.local:8200
-          
+
           # Install vault CLI
           apt-get update && apt-get install -y curl
           curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
           apt-get install -y software-properties-common
           apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
           apt-get update && apt-get install -y vault
-          
+
           # Skip if already configured
           if vault policy read cert-manager >/dev/null 2>&1; then
             echo "cert-manager policy already exists, skipping"
             exit 0
           fi
-          
+
           # Create policy for cert-manager
           vault policy write cert-manager - <<EOF
           path "secret/data/ovh-dns" {
@@ -95,19 +95,19 @@ spec:
             capabilities = ["read"]
           }
           EOF
-          
+
           # Configure role for cert-manager
           vault write auth/kubernetes/role/cert-manager \
             bound_service_account_names=cert-manager \
             bound_service_account_namespaces=cert-manager \
             policies=cert-manager \
             ttl=24h
-            
+
           # Configure role for cert-manager webhook
           vault write auth/kubernetes/role/cert-manager-webhook \
             bound_service_account_names=cert-manager-webhook-ovh \
             bound_service_account_namespaces=cert-manager \
             policies=cert-manager \
             ttl=24h
-          
+
           echo "✅ Configured cert-manager Vault access"

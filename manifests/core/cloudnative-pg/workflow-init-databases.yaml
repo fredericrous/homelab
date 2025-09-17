@@ -9,7 +9,7 @@ metadata:
 spec:
   entrypoint: init-all-databases
   serviceAccountName: argo-workflow
-  
+
   templates:
   - name: init-all-databases
     dag:
@@ -19,7 +19,7 @@ spec:
           name: database-operations
           template: wait-postgres
           clusterScope: true
-      
+
       # Create multiple databases in parallel
       - name: create-nextcloud-db
         dependencies: [wait-postgres]
@@ -32,7 +32,7 @@ spec:
             value: "nextcloud"
           - name: password-secret
             value: "nextcloud-db-secret"
-      
+
       - name: create-authelia-db
         dependencies: [wait-postgres]
         template: create-app-database
@@ -44,7 +44,7 @@ spec:
             value: "authelia"
           - name: password-secret
             value: "authelia-db-secret"
-      
+
       - name: create-lldap-db
         dependencies: [wait-postgres]
         template: create-app-database
@@ -56,7 +56,7 @@ spec:
             value: "lldap"
           - name: password-secret
             value: "lldap-db-secret"
-      
+
       - name: create-harbor-db
         dependencies: [wait-postgres]
         template: create-app-database
@@ -68,7 +68,7 @@ spec:
             value: "harbor"
           - name: password-secret
             value: "harbor-database-secret"
-  
+
   - name: create-app-database
     inputs:
       parameters:
@@ -88,12 +88,12 @@ spec:
             value: "postgres-apps-rw.postgres.svc.cluster.local"
           - name: database
             value: "{{inputs.parameters.database}}"
-      
+
       - name: get-password
         dependencies: [check-database]
         when: "'{{tasks.check-database.outputs.parameters.exists}}' == 'not-exists'"
         container:
-          image: bitnami/kubectl:1.28
+          image: alpine/kubectl:1.34.1
           command:
           - sh
           - -c
@@ -104,7 +104,7 @@ spec:
           - name: password
             valueFrom:
               path: /tmp/password
-      
+
       - name: create-database
         dependencies: [get-password]
         when: "'{{tasks.check-database.outputs.parameters.exists}}' == 'not-exists'"
