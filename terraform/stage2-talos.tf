@@ -62,21 +62,37 @@ resource "talos_machine_configuration_apply" "cp" {
 resource "null_resource" "bootstrap_cluster" {
   count = var.configure_talos ? 1 : 0
   
-  depends_on = [talos_machine_configuration_apply.cp]
+  depends_on = [
+    talos_machine_configuration_apply.cp,
+    local_file.talosconfig
+  ]
   
   provisioner "local-exec" {
     command = <<-EOT
       set -e
       echo "🔍 Checking if cluster needs bootstrap..."
       
+      # Use the talosconfig file path - there's one in terraform dir too
+      if [ -f "${path.module}/talosconfig" ]; then
+        TALOSCONFIG="${path.module}/talosconfig"
+      else
+        TALOSCONFIG="${abspath(local_file.talosconfig.filename)}"
+      fi
+      
+      # Check if we can connect first
+      if ! talosctl --talosconfig="$TALOSCONFIG" -n ${local.all_nodes.controlplane.ip} version --short >/dev/null 2>&1; then
+        echo "⚠️  Cannot connect to Talos API, waiting..."
+        sleep 10
+      fi
+      
       # Check if already bootstrapped by trying to get etcd members
-      if talosctl --talosconfig=${path.module}/talosconfig -n ${local.all_nodes.controlplane.ip} etcd members 2>/dev/null | grep -q "isLearner: false"; then
+      if talosctl --talosconfig="$TALOSCONFIG" -n ${local.all_nodes.controlplane.ip} etcd members 2>/dev/null | grep -q "isLearner: false"; then
         echo "✅ Cluster is already bootstrapped"
         exit 0
       fi
       
       echo "🚀 Bootstrapping Talos cluster..."
-      talosctl --talosconfig=${path.module}/talosconfig bootstrap -n ${local.all_nodes.controlplane.ip}
+      talosctl --talosconfig="$TALOSCONFIG" bootstrap -n ${local.all_nodes.controlplane.ip}
       
       echo "✅ Bootstrap completed"
     EOT
