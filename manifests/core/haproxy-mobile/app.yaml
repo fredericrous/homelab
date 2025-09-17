@@ -2,7 +2,6 @@ name: haproxy-mobile
 project: core
 namespace: haproxy-mobile
 path: manifests/core/haproxy-mobile
-plugin: argocd-envsubst-plugin
 autoSync: "false"  # Ingress controller changes can lock out access
 prune: "false"     # Keep ingress resources safe
 syncWave: "-8"

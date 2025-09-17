@@ -103,42 +103,9 @@ repoServer:
   metrics:
     enabled: true
 
-  # Add envsubst plugin as sidecar
-  extraContainers:
-    - name: envsubst
-      image: ghcr.io/fredericrous/argocd-envsubst-plugin:4.1.1
-      imagePullPolicy: IfNotPresent
-      command: [/var/run/argocd/argocd-cmp-server]
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-            - ALL
-        seccompProfile:
-          type: RuntimeDefault
-      # Plugin doesn't need any environment variables
-      # It only reads from the mounted ConfigMap
-      volumeMounts:
-        - mountPath: /var/run/argocd
-          name: var-files
-        - mountPath: /home/argocd/cmp-server/plugins
-          name: plugins
-        - mountPath: /tmp
-          name: cmp-tmp
-        # Mount the ConfigMap created by task deploy
-        - mountPath: /envsubst-values
-          name: envsubst-values
-          readOnly: true
+  # No plugins needed - using ArgoCD native features
 
-  volumes:
-    - name: envsubst-values
-      configMap:
-        name: argocd-envsubst-values
-        # NOT optional - this is required for bootstrap
-    - name: cmp-tmp
-      emptyDir: {}
+  # No extra volumes needed
 
 # ApplicationSet controller
 applicationSet:

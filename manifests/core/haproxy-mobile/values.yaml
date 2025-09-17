@@ -9,7 +9,7 @@ controller:
   
   service:
     type: LoadBalancer
-    loadBalancerIP: ${ARGO_HAPROXY_MOBILE_IP}
+    loadBalancerIP: PLACEHOLDER_HAPROXY_MOBILE_IP
     ports:
       http: 80
       https: 4443

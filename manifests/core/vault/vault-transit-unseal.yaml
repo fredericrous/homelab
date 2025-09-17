@@ -9,7 +9,7 @@ spec:
     selector:
       app: vault
   transitVault:
-    address: ${ARGO_NAS_VAULT_ADDR}
+    address: PLACEHOLDER_NAS_VAULT_ADDR
     secretRef:
       name: vault-transit-token
       key: token

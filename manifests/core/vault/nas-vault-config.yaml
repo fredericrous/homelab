@@ -7,7 +7,7 @@ metadata:
 data:
   config.yaml: |
     transit:
-      address: "${ARGO_NAS_VAULT_ADDR}"
+      address: "PLACEHOLDER_NAS_VAULT_ADDR"
       mountPath: "transit"
       keyName: "autounseal"
       tlsSkipVerify: true

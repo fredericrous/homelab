@@ -5,7 +5,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - ${ARGO_METALLB_POOL}
+    - PLACEHOLDER_METALLB_POOL
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement

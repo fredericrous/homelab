@@ -2,5 +2,4 @@ name: minio
 project: core
 namespace: velero
 path: manifests/core/minio
-plugin: argocd-envsubst-plugin
 syncWave: "-10"  # Deploy before backup app

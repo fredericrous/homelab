@@ -5,4 +5,3 @@ path: manifests/core/vault
 autoSync: "false"  # Vault is critical for secrets management
 prune: "false"     # Never auto-prune vault resources
 syncWave: "-16"
-plugin: argocd-envsubst-plugin

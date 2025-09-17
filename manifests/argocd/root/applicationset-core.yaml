@@ -36,40 +36,6 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
-        {{- if .plugin }}
-        # Pass environment variables from global config to the plugin
-        plugin:
-          name: '{{plugin}}'
-          env:
-          - name: ARGO_EXTERNAL_DOMAIN
-            value: '{{defaultExternalDomain}}'
-          - name: ARGO_CLUSTER_DOMAIN
-            value: '{{clusterDomain}}'
-          - name: ARGO_CONTROL_PLANE_IP
-            value: '{{controlPlaneIP}}'
-          - name: ARGO_METALLB_POOL
-            value: '{{metallbPool}}'
-          - name: ARGO_HAPROXY_MOBILE_IP
-            value: '{{haproxyMobileIP}}'
-          - name: ARGO_HARBOR_IP
-            value: '{{harborIP}}'
-          - name: ARGO_HARBOR_REGISTRY
-            value: '{{harborRegistry}}'
-          - name: ARGO_QNAP_NAS_IP
-            value: '{{qnapNasIP}}'
-          - name: ARGO_NAS_VAULT_ADDR
-            value: '{{nasVaultAddr}}'
-          - name: ARGO_MINIO_QNAP_URL
-            value: '{{minioQnapUrl}}'
-          - name: ARGO_MINIO_BROWSER_REDIRECT_URL
-            value: '{{minioBrowserRedirectUrl}}'
-          - name: ARGO_MINIO_SERVER_URL
-            value: '{{minioServerUrl}}'
-          - name: ARGO_VAULT_API_ADDR
-            value: '{{vaultApiAddr}}'
-          - name: ARGO_VAULT_CLUSTER_ADDR
-            value: '{{vaultClusterAddr}}'
-        {{- end }}
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'

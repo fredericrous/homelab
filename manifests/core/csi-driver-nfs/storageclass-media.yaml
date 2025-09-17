@@ -4,7 +4,7 @@ metadata:
   name: nfs-media
 provisioner: nfs.csi.k8s.io
 parameters:
-  server: "${ARGO_QNAP_NAS_IP}"
+  server: "PLACEHOLDER_QNAP_NAS_IP"
   share: "/Media"
   csi.storage.k8s.io/node-stage-secret-name: "nfscreds"
   csi.storage.k8s.io/node-stage-secret-namespace: "default"
