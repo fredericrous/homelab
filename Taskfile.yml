@@ -12,6 +12,10 @@ vars:
   GLOBAL_CONFIG: '{{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml'
   CONTROL_PLANE_IP:
     sh: yq '.controlPlaneIP' {{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml
+  WORKER1_IP:
+    sh: yq '.worker1IP' {{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml
+  WORKER2_IP:
+    sh: yq '.worker2IP' {{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml
   EXTERNAL_DOMAIN:
     sh: yq '.defaultExternalDomain' {{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml
 
@@ -92,7 +96,7 @@ tasks:
       EXTERNAL_DOMAIN: '{{.EXTERNAL_DOMAIN}}'
     cmds:
       - echo "Waiting for VMs to get IP addresses..."
-      - sleep 30
+      - ./scripts/wait-vms-ready.sh {{.CONTROL_PLANE_IP}} {{.WORKER1_IP}} {{.WORKER2_IP}}
       - terraform apply -var="configure_talos=true" -auto-approve
 
   stage3:
