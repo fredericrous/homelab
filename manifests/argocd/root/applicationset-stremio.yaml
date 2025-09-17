@@ -1,0 +1,148 @@
+# ApplicationSet for Stremio with special patches
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: stremio
+  namespace: argocd
+spec:
+  generators:
+  - matrix:
+      generators:
+      - list:
+          elements:
+          - name: stremio
+            project: apps
+            namespace: stremio
+            path: manifests/apps/stremio
+            syncWave: "30"
+      - git:
+          repoURL: https://github.com/fredericrous/homelab.git
+          revision: main
+          files:
+          - path: "manifests/argocd/root/global-config.yaml"
+  
+  template:
+    metadata:
+      name: '{{name}}'
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{syncWave}}"
+      finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: '{{project}}'
+      source:
+        repoURL: https://github.com/fredericrous/homelab.git
+        targetRevision: main
+        path: '{{path}}'
+        kustomize:
+          patches:
+          # Stremio Ingress
+          - target:
+              kind: Ingress
+              name: stremio
+            patch: |
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata:
+                name: stremio
+              spec:
+                tls:
+                - hosts:
+                  - stremio.{{defaultExternalDomain}}
+                rules:
+                - host: stremio.{{defaultExternalDomain}}
+          # Stremio deployment with Harbor registry
+          - target:
+              kind: Deployment
+              name: stremio-web
+            patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: stremio-web
+              spec:
+                template:
+                  spec:
+                    initContainers:
+                    - name: copy-build
+                      image: {{harborRegistry}}/library/stremio-web:latest
+          # BuildKit config
+          - target:
+              kind: ConfigMap
+              name: buildkitd-config
+            patch: |
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: buildkitd-config
+              data:
+                buildkitd.toml: |
+                  debug = true
+
+                  [worker.oci]
+                    max-parallelism = 4
+
+                  [registry."harbor-registry.harbor.svc.cluster.local:5000"]
+                    http = true
+                    insecure = true
+                    ca=["/etc/ssl/certs/ca-certificates.crt"]
+
+                  [registry."{{harborRegistry}}"]
+                    http = true
+                    insecure = true
+          # Harbor registry secrets
+          - target:
+              kind: ExternalSecret
+              name: harbor-registry
+            patch: |
+              apiVersion: external-secrets.io/v1beta1
+              kind: ExternalSecret
+              metadata:
+                name: harbor-registry
+              spec:
+                target:
+                  template:
+                    engineVersion: v2
+                    data:
+                      .dockerconfigjson: |
+                        {{`{{- $password := .password -}}
+                        {
+                          "auths": {
+                            "`}}{{harborRegistry}}{{`": {
+                              "username": "admin",
+                              "password": "{{ $password }}",
+                              "auth": "{{ printf "admin:%s" $password | b64enc }}"
+                            },
+                            "`}}{{harborRegistryTLS}}{{`": {
+                              "username": "admin",
+                              "password": "{{ $password }}",
+                              "auth": "{{ printf "admin:%s" $password | b64enc }}"
+                            }
+                          }
+                        }`}}
+          - target:
+              kind: ExternalSecret
+              name: harbor-registry-user
+            patch: |
+              apiVersion: external-secrets.io/v1beta1
+              kind: ExternalSecret
+              metadata:
+                name: harbor-registry-user
+              spec:
+                target:
+                  template:
+                    engineVersion: v2
+                    data:
+                      .dockerconfigjson: |
+                        {{`{{- $username := .username -}}
+                        {{- $password := .password -}}
+                        {
+                          "auths": {
+                            "`}}{{harborRegistry}}{{`": {
+                              "username": "{{ $username }}",
+                              "password": "{{ $password }}",
+                              "auth": "{{ printf "%s:%s" $username $password | b64enc }}"
+                            }
+                          }
+                        }`}}

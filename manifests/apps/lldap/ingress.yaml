@@ -12,10 +12,10 @@ spec:
   ingressClassName: haproxy
   tls:
   - hosts:
-    - lldap.${ARGO_EXTERNAL_DOMAIN}
+    - lldap.PLACEHOLDER_DOMAIN
     secretName: lldap-tls
   rules:
-  - host: lldap.${ARGO_EXTERNAL_DOMAIN}
+  - host: lldap.PLACEHOLDER_DOMAIN
     http:
       paths:
       - path: /

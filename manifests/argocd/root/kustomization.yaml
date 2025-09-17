@@ -5,3 +5,5 @@ kind: Kustomization
 resources:
 - applicationset-core.yaml
 - applicationset-apps.yaml
+- applicationset-harbor.yaml
+- applicationset-stremio.yaml

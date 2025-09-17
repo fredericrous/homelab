@@ -2,5 +2,4 @@ name: stremio
 project: apps
 namespace: stremio
 path: manifests/apps/stremio
-plugin: argocd-envsubst-plugin
 syncWave: "30"

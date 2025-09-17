@@ -1,24 +1,20 @@
-# ApplicationSet for user applications
+# ApplicationSet for Harbor with special patches
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: apps
+  name: harbor
   namespace: argocd
 spec:
   generators:
-  # Matrix generator combines app configs with global defaults
   - matrix:
       generators:
-      # First: Get all app configurations
-      - git:
-          repoURL: https://github.com/fredericrous/homelab.git
-          revision: main
-          files:
-          - path: "manifests/apps/**/app.yaml"
-          exclude:
-          - path: "manifests/apps/harbor/app.yaml"
-          - path: "manifests/apps/stremio/app.yaml"
-      # Second: Get global configuration
+      - list:
+          elements:
+          - name: harbor
+            project: apps
+            namespace: harbor
+            path: manifests/apps/harbor
+            syncWave: "25"
       - git:
           repoURL: https://github.com/fredericrous/homelab.git
           revision: main
@@ -39,24 +35,36 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
-        # Use Kustomize patches to substitute values from global-config.yaml
         kustomize:
           patches:
-          # Common patch for all apps with Ingress
+          # Harbor Ingress
           - target:
               kind: Ingress
-              name: '{{name}}'
+              name: harbor
             patch: |
               apiVersion: networking.k8s.io/v1
               kind: Ingress
               metadata:
-                name: '{{name}}'
+                name: harbor
               spec:
                 tls:
                 - hosts:
-                  - '{{name}}.{{defaultExternalDomain}}'
+                  - harbor.{{defaultExternalDomain}}
                 rules:
-                - host: '{{name}}.{{defaultExternalDomain}}'
+                - host: harbor.{{defaultExternalDomain}}
+          # Harbor IP pool
+          - target:
+              kind: IPAddressPool
+              name: harbor-pool
+            patch: |
+              apiVersion: metallb.io/v1beta1
+              kind: IPAddressPool
+              metadata:
+                name: harbor-pool
+                namespace: metallb-system
+              spec:
+                addresses:
+                - {{harborIP}}-192.168.1.91
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'
