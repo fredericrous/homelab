@@ -68,7 +68,7 @@ resource "null_resource" "argocd_install" {
       TEMP_VALUES_BASE=$(mktemp)
       TEMP_VALUES_SUBSTITUTED=$(mktemp)
       cp ${path.module}/argocd-values.yaml "$TEMP_VALUES_BASE"
-      cat ${path.module}/../manifests/argocd/values.yaml | envsubst '$ARGO_EXTERNAL_DOMAIN' > "$TEMP_VALUES_SUBSTITUTED"
+      sed "s/\$${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" ${path.module}/../manifests/argocd/values.yaml > "$TEMP_VALUES_SUBSTITUTED"
       
       echo "🚀 Installing ArgoCD..."
       helm install argocd argo/argo-cd \
