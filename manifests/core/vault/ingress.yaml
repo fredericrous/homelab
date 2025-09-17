@@ -11,7 +11,7 @@ metadata:
 spec:
   ingressClassName: haproxy
   rules:
-  - host: vault.PLACEHOLDER_CLUSTER_DOMAIN
+  - host: vault.daddyshome.lab
     http:
       paths:
       - path: /
@@ -23,5 +23,5 @@ spec:
               number: 8200
   tls:
   - hosts:
-    - vault.PLACEHOLDER_CLUSTER_DOMAIN
+    - vault.daddyshome.lab
     secretName: vault-tls-ovh
