@@ -72,11 +72,12 @@ resource "null_resource" "bootstrap_cluster" {
       set -e
       echo "🔍 Checking if cluster needs bootstrap..."
       
-      # Use the talosconfig file path - there's one in terraform dir too
-      if [ -f "${path.module}/talosconfig" ]; then
-        TALOSCONFIG="${path.module}/talosconfig"
-      else
-        TALOSCONFIG="${abspath(local_file.talosconfig.filename)}"
+      # Use the talosconfig from root directory (where it's moved for user convenience)
+      TALOSCONFIG="${path.module}/../talosconfig"
+      
+      if [ ! -f "$TALOSCONFIG" ]; then
+        echo "ERROR: talosconfig not found at $TALOSCONFIG"
+        exit 1
       fi
       
       # Check if we can connect first

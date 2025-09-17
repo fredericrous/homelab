@@ -8,7 +8,7 @@ includes:
 vars:
   TERRAFORM_DIR: './terraform'
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
-  TALOSCONFIG: '{{.ROOT_DIR}}/terraform/talosconfig'
+  TALOSCONFIG: '{{.ROOT_DIR}}/talosconfig'
   GLOBAL_CONFIG: '{{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml'
   CONTROL_PLANE_IP:
     sh: yq '.controlPlaneIP' {{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml
