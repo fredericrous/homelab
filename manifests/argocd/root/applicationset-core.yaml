@@ -6,21 +6,12 @@ metadata:
   namespace: argocd
 spec:
   generators:
-  # Matrix generator combines app configs with global defaults
-  - matrix:
-      generators:
-      # First: Get all core app configurations
-      - git:
-          repoURL: https://github.com/fredericrous/homelab.git
-          revision: main
-          files:
-          - path: "manifests/core/**/app.yaml"
-      # Second: Get global configuration
-      - git:
-          repoURL: https://github.com/fredericrous/homelab.git
-          revision: main
-          files:
-          - path: "manifests/argocd/root/global-config.yaml"
+  # Single git generator for core app configurations
+  - git:
+      repoURL: https://github.com/fredericrous/homelab.git
+      revision: main
+      files:
+      - path: "manifests/core/**/app.yaml"
   
   template:
     metadata:
