@@ -32,14 +32,15 @@ resource "null_resource" "cilium_bootstrap" {
 
       echo "🚀 Installing Cilium CNI..."
       
-      # Load environment variables from .env file
+      # Load variables from global-config.yaml
+      echo "Loading variables from global-config.yaml..."
+      python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > /tmp/global-config.env
       if [ -f "${path.module}/../.env" ]; then
-        echo "Loading environment variables..."
-        # Source the .env file properly
-        set -a
-        source "${path.module}/../.env"
-        set +a
+        grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> /tmp/global-config.env || true
       fi
+      set -a
+      source /tmp/global-config.env
+      set +a
       
       # Verify the control plane IP is loaded
       if [ -z "$ARGO_CONTROL_PLANE_IP" ]; then

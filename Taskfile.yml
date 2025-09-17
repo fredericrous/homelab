@@ -9,6 +9,7 @@ vars:
   TERRAFORM_DIR: './terraform'
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/terraform/talosconfig'
+  GLOBAL_CONFIG: '{{.ROOT_DIR}}/manifests/argocd/root/global-config.yaml'
 
 env:
   KUBECONFIG: '{{.KUBECONFIG}}'
@@ -20,9 +21,24 @@ tasks:
     cmds:
       - task: deploy
 
+  # Helper task to load environment from global-config.yaml
+  load-env:
+    desc: Load environment variables from global-config.yaml
+    silent: true
+    cmds:
+      - |
+        # Convert YAML to env vars and source them
+        python3 scripts/yaml-to-env.py {{.GLOBAL_CONFIG}} > /tmp/global-config.env
+        # Also preserve any local overrides from .env if it exists
+        if [ -f .env ]; then
+          grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' .env >> /tmp/global-config.env || true
+        fi
+
   deploy:
     desc: Deploy complete Kubernetes cluster
-    dotenv: ['.env']
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     defer:
       - task: cleanup
     cmds:
@@ -45,699 +61,181 @@ tasks:
   prereq:
     desc: Pre-flight checks
     dir: '{{.TERRAFORM_DIR}}'
-    dotenv: ['../.env']
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     preconditions:
       - sh: test -f terraform.tfvars
-        msg: "terraform.tfvars not found. Copy terraform.tfvars.example and configure it"
-    internal: false
-    vars:
-      TRANSIT_TOKEN:
-        sh: |
-          # Allow manual override
-          if [ -n "$K8S_VAULT_TRANSIT_TOKEN" ]; then
-            echo "$K8S_VAULT_TRANSIT_TOKEN"
-            exit 0
-          fi
-          
-          # Get transit token from Vault
-          if command -v vault >/dev/null 2>&1; then
-            export VAULT_ADDR=http://192.168.1.42:61200
-            # Check if already authenticated or use QNAP_VAULT_TOKEN
-            if vault token lookup &>/dev/null 2>&1; then
-              vault kv get -field=token secret/k8s-transit 2>/dev/null || echo ""
-            elif [ -n "$QNAP_VAULT_TOKEN" ]; then
-              export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
-              vault kv get -field=token secret/k8s-transit 2>/dev/null || echo ""
-            else
-              echo ""
-            fi
-          else
-            echo ""
-          fi
-      ESO_TOKEN:
-        sh: |
-          # Get ESO token from Vault
-          if command -v vault >/dev/null 2>&1; then
-            export VAULT_ADDR=http://192.168.1.42:61200
-            # Check if already authenticated or use QNAP_VAULT_TOKEN
-            if vault token lookup &>/dev/null 2>&1; then
-              vault kv get -field=token secret/tokens/eso-pki 2>/dev/null || echo ""
-            elif [ -n "$QNAP_VAULT_TOKEN" ]; then
-              export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
-              vault kv get -field=token secret/tokens/eso-pki 2>/dev/null || echo ""
-            else
-              echo ""
-            fi
-          else
-            echo ""
-          fi
+      - msg: "terraform.tfvars not found. Copy terraform.tfvars.example and update with your values"
     cmds:
-      - |
-        # Clean up any previous deployment environment files
-        rm -f ../.task/.homelab-deploy-env 2>/dev/null || true
-        # Ensure .task directory exists in project root
-        mkdir -p ../.task
-      - |
-        # Check connectivity to QNAP Vault if we're trying to use it
-        if [ -z "$K8S_VAULT_TRANSIT_TOKEN" ] && [ -n "$QNAP_VAULT_TOKEN" ]; then
-          if [ -f "./scripts/check-vault-connectivity.sh" ]; then
-            ./scripts/check-vault-connectivity.sh || exit 1
-          fi
-        fi
-      - |
-        # Check if we have a transit token
-        if [ -z "{{.TRANSIT_TOKEN}}" ]; then
-          echo "❌ Transit token not found"
-          echo ""
-        elif [ "{{.TRANSIT_TOKEN}}" = "PLACEHOLDER_WILL_BE_REPLACED_BY_TERRAFORM" ]; then
-          echo "❌ Transit token is a placeholder - need real token!"
-          echo ""
-          
-          # Check if it's a connectivity issue
-          if [ -n "$QNAP_VAULT_TOKEN" ] && ! curl -s --connect-timeout 5 http://192.168.1.42:61200/v1/sys/health >/dev/null 2>&1; then
-            echo "🌐 Cannot reach QNAP Vault - are you connected to your home network?"
-            echo ""
-          fi
-          
-          echo "To deploy, you need to:"
-          echo "1. Deploy QNAP services first:"
-          echo "   task nas:deploy"
-          echo ""
-          echo "2. Set up transit token for auto-unsealing:"
-          echo "   task nas:vault-transit"
-          echo ""
-          echo "3. Either:"
-          echo "   a) Authenticate to QNAP Vault so deployment can retrieve the token:"
-          echo "      export VAULT_ADDR=http://192.168.1.42:61200"
-          echo "      vault login <root-token>"
-          echo "   b) OR set the token in environment:"
-          echo "      export QNAP_VAULT_TOKEN=<qnap-vault-token>"
-          echo "   c) OR provide the transit token directly:"
-          echo "      export K8S_VAULT_TRANSIT_TOKEN=<transit-token>"
-          echo ""
-          echo "The deployment will automatically create the vault-transit-token secret."
-          echo "The vault-transit-unseal-operator will handle Vault initialization."
-          exit 1
-        else
-          echo "✅ Found transit token"
-          # Export for use by other stages
-          # Ensure .task directory exists in project root
-          mkdir -p ../.task
-          # Save tokens directly to ../.task/.homelab-deploy-env with restricted permissions
-          echo "export K8S_VAULT_TRANSIT_TOKEN={{.TRANSIT_TOKEN}}" > ../.task/.homelab-deploy-env
-          chmod 600 ../.task/.homelab-deploy-env
-          if [ -n "{{.ESO_TOKEN}}" ]; then
-            echo "export NAS_ESO_TOKEN={{.ESO_TOKEN}}" >> ../.task/.homelab-deploy-env
-            echo "✅ Found ESO token for CA sync"
-          fi
-          echo "ℹ️  Transit token environment saved to: ../.task/.homelab-deploy-env"
-        fi
-      - |
-        # Check OVH credentials
-        echo "🔍 Checking OVH credentials..."
-        if [ -z "${CERT_MANAGER_OVH_APPLICATION_KEY}" ] || [ -z "${CERT_MANAGER_OVH_APPLICATION_SECRET}" ] || [ -z "${CERT_MANAGER_OVH_CONSUMER_KEY}" ]; then
-          echo "❌ OVH credentials not found"
-          echo ""
-          echo "To deploy with Let's Encrypt certificates, you need OVH API credentials:"
-          echo ""
-          echo "export CERT_MANAGER_OVH_APPLICATION_KEY=\"your-application-key\""
-          echo "export CERT_MANAGER_OVH_APPLICATION_SECRET=\"your-application-secret\""
-          echo "export CERT_MANAGER_OVH_CONSUMER_KEY=\"your-consumer-key\""
-          echo ""
-          echo "Get these from: https://eu.api.ovh.com/createToken/"
-          echo "Or from your CLAUDE.local.md file"
-          exit 1
-        else
-          echo "✅ Found OVH credentials"
-        fi
-      - |
-        if [ -f "./scripts/preflight-check.sh" ]; then
-          echo "🔍 Running pre-flight checks..."
-          ./scripts/preflight-check.sh || exit 1
-        fi
+      - terraform init -upgrade
 
   stage1:
-    desc: "Stage 1: Create VMs and wait for Talos API"
+    desc: "Stage 1: Create VMs with Terraform"
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [terraform-init]
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "📦 Stage 1: Creating VMs and waiting for Talos API..."'
-      - 'echo "  Using parallelism=1 to avoid Proxmox provider conflicts"'
-      - 'terraform apply -auto-approve -parallelism=1 -target=data.external.schematic_base -target=data.external.schematic_gpu -target=proxmox_virtual_environment_download_file.talos_iso -target=module.vms -target=null_resource.wait_talos_ready'
-    status:
-      - 'terraform state show module.vms.proxmox_virtual_environment_vm.talos_nodes["controlplane"] 2>/dev/null'
+      - echo "Creating VMs..."
+      - terraform apply -target=module.vms -auto-approve
 
   stage2:
-    desc: "Stage 2: Configure control plane and bootstrap"
+    desc: "Stage 2: Wait for VMs and configure Talos"
     dir: '{{.TERRAFORM_DIR}}'
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - task: stage2a
-      - task: stage2b
-
-  stage2a:
-    desc: "Stage 2a: Configure control plane"
-    dir: '{{.TERRAFORM_DIR}}'
-    cmds:
-      - 'echo "🎯 Stage 2a: Configuring control plane..."'
-      - 'terraform apply -auto-approve -parallelism=10 -var="configure_talos=true" -target=data.external.schematic_base -target=data.external.schematic_gpu -target=talos_machine_secrets.this -target=data.talos_machine_configuration.nodes -target=data.talos_client_configuration.this -target=null_resource.ensure_configs_dir -target=local_file.talosconfig -target=local_file.machine_configs -target=null_resource.apply_cp_config_smart -target=talos_machine_configuration_apply.cp'
-    status:
-      - 'terraform state show talos_machine_configuration_apply.cp 2>/dev/null'
-
-  stage2b:
-    desc: "Stage 2b: Bootstrap cluster and get kubeconfig"
-    dir: '{{.TERRAFORM_DIR}}'
-    cmds:
-      - 'echo "🚀 Stage 2b: Bootstrapping Kubernetes and getting kubeconfig..."'
-      - 'terraform apply -auto-approve -var="configure_talos=true" -target=talos_machine_bootstrap.this -target=talos_cluster_kubeconfig.this -target=local_file.kubeconfig'
-    status:
-      - 'test -f {{.KUBECONFIG}}'
-      - 'terraform state show talos_machine_bootstrap.this 2>/dev/null'
+      - echo "Waiting for VMs to get IP addresses..."
+      - sleep 30
+      - terraform apply -auto-approve
 
   stage3:
-    desc: "Stage 3: Add Helm repos and install Cilium CNI"
-    dir: '{{.TERRAFORM_DIR}}'
+    desc: "Stage 3: Bootstrap Talos cluster"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
+      TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
-      - 'echo "📦 Stage 3: Adding Helm repositories..."'
-      - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.helm_repos'
-      - 'echo "🌐 Stage 3b: Installing Cilium CNI (required before workers join)..."'
-      - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.cilium_bootstrap'
-    status:
-      - 'kubectl get deployment -n kube-system cilium-operator 2>/dev/null'
+      - echo "Bootstrapping Talos cluster..."
+      - talosctl bootstrap -n $ARGO_CONTROL_PLANE_IP
+      - echo "Waiting for cluster to be ready..."
+      - sleep 60
 
   stage4:
-    desc: "Stage 4: Configure workers"
-    dir: '{{.TERRAFORM_DIR}}'
+    desc: "Stage 4: Get kubeconfig"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
+      TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
-      - 'echo "👷 Stage 4: Configuring workers..."'
-      - 'terraform apply -auto-approve -parallelism=10 -var="configure_talos=true" -target=null_resource.apply_worker_configs_smart -target=talos_machine_configuration_apply.workers'
-    status:
-      - 'terraform state show talos_machine_configuration_apply.workers 2>/dev/null'
+      - talosctl kubeconfig -n $ARGO_CONTROL_PLANE_IP -f {{.KUBECONFIG}}
+      - chmod 600 {{.KUBECONFIG}}
+      - echo "Waiting for Kubernetes API..."
+      - kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
   stage5:
-    desc: "Stage 5: Deploy ArgoCD and bootstrap GitOps"
-    dir: '{{.TERRAFORM_DIR}}'
+    desc: "Stage 5: Apply initial Cilium and MetalLB configs"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "🚀 Stage 5: Deploying ArgoCD and bootstrapping GitOps..."'
-      - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.argocd_install -target=null_resource.argocd_bootstrap -target=null_resource.argocd_info'
-    status:
-      - 'kubectl get deployment -n argocd argocd-server 2>/dev/null'
+      - echo "Applying core networking..."
+      - kubectl kustomize manifests/core/cilium | kubectl apply -f -
+      - sleep 30
+      - kubectl wait --for=condition=Ready -n kube-system pods -l k8s-app=cilium --timeout=300s
+      - kubectl kustomize manifests/core/metallb | kubectl apply -f -
 
   stage6:
-    desc: "Stage 6: Bootstrap DNS service"
-    dir: '{{.TERRAFORM_DIR}}'
+    desc: "Stage 6: Deploy storage (local-path and optional rook)"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "🌐 Stage 6: Bootstrapping DNS service..."'
-      - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.dns_bootstrap'
-    status:
-      - 'kubectl get deployment -n kube-system coredns 2>/dev/null'
+      - echo "Installing storage providers..."
+      - kubectl apply -k manifests/core/local-path-provisioner
+      - kubectl wait --for=condition=Ready -n local-path-storage pods --all --timeout=300s
+      # Optionally deploy rook-ceph if you have extra disks
+      # - kubectl apply -k manifests/core/rook-ceph
 
   stage7:
-    desc: "Stage 7: Setup Vault transit token and bootstrap"
-    dir: '{{.TERRAFORM_DIR}}'
+    desc: "Stage 7: Deploy Vault"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "🔑 Stage 7: Setting up Vault transit unseal and bootstrapping..."'
-      - |
-        # Source the transit token from prereq if available
-        if [ -f "../.task/.homelab-deploy-env" ]; then
-          source "../.task/.homelab-deploy-env"
-        fi
-
-        # Setup transit token
-        if [ -f "./scripts/deploy-vault-transit.sh" ]; then
-          ./scripts/deploy-vault-transit.sh "{{.KUBECONFIG}}"
-        else
-          ./scripts/setup-vault-transit-token.sh "{{.KUBECONFIG}}"
-        fi
-      - |
-        # Bootstrap secrets for cert-manager and other services
-        echo "🔐 Bootstrapping placeholder secrets..."
-        export KUBECONFIG="{{.KUBECONFIG}}"
-
-        # Verify kubeconfig is accessible
-        if ! kubectl cluster-info &>/dev/null; then
-          echo "❌ Cannot connect to Kubernetes cluster"
-          echo "   KUBECONFIG: $KUBECONFIG"
-          exit 1
-        fi
-
-        kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-
-        if ! kubectl get secret ovh-credentials -n cert-manager &>/dev/null; then
-          echo "📝 Creating placeholder OVH credentials for cert-manager..."
-          kubectl create secret generic ovh-credentials \
-            --namespace=cert-manager \
-            --from-literal=applicationKey="placeholder" \
-            --from-literal=applicationSecret="placeholder" \
-            --from-literal=consumerKey="placeholder"
-        fi
-    status:
-      - 'kubectl get secret vault-transit-token -n vault 2>/dev/null'
-      - 'kubectl get secret ovh-credentials -n cert-manager 2>/dev/null'
+      - echo "Installing Vault..."
+      - kubectl apply -k manifests/core/vault
+      - kubectl wait --for=condition=Ready -n vault pods -l app.kubernetes.io/name=vault --timeout=300s || true
+      - sleep 30
+      # Auto-unseal will handle initialization
 
   stage8a:
-    desc: "Stage 8a: Deploy Vault"
-    dir: '{{.TERRAFORM_DIR}}'
+    desc: "Stage 8a: Deploy cert-manager"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "🔐 Stage 8a: Deploying Vault..."'
-      - |
-        # Source the transit token environment for terraform
-        if [ -f "../.task/.homelab-deploy-env" ]; then
-          source "../.task/.homelab-deploy-env"
-          # Export for terraform to pick up
-          export TF_VAR_k8s_vault_transit_token="${K8S_VAULT_TRANSIT_TOKEN:-}"
-        fi
-        # Run terraform in the same shell to preserve environment
-        terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.wait_for_appsets -target=null_resource.vault_sync
-    status:
-      - 'kubectl get app -n argocd vault 2>/dev/null | grep -q "Synced"'
+      - kubectl apply -k manifests/core/cert-manager
+      - kubectl wait --for=condition=Ready -n cert-manager pods --all --timeout=300s
 
   stage8b:
-    desc: "Stage 8b: Deploy Rook-Ceph storage"
-    dir: '{{.TERRAFORM_DIR}}'
+    desc: "Stage 8b: Deploy VSO"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "💾 Stage 8b: Deploying Rook-Ceph storage..."'
-      - |
-        # Run terraform
-        terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.rook_ceph_sync
-    status:
-      - 'kubectl get app -n argocd rook-ceph 2>/dev/null | grep -q "Synced"'
+      - kubectl apply -k manifests/core/vault-secrets-operator
+      - kubectl wait --for=condition=Ready -n vault-secrets-operator-system pods --all --timeout=300s || true
 
   stage8c:
-    desc: "Stage 8c: Deploy other core services (ESO, cert-manager)"
-    dir: '{{.TERRAFORM_DIR}}'
+    desc: "Stage 8c: Deploy External Secrets Operator"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "📦 Stage 8c: Deploying ESO and cert-manager..."'
-      - |
-        # Run terraform
-        terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.eso_sync -target=null_resource.cert_manager_sync
-    status:
-      - 'kubectl get app -n argocd external-secrets-operator 2>/dev/null | grep -q "Synced"'
-      - 'kubectl get app -n argocd cert-manager 2>/dev/null | grep -q "Synced"'
+      - kubectl apply -k manifests/core/external-secrets-operator
+      - kubectl wait --for=condition=Ready -n external-secrets-system deployment/external-secrets-operator --timeout=300s
 
   stage8-post:
-    desc: "Stage 8.5: Vault configuration (after auto-initialization by operator)"
-    dir: '{{.TERRAFORM_DIR}}'
-    dotenv: ['../.env']
+    desc: "Post stage 8: Apply cluster secret stores"
+    deps: [load-env]
     env:
-      OVH_APPLICATION_KEY: '{{.CERT_MANAGER_OVH_APPLICATION_KEY}}'
-      OVH_APPLICATION_SECRET: '{{.CERT_MANAGER_OVH_APPLICATION_SECRET}}'
-      OVH_CONSUMER_KEY: '{{.CERT_MANAGER_OVH_CONSUMER_KEY}}'
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "🔐 Stage 8.5: Configuring Vault (initialized by vault-transit-unseal-operator)..."'
-      - './scripts/vault-post-init.sh "{{.KUBECONFIG}}"'
-    status:
-      - 'kubectl exec -n vault vault-0 -- vault kv get secret/client-ca 2>/dev/null'
+      - echo "Configuring cluster secret stores..."
+      - kubectl apply -f manifests/core/external-secrets-operator/cluster-secret-store.yaml
+      - kubectl wait --for=condition=Ready clustersecretstore vault-backend --timeout=60s || true
 
   stage9:
-    desc: "Stage 9: Wait for all nodes to be ready"
+    desc: "Stage 9: Deploy ArgoCD"
     dir: '{{.TERRAFORM_DIR}}'
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "⏳ Stage 9: Final verification..."'
-      - 'terraform apply -auto-approve -var="configure_talos=true" -target=null_resource.wait_nodes_ready_updated'
-    status:
-      - 'kubectl get nodes | grep -v NotReady | grep -c Ready | grep -q 3'
+      - echo "Installing ArgoCD..."
+      - ./deploy-argocd.sh
 
   stage10:
-    desc: "Stage 10: Verify cluster"
+    desc: "Stage 10: Deploy remaining core services via ArgoCD"
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "✅ Stage 10: Verifying cluster..."'
-      - 'kubectl get nodes'
-      - 'echo ""'
-      - 'kubectl get pods -n argocd'
+      - echo "Deploying remaining core services..."
+      - kubectl apply -k manifests/argocd/root
+      - sleep 30
+      - kubectl wait --for=condition=Ready -n argocd applications --all --timeout=600s || true
 
   stage11:
-    desc: "Stage 11: Post-deployment fixes"
-    dir: '{{.TERRAFORM_DIR}}'
-    dotenv: ['../.env']
+    desc: "Stage 11: Deploy applications"
+    deps: [load-env]
     env:
-      OVH_APPLICATION_KEY: '{{.CERT_MANAGER_OVH_APPLICATION_KEY}}'
-      OVH_APPLICATION_SECRET: '{{.CERT_MANAGER_OVH_APPLICATION_SECRET}}'
-      OVH_CONSUMER_KEY: '{{.CERT_MANAGER_OVH_CONSUMER_KEY}}'
+      sh: cat /tmp/global-config.env 2>/dev/null || true
     cmds:
-      - 'echo "🔧 Stage 11: Running post-deployment fixes..."'
-      - |
-        # Source tokens from prereq if available
-        if [ -f "../.task/.homelab-deploy-env" ]; then
-          source "../.task/.homelab-deploy-env"
-          echo "   Loaded environment from ../.task/.homelab-deploy-env"
-          echo "   NAS_ESO_TOKEN length: ${#NAS_ESO_TOKEN}"
-        else
-          echo "   Warning: ../.task/.homelab-deploy-env not found"
-        fi
-        
-        # Configure NAS ESO sync if token is available
-        if [ -n "$NAS_ESO_TOKEN" ] && [ "$NAS_ESO_TOKEN" != "hvs.PLACEHOLDER" ]; then
-          echo "🔄 Configuring NAS Vault sync..."
-          echo "   Token starts with: ${NAS_ESO_TOKEN:0:20}..."
-          ./scripts/configure-nas-eso-sync.sh "{{.KUBECONFIG}}" "$NAS_ESO_TOKEN"
-        else
-          echo "ℹ️  NAS ESO sync not configured (token not available)"
-          echo "   NAS_ESO_TOKEN value: '$NAS_ESO_TOKEN'"
-          echo "   This is normal for initial deployment"
-          echo "   To enable CA sync from NAS later:"
-          echo "   1. Deploy NAS: task nas:deploy"
-          echo "   2. Get ESO token: task nas:show-eso-token"
-          echo "   3. Run: NAS_ESO_TOKEN=<token> task configure-nas-sync"
-        fi
-      - './scripts/post-deployment-fixes.sh "{{.KUBECONFIG}}"'
-      - |
-        echo ""
-        echo "🎉 Deployment complete!"
-        echo ""
-        echo "Next steps:"
-        echo "  export KUBECONFIG={{.KUBECONFIG}}"
-        echo "  export TALOSCONFIG={{.TALOSCONFIG}}"
-        echo "  kubectl apply -k manifests/apps/  # Deploy applications via ArgoCD"
-        echo ""
-        echo "To check cluster health:"
-        echo "  talosctl -n 192.168.1.67 health"
-        echo ""
-        echo "Access ArgoCD:"
-        echo "  URL: https://argocd.daddyshome.fr"
-        echo "  Username: admin"
-        echo "  Password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
-        echo ""
-        echo "🔒 mTLS Client Certificates:"
-        if [ -n "$NAS_ESO_TOKEN" ]; then
-          echo "  ✅ CA synced from NAS Vault"
-        else
-          echo "  ⚠️  Using local CA (migrate to NAS-based PKI)"
-        fi
-        echo "  Download certificates from NAS Vault:"
-        echo "    export VAULT_ADDR=http://192.168.1.42:61200"
-        echo "    vault login"
-        echo "    vault kv get -field=p12 secret/pki/clients/admin | base64 -d > admin.p12"
-
-  # Helper tasks
-  terraform-init:
-    desc: Initialize Terraform
-    dir: '{{.TERRAFORM_DIR}}'
-    cmds:
-      - 'terraform init'
-    status:
-      - 'test -d .terraform'
-
-  kubeconfig-exists:
-    desc: Check if kubeconfig exists
-    preconditions:
-      - sh: 'test -f {{.KUBECONFIG}}'
-        msg: |
-          Kubeconfig not found at {{.KUBECONFIG}}
-          Run earlier stages first or specify custom path:
-          KUBECONFIG=/path/to/kubeconfig task stage7
-
-  # Utility tasks
-  status:
-    desc: Show deployment status
-    cmds:
-      - 'echo "🔍 Checking deployment status..."'
-      - 'echo ""'
-      - 'echo "Terraform state:"'
-      - 'cd {{.TERRAFORM_DIR}} && terraform state list | grep -E "(vms|talos_machine|argocd)" | head -10'
-      - |
-        echo ""
-        if [ -f {{.KUBECONFIG}} ]; then
-          echo "Kubernetes nodes:"
-          kubectl get nodes 2>/dev/null || echo "Cannot connect to cluster"
-          echo ""
-          echo "Core apps:"
-          kubectl get app -n argocd 2>/dev/null | grep -E "(vault|rook-ceph|cert-manager)" || echo "ArgoCD not ready"
-        else
-          echo "Kubeconfig not found - cluster not bootstrapped yet"
-        fi
-
-  clean:
-    desc: Clean up generated files (not terraform state!)
-    prompt: This will remove generated configs. Continue?
-    cmds:
-      - 'rm -f {{.KUBECONFIG}}'
-      - 'rm -f {{.TERRAFORM_DIR}}/talosconfig'
-      - 'rm -f {{.TERRAFORM_DIR}}/configs/*.yaml'
-      - 'echo "✅ Cleaned generated files (terraform state preserved)"'
-
-  destroy:
-    desc: Destroy the entire cluster
-    dir: '{{.TERRAFORM_DIR}}'
-    prompt: This will DESTROY the entire cluster. Are you sure?
-    cmds:
-      - 'terraform destroy -auto-approve'
-
-  # Bootstrap tasks
-  bootstrap-secrets:
-    desc: Bootstrap secrets from QNAP Vault
-    cmds:
-      - |
-        echo "🔐 Bootstrapping secrets from QNAP Vault..."
-
-        # Create cert-manager namespace and OVH credentials
-        kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-
-        # Check if placeholder secret exists
-        if ! kubectl get secret ovh-credentials -n cert-manager &>/dev/null; then
-          echo "📝 Creating placeholder OVH credentials..."
-          kubectl create secret generic ovh-credentials \
-            --namespace=cert-manager \
-            --from-literal=applicationKey="placeholder" \
-            --from-literal=applicationSecret="placeholder" \
-            --from-literal=consumerKey="placeholder"
-        fi
-
-        echo "✅ Bootstrap secrets ready"
-
-  configure-vault:
-    desc: Configure Vault for services
-    deps: [kubeconfig-exists]
-    cmds:
-      - |
-        echo "🔐 Configuring Vault for services..."
-
-        # Wait for Vault to be ready
-        kubectl wait --for=condition=Ready pod/vault-0 -n vault --timeout=300s || true
-
-        # Check if Vault is initialized
-        if ! kubectl exec -n vault vault-0 -- vault status 2>&1 | grep -q "Initialized.*true"; then
-          echo "⚠️  Vault not initialized yet"
-          exit 1
-        fi
-
-        # Unseal if needed
-        if kubectl exec -n vault vault-0 -- vault status 2>&1 | grep -q "Sealed.*true"; then
-          echo "🔓 Unsealing Vault..."
-          UNSEAL_KEY=$(kubectl get secret -n vault vault-keys -o jsonpath='{.data.unseal-key}' | base64 -d 2>/dev/null || echo "")
-          if [ -n "$UNSEAL_KEY" ]; then
-            kubectl exec -n vault vault-0 -- vault operator unseal "$UNSEAL_KEY"
-          else
-            echo "❌ No unseal key found"
-            exit 1
-          fi
-        fi
-
-        # Run configuration script
-        if [ -f ./configure-vault-services.sh ]; then
-          ./configure-vault-services.sh
-        else
-          echo "Configuration will be done by Vault jobs"
-        fi
-
-  # Quick access to specific services
-  argocd-password:
-    desc: Get ArgoCD admin password
-    preconditions:
-      - sh: 'test -f {{.KUBECONFIG}}'
-        msg: "Kubeconfig not found"
-    cmds:
-      - 'kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d'
-      - 'echo ""'
-
-  vault-status:
-    desc: Check Vault status
-    preconditions:
-      - sh: 'test -f {{.KUBECONFIG}}'
-        msg: "Kubeconfig not found"
-    cmds:
-      - 'kubectl exec -n vault vault-0 -- vault status || echo "Vault not ready"'
-
-  logs:
-    desc: Show logs for a stage
-    vars:
-      STAGE: '{{.CLI_ARGS}}'
-    cmds:
-      - |
-        case {{.STAGE}} in
-          vault) kubectl logs -n vault -l app=vault --tail=50;;
-          argocd) kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server --tail=50;;
-          *) echo "Usage: task logs -- [vault|argocd]";;
-        esac
-
-  # NAS PKI Integration tasks
-  configure-nas-sync:
-    desc: Configure External Secrets to sync CA from NAS Vault
-    dir: '{{.TERRAFORM_DIR}}'
-    preconditions:
-      - sh: 'test -f {{.KUBECONFIG}}'
-        msg: "Kubeconfig not found"
-    vars:
-      TOKEN: '{{.CLI_ARGS}}'
-    cmds:
-      - |
-        if [ -z "{{.TOKEN}}" ] && [ -z "$NAS_ESO_TOKEN" ]; then
-          echo "❌ No ESO token provided"
-          echo ""
-          echo "Usage: task configure-nas-sync -- <token>"
-          echo "   or: NAS_ESO_TOKEN=<token> task configure-nas-sync"
-          echo ""
-          echo "Get token from NAS: task nas:show-eso-token"
-          exit 1
-        fi
-        
-        TOKEN="{{.TOKEN}}"
-        if [ -z "$TOKEN" ]; then
-          TOKEN="$NAS_ESO_TOKEN"
-        fi
-        
-        ./scripts/configure-nas-eso-sync.sh "{{.KUBECONFIG}}" "$TOKEN"
-
-  nas:show-eso-token:
-    desc: Show ESO token from NAS Vault
-    dir: nas
-    cmds:
-      - |
-        export VAULT_ADDR=http://192.168.1.42:61200
-        if ! vault token lookup &>/dev/null 2>&1; then
-          echo "❌ Not authenticated to NAS Vault"
-          echo "   Run: export VAULT_ADDR=http://192.168.1.42:61200"
-          echo "        vault login"
-          exit 1
-        fi
-        
-        echo "🎫 ESO Token for CA sync:"
-        vault kv get -field=token secret/tokens/eso-pki || echo "Token not found - run 'task nas:vault-pki' first"
-        echo ""
-        echo "Use this token:"
-        echo "  NAS_ESO_TOKEN=<token> task deploy"
-        echo "  or: task configure-nas-sync -- <token>"
-
-  refresh-transit-token:
-    desc: Get fresh transit token from QNAP Vault and update cluster
-    preconditions:
-      - sh: 'test -f {{.KUBECONFIG}}'
-        msg: "Kubeconfig not found - cluster must be deployed first"
-    cmds:
-      - |
-        echo "🔑 Refreshing transit token from QNAP Vault..."
-        echo ""
-        
-        # Check connectivity
-        if ! curl -s --connect-timeout 5 http://192.168.1.42:61200/v1/sys/health >/dev/null 2>&1; then
-          echo "❌ Cannot reach QNAP Vault at http://192.168.1.42:61200"
-          echo "   Are you connected to your home network?"
-          exit 1
-        fi
-        
-        # Check if authenticated
-        export VAULT_ADDR=http://192.168.1.42:61200
-        if ! vault token lookup &>/dev/null 2>&1; then
-          if [ -n "$QNAP_VAULT_TOKEN" ]; then
-            export VAULT_TOKEN="$QNAP_VAULT_TOKEN"
-          else
-            echo "❌ Not authenticated to QNAP Vault"
-            echo ""
-            echo "Please authenticate first:"
-            echo "  export VAULT_ADDR=http://192.168.1.42:61200"
-            echo "  vault login"
-            echo ""
-            echo "Or provide token:"
-            echo "  export QNAP_VAULT_TOKEN=<your-qnap-vault-token>"
-            exit 1
-          fi
-        fi
-        
-        # Get the transit token
-        TRANSIT_TOKEN=$(vault kv get -field=token secret/k8s-transit 2>/dev/null || echo "")
-        if [ -z "$TRANSIT_TOKEN" ]; then
-          echo "❌ Transit token not found in QNAP Vault at secret/k8s-transit"
-          echo ""
-          echo "You need to run the transit setup first:"
-          echo "  task nas:vault-transit"
-          exit 1
-        fi
-        
-        echo "✅ Retrieved transit token from QNAP Vault"
-        echo ""
-        
-        # Update the secret in the cluster
-        echo "🔄 Updating vault-transit-token secret in cluster..."
-        kubectl delete secret vault-transit-token -n vault --ignore-not-found=true
-        kubectl create secret generic vault-transit-token \
-          -n vault \
-          --from-literal=token="$TRANSIT_TOKEN"
-        
-        echo "✅ Transit token updated"
-        echo ""
-        
-        # Restart vault pod to pick up new token
-        echo "🔄 Restarting vault pod..."
-        kubectl delete pod -n vault -l app=vault --force --grace-period=0
-        
-        echo ""
-        echo "⏳ Waiting for vault to restart..."
-        sleep 10
-        
-        # Check status
-        kubectl get pods -n vault
-        echo ""
-        echo "📋 To check if vault started correctly:"
-        echo "  kubectl logs -n vault vault-0"
-        echo ""
-        echo "💡 You can also export the token for the deployment:"
-        echo "  export K8S_VAULT_TRANSIT_TOKEN=$TRANSIT_TOKEN"
-
-  check-ca-sync:
-    desc: Check if CA is properly synced from NAS
-    preconditions:
-      - sh: 'test -f {{.KUBECONFIG}}'
-        msg: "Kubeconfig not found"
-    cmds:
-      - |
-        echo "🔍 Checking CA synchronization status..."
-        echo ""
-        
-        echo "1️⃣ NAS ClusterSecretStore:"
-        kubectl get clustersecretstore nas-vault-backend -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Not found"
-        echo ""
-        
-        echo "2️⃣ CA sync ExternalSecret:"
-        kubectl get externalsecret sync-ca-from-nas -n vault 2>/dev/null || echo "Not found"
-        echo ""
-        
-        echo "3️⃣ CA in main Vault:"
-        kubectl exec -n vault vault-0 -- vault kv get -field=ca.crt secret/client-ca 2>/dev/null | head -n 3 || echo "Not found"
-        echo ""
-        
-        echo "4️⃣ HAProxy CA secret:"
-        kubectl get secret client-ca-cert -n haproxy-controller -o jsonpath='{.data.ca\.crt}' | base64 -d | head -n 3 || echo "Not found"
-
-
-  backup-values:
-    desc: Backup ArgoCD values to Vault for resilience
-    deps: [kubeconfig-exists]
-    cmds:
-      - ./scripts/backup-argocd-values-to-vault.sh
-      - |
-        echo ""
-        echo "💡 Values are now stored in Vault and will be synced by ESO"
-        echo "   This provides resilience against etcd failures"
+      - echo "Applications will be automatically deployed by ArgoCD ApplicationSets"
+      - kubectl get applications -n argocd
 
   cleanup:
-    desc: "Clean up sensitive deployment files"
+    desc: Clean up temporary files
     cmds:
-      - |
-        echo "🧹 Cleaning up sensitive deployment files..."
-        if [ -f .task/.homelab-deploy-env ]; then
-          rm -f .task/.homelab-deploy-env
-          echo "✅ Removed .task/.homelab-deploy-env"
-        else
-          echo "ℹ️  No deployment environment file found"
-        fi
-        echo "🔒 Sensitive files cleaned up"
-    silent_error: true
+      - rm -f /tmp/global-config.env
+
+  destroy:
+    desc: Destroy the cluster
+    dir: '{{.TERRAFORM_DIR}}'
+    deps: [load-env]
+    env:
+      sh: cat /tmp/global-config.env 2>/dev/null || true
+    prompt: This will destroy the entire cluster. Are you sure?
+    cmds:
+      - terraform destroy -auto-approve
+      - rm -f {{.KUBECONFIG}} {{.TALOSCONFIG}}
+
+  show-env:
+    desc: Show environment variables from global-config.yaml
+    deps: [load-env]
+    cmds:
+      - cat /tmp/global-config.env

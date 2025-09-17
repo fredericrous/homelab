@@ -20,26 +20,26 @@ resource "null_resource" "argocd_install" {
         if helm status argocd -n argocd | grep -q "STATUS: failed"; then
           echo "⚠️  ArgoCD is in failed state, upgrading..."
           
-          # Load environment variables
+          # Load variables from global-config.yaml
+          python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > /tmp/global-config.env
           if [ -f "${path.module}/../.env" ]; then
-            set -a
-            source "${path.module}/../.env"
-            set +a
+            grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> /tmp/global-config.env || true
           fi
+          set -a
+          source /tmp/global-config.env
+          set +a
           
           # Create namespace first
           echo "📦 Creating ArgoCD namespace..."
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           
-          # Create temporary ConfigMap for initial deployment
-          echo "📦 Creating temporary ConfigMap for initial deployment..."
-          TEMP_ENV_FILE=$(mktemp)
-          grep "^ARGO_" "${path.module}/../.env" > "$TEMP_ENV_FILE" || true
-          kubectl create configmap argocd-envsubst-values \
-            --namespace argocd \
-            --from-file=values="$TEMP_ENV_FILE" \
-            --dry-run=client -o yaml | kubectl apply -f -
-          rm -f "$TEMP_ENV_FILE"
+          # Load variables from global-config.yaml
+          echo "📦 Loading variables from global-config.yaml..."
+          python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > /tmp/global-config.env
+          if [ -f "${path.module}/../.env" ]; then
+            grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> /tmp/global-config.env || true
+          fi
+          source /tmp/global-config.env
           
           # Create temporary values files with substituted variables
           TEMP_VALUES_BASE=$(mktemp)
@@ -62,26 +62,19 @@ resource "null_resource" "argocd_install" {
         exit 0
       fi
       
-      # Load environment variables
+      # Load variables from global-config.yaml
+      echo "📦 Loading variables from global-config.yaml..."
+      python3 ${path.module}/../scripts/yaml-to-env.py ${path.module}/../manifests/argocd/root/global-config.yaml > /tmp/global-config.env
       if [ -f "${path.module}/../.env" ]; then
-        set -a
-        source "${path.module}/../.env"
-        set +a
+        grep -E '^(QNAP_VAULT_TOKEN|CERT_MANAGER_|EXTERNAL_DNS_)' "${path.module}/../.env" >> /tmp/global-config.env || true
       fi
+      set -a
+      source /tmp/global-config.env
+      set +a
       
       # Create namespace first
       echo "📦 Creating ArgoCD namespace..."
       kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-      
-      # Create temporary ConfigMap for initial deployment
-      echo "📦 Creating temporary ConfigMap for initial deployment..."
-      TEMP_ENV_FILE=$(mktemp)
-      grep "^ARGO_" "${path.module}/../.env" > "$TEMP_ENV_FILE" || true
-      kubectl create configmap argocd-envsubst-values \
-        --namespace argocd \
-        --from-file=values="$TEMP_ENV_FILE" \
-        --dry-run=client -o yaml | kubectl apply -f -
-      rm -f "$TEMP_ENV_FILE"
       
       # Create temporary values files with substituted variables
       echo "Creating temporary values files..."
