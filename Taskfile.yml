@@ -124,7 +124,7 @@ tasks:
   stage4:
     desc: "Stage 4: Get kubeconfig"
     deps: [check-prereq]
-    # Environment variables loaded from .env file
+    env:
       TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
       - talosctl kubeconfig -n {{.CONTROL_PLANE_IP}} -f {{.KUBECONFIG}}
