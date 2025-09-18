@@ -6,12 +6,21 @@ metadata:
   namespace: argocd
 spec:
   generators:
-  # Single git generator for core app configurations
-  - git:
-      repoURL: https://github.com/fredericrous/homelab.git
-      revision: main
-      files:
-      - path: "manifests/core/**/app.yaml"
+  # Matrix generator to combine app configs with global values
+  - matrix:
+      generators:
+      # First, get all core app configurations
+      - git:
+          repoURL: https://github.com/fredericrous/homelab.git
+          revision: main
+          files:
+          - path: "manifests/core/**/app.yaml"
+      # Then, merge with global configuration values
+      - git:
+          repoURL: https://github.com/fredericrous/homelab.git
+          revision: main
+          files:
+          - path: "manifests/argocd/root/global-config.yaml"
   
   template:
     metadata:
@@ -27,6 +36,61 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
+        # Use Kustomize patches to substitute values from global-config.yaml
+        kustomize:
+          patches:
+          # Patch for Cilium to replace PLACEHOLDER_CONTROL_PLANE_IP
+          - target:
+              kind: DaemonSet
+              name: cilium
+              namespace: kube-system
+            patch: |
+              apiVersion: apps/v1
+              kind: DaemonSet
+              metadata:
+                name: cilium
+                namespace: kube-system
+              spec:
+                template:
+                  spec:
+                    containers:
+                    - name: cilium-agent
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    initContainers:
+                    - name: config
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    - name: mount-cgroup
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    - name: apply-sysctl-overwrites
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    - name: clean-cilium-state
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    - name: install-cni-binaries
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'
@@ -77,3 +141,11 @@ spec:
         kind: CephBlockPool
         jsonPointers:
         - /status
+      # Cilium - ignore env vars that are substituted during bootstrap
+      - group: apps
+        kind: DaemonSet
+        name: cilium
+        namespace: kube-system
+        jqPathExpressions:
+        - .spec.template.spec.containers[].env[]? | select(.name == "KUBERNETES_SERVICE_HOST").value
+        - .spec.template.spec.initContainers[].env[]? | select(.name == "KUBERNETES_SERVICE_HOST").value
