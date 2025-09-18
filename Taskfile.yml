@@ -9,8 +9,14 @@ vars:
   TERRAFORM_DIR: './terraform'
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/talosconfig'
-
-dotenv: ['.env']
+  CONTROL_PLANE_IP:
+    sh: '[ -f .global-config.yaml.tmp ] && yq ".controlPlaneIP" .global-config.yaml.tmp || echo ""'
+  WORKER_1_IP:
+    sh: '[ -f .global-config.yaml.tmp ] && yq ".worker1IP" .global-config.yaml.tmp || echo ""'
+  WORKER_2_IP:
+    sh: '[ -f .global-config.yaml.tmp ] && yq ".worker2IP" .global-config.yaml.tmp || echo ""'
+  EXTERNAL_DOMAIN:
+    sh: '[ -f .global-config.yaml.tmp ] && yq ".defaultExternalDomain" .global-config.yaml.tmp || echo ""'
 
 env:
   KUBECONFIG: '{{.KUBECONFIG}}'
@@ -40,8 +46,7 @@ tasks:
 
   deploy:
     desc: Deploy complete Kubernetes cluster
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
+    deps: [check-prereq, generate-config]
     cmds:
       - task: prereq
       - task: stage1
@@ -59,10 +64,25 @@ tasks:
       - task: stage10
       - task: stage11
 
+  generate-config:
+    desc: Generate temporary global config from .env
+    deps: [check-prereq]
+    cmds:
+      - |
+        echo "Generating temporary global-config.yaml from .env..."
+        source .env
+        cat > .global-config.yaml.tmp << EOF
+        controlPlaneIP: ${CONTROL_PLANE_IP}
+        worker1IP: ${WORKER_1_IP}
+        worker2IP: ${WORKER_2_IP}
+        defaultExternalDomain: ${EXTERNAL_DOMAIN}
+        EOF
+        echo "Generated .global-config.yaml.tmp"
+
   prereq:
     desc: Pre-flight checks
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [check-prereq]
+    deps: [check-prereq, generate-config]
     # Environment variables loaded from .env file
     preconditions:
       - sh: test -f terraform.tfvars
@@ -86,7 +106,7 @@ tasks:
     # Environment variables loaded from .env file
     cmds:
       - echo "Waiting for VMs to get IP addresses..."
-      - ./scripts/wait-vms-ready.sh ${CONTROL_PLANE_IP} ${WORKER_1_IP} ${WORKER_2_IP}
+      - ./scripts/wait-vms-ready.sh {{.CONTROL_PLANE_IP}} {{.WORKER_1_IP}} {{.WORKER_2_IP}}
       - terraform apply -var="configure_talos=true" -auto-approve
 
   stage3:
@@ -97,7 +117,7 @@ tasks:
       TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
       - echo "Bootstrapping Talos cluster..."
-      - talosctl bootstrap -n ${CONTROL_PLANE_IP}
+      - talosctl bootstrap -n {{.CONTROL_PLANE_IP}}
       - echo "Waiting for cluster to be ready..."
       - sleep 60
 
@@ -107,7 +127,7 @@ tasks:
     # Environment variables loaded from .env file
       TALOSCONFIG: '{{.TALOSCONFIG}}'
     cmds:
-      - talosctl kubeconfig -n ${CONTROL_PLANE_IP} -f {{.KUBECONFIG}}
+      - talosctl kubeconfig -n {{.CONTROL_PLANE_IP}} -f {{.KUBECONFIG}}
       - chmod 600 {{.KUBECONFIG}}
       - echo "Waiting for Kubernetes API..."
       - kubectl wait --for=condition=Ready nodes --all --timeout=300s
@@ -223,7 +243,7 @@ tasks:
     desc: Show environment variables from .env
     deps: [check-prereq]
     cmds:
-      - echo "CONTROL_PLANE_IP=${CONTROL_PLANE_IP}"
-      - echo "EXTERNAL_DOMAIN=${EXTERNAL_DOMAIN}"
-      - echo "WORKER_1_IP=${WORKER_1_IP}"
-      - echo "WORKER_2_IP=${WORKER_2_IP}"
+      - echo "CONTROL_PLANE_IP={{.CONTROL_PLANE_IP}}"
+      - echo "EXTERNAL_DOMAIN={{.EXTERNAL_DOMAIN}}"
+      - echo "WORKER_1_IP={{.WORKER_1_IP}}"
+      - echo "WORKER_2_IP={{.WORKER_2_IP}}"
