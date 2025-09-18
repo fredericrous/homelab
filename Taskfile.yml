@@ -71,11 +71,12 @@ tasks:
       - |
         echo "Generating temporary global-config.yaml from .env..."
         source .env
+        # Use ARGO_ prefixed variables from .env
         cat > .global-config.yaml.tmp << EOF
-        controlPlaneIP: ${CONTROL_PLANE_IP}
-        worker1IP: ${WORKER_1_IP}
-        worker2IP: ${WORKER_2_IP}
-        defaultExternalDomain: ${EXTERNAL_DOMAIN}
+        controlPlaneIP: ${ARGO_CONTROL_PLANE_IP:-${CONTROL_PLANE_IP}}
+        worker1IP: ${ARGO_WORKER_1_IP:-${WORKER_1_IP}}
+        worker2IP: ${ARGO_WORKER_2_IP:-${WORKER_2_IP}}
+        defaultExternalDomain: ${ARGO_EXTERNAL_DOMAIN:-${EXTERNAL_DOMAIN}}
         EOF
         echo "Generated .global-config.yaml.tmp"
 
