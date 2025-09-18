@@ -160,8 +160,7 @@ resource "null_resource" "argocd_bootstrap" {
       
       # Use kustomize with --enable-helm flag to process Helm charts and substitute variables
       kustomize build ${path.module}/../manifests/argocd --enable-helm | \
-        sed -e "s/\$${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" \
-            -e "s|GITHUB_HOMELAB_VALUES_REPO_PLACEHOLDER|${var.github_homelab_values_repo}|g" | \
+        sed "s/\$${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" | \
         kubectl apply -f -
       
       # If kustomize fails, check what happened but don't fail the deployment

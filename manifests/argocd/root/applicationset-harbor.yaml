@@ -1,4 +1,6 @@
 # ApplicationSet for Harbor with special patches
+# Note: To use a different homelab-values repo, update the repoURL below
+# and ensure you've created a repository secret with matching URL
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -16,7 +18,7 @@ spec:
             path: manifests/apps/harbor
             syncWave: "25"
       - git:
-          repoURL: GITHUB_HOMELAB_VALUES_REPO_PLACEHOLDER
+          repoURL: https://github.com/fredericrous/homelab-values.git
           revision: main
           files:
           - path: "global-config.yaml"
