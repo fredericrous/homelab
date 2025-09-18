@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: global-config
+  namespace: argocd
+data:
+  controlPlaneIP: "192.168.1.67"
+  defaultExternalDomain: "daddyshome.fr"
+  clusterDomain: "daddyshome.lab"
+  worker1IP: "192.168.1.68"
+  worker2IP: "192.168.1.69"

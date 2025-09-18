@@ -27,61 +27,6 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
-        # Use Kustomize patches to substitute values from global-config.yaml
-        kustomize:
-          patches:
-          # Patch for Cilium to replace PLACEHOLDER_CONTROL_PLANE_IP
-          - target:
-              kind: DaemonSet
-              name: cilium
-              namespace: kube-system
-            patch: |
-              apiVersion: apps/v1
-              kind: DaemonSet
-              metadata:
-                name: cilium
-                namespace: kube-system
-              spec:
-                template:
-                  spec:
-                    containers:
-                    - name: cilium-agent
-                      env:
-                      - name: KUBERNETES_SERVICE_HOST
-                        value: '192.168.1.67'
-                      - name: KUBERNETES_SERVICE_PORT
-                        value: "6443"
-                    initContainers:
-                    - name: config
-                      env:
-                      - name: KUBERNETES_SERVICE_HOST
-                        value: '192.168.1.67'
-                      - name: KUBERNETES_SERVICE_PORT
-                        value: "6443"
-                    - name: mount-cgroup
-                      env:
-                      - name: KUBERNETES_SERVICE_HOST
-                        value: '192.168.1.67'
-                      - name: KUBERNETES_SERVICE_PORT
-                        value: "6443"
-                    - name: apply-sysctl-overwrites
-                      env:
-                      - name: KUBERNETES_SERVICE_HOST
-                        value: '192.168.1.67'
-                      - name: KUBERNETES_SERVICE_PORT
-                        value: "6443"
-                    - name: clean-cilium-state
-                      env:
-                      - name: KUBERNETES_SERVICE_HOST
-                        value: '192.168.1.67'
-                      - name: KUBERNETES_SERVICE_PORT
-                        value: "6443"
-                    - name: install-cni-binaries
-                      env:
-                      - name: KUBERNETES_SERVICE_HOST
-                        value: '192.168.1.67'
-                      - name: KUBERNETES_SERVICE_PORT
-                        value: "6443"
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'

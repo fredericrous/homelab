@@ -17,3 +17,8 @@ patches:
       kind: ConfigMap
       name: hubble-ui-nginx
       namespace: kube-system
+  - path: patch-control-plane-ip.yaml
+    target:
+      kind: DaemonSet
+      name: cilium
+      namespace: kube-system
