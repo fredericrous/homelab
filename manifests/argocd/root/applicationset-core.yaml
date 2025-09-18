@@ -6,11 +6,20 @@ metadata:
   namespace: argocd
 spec:
   generators:
-  - git:
-      repoURL: https://github.com/fredericrous/homelab.git
-      revision: main
-      files:
-      - path: "manifests/core/**/app.yaml"
+  - matrix:
+      generators:
+      # Get all core app configurations
+      - git:
+          repoURL: https://github.com/fredericrous/homelab.git
+          revision: main
+          files:
+          - path: "manifests/core/**/app.yaml"
+      # Get global configuration from private repo
+      - git:
+          repoURL: https://github.com/fredericrous/homelab-values.git
+          revision: main
+          files:
+          - path: "global-config.yaml"
   
   template:
     metadata:
@@ -26,6 +35,60 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
+        kustomize:
+          patches:
+          # Patch for Cilium to use control plane IP from global config
+          - target:
+              kind: DaemonSet
+              name: cilium
+              namespace: kube-system
+            patch: |
+              apiVersion: apps/v1
+              kind: DaemonSet
+              metadata:
+                name: cilium
+                namespace: kube-system
+              spec:
+                template:
+                  spec:
+                    containers:
+                    - name: cilium-agent
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    initContainers:
+                    - name: config
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    - name: mount-cgroup
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    - name: apply-sysctl-overwrites
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    - name: clean-cilium-state
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
+                    - name: install-cni-binaries
+                      env:
+                      - name: KUBERNETES_SERVICE_HOST
+                        value: '{{controlPlaneIP}}'
+                      - name: KUBERNETES_SERVICE_PORT
+                        value: "6443"
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'

@@ -16,10 +16,10 @@ spec:
             path: manifests/apps/harbor
             syncWave: "25"
       - git:
-          repoURL: https://github.com/fredericrous/homelab.git
+          repoURL: https://github.com/fredericrous/homelab-values.git
           revision: main
           files:
-          - path: "manifests/argocd/root/global-config.yaml"
+          - path: "global-config.yaml"
   
   template:
     metadata:
