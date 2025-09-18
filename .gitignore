@@ -26,4 +26,6 @@ manifests/**/*-patch.yaml
 
 # Taskfile
 .task/
-manifests/argocd/bootstrap/repo-secret-homelab-values.yaml
+
+# Temporary files
+.global-config.yaml.tmp

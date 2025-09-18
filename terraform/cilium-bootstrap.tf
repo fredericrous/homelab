@@ -6,7 +6,8 @@ resource "null_resource" "cilium_bootstrap" {
     local_file.kubeconfig,
     null_resource.bootstrap_cluster,
     talos_cluster_kubeconfig.this,
-    null_resource.dns_bootstrap
+    null_resource.dns_bootstrap,
+    null_resource.sync_global_config
   ]
 
   provisioner "local-exec" {
@@ -32,13 +33,20 @@ resource "null_resource" "cilium_bootstrap" {
 
       echo "🚀 Installing Cilium CNI..."
       
-      # Load control plane IP from global-config.yaml
-      echo "Loading control plane IP from global-config.yaml..."
-      CONTROL_PLANE_IP=$(yq '.controlPlaneIP' ${path.module}/../manifests/argocd/root/global-config.yaml)
+      # Load control plane IP from temporary global-config.yaml or use default
+      echo "Loading control plane IP..."
+      if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
+        CONTROL_PLANE_IP=$(yq '.controlPlaneIP' ${path.module}/../.global-config.yaml.tmp)
+        echo "Loaded control plane IP from temporary global-config.yaml"
+      else
+        # Fallback to hardcoded value from variables
+        CONTROL_PLANE_IP="${local.all_nodes.controlplane.ip}"
+        echo "Using control plane IP from terraform variables"
+      fi
       
       # Verify the control plane IP is loaded
       if [ -z "$CONTROL_PLANE_IP" ]; then
-        echo "ERROR: Control plane IP not found in global-config.yaml!"
+        echo "ERROR: Control plane IP not found!"
         exit 1
       fi
       echo "Using control plane IP: $CONTROL_PLANE_IP"

@@ -5,7 +5,8 @@ resource "null_resource" "argocd_install" {
   depends_on = [
     local_file.kubeconfig,
     null_resource.helm_repos,
-    null_resource.dns_bootstrap
+    null_resource.dns_bootstrap,
+    null_resource.sync_global_config
   ]
 
   provisioner "local-exec" {
@@ -20,17 +21,27 @@ resource "null_resource" "argocd_install" {
         if helm status argocd -n argocd | grep -q "STATUS: failed"; then
           echo "⚠️  ArgoCD is in failed state, upgrading..."
           
-          # Load external domain from global-config.yaml
-          EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../manifests/argocd/root/global-config.yaml)
+          # Load external domain from temporary global-config.yaml or use default
+          if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
+            EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
+          else
+            EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
+          fi
           # Direct substitution - no need for ARGO_ prefix
           
           # Create namespace first
           echo "📦 Creating ArgoCD namespace..."
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           
-          # Load external domain from global-config.yaml
-          echo "📦 Loading external domain from global-config.yaml..."
-          EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../manifests/argocd/root/global-config.yaml)
+          # Load external domain from temporary global-config.yaml or use default
+          echo "📦 Loading external domain..."
+          if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
+            EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
+            echo "Loaded from temporary global-config.yaml"
+          else
+            EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
+            echo "Using default external domain"
+          fi
           # Direct substitution - no need for ARGO_ prefix
           
           # Create temporary values files with substituted variables
@@ -54,9 +65,15 @@ resource "null_resource" "argocd_install" {
         exit 0
       fi
       
-      # Load external domain from global-config.yaml
-      echo "📦 Loading external domain from global-config.yaml..."
-      EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../manifests/argocd/root/global-config.yaml)
+      # Load external domain from temporary global-config.yaml or use default
+      echo "📦 Loading external domain..."
+      if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
+        EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
+        echo "Loaded from temporary global-config.yaml"
+      else
+        EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
+        echo "Using default external domain"
+      fi
       # Direct substitution - no need for ARGO_ prefix
       
       # Create namespace first
@@ -110,12 +127,29 @@ resource "null_resource" "argocd_bootstrap" {
       # Apply kustomize, but delete any existing jobs that might conflict
       kubectl delete job argocd-redis-secret-init -n argocd --ignore-not-found=true
       
-      # Load external domain from global-config.yaml
-      EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../manifests/argocd/root/global-config.yaml)
+      # Apply repository secret for homelab-values
+      echo "🔑 Applying repository secret for homelab-values..."
+      GITHUB_HOMELAB_VALUES_TOKEN="${var.github_homelab_values_token}"
+      if [ -n "$GITHUB_HOMELAB_VALUES_TOKEN" ]; then
+        export GITHUB_HOMELAB_VALUES_TOKEN
+        envsubst < ${path.module}/../manifests/argocd/bootstrap/repo-secret-homelab-values.yaml | kubectl apply -f -
+        echo "✅ Repository secret applied"
+      else
+        echo "⚠️  WARNING: GITHUB_HOMELAB_VALUES_TOKEN not set, skipping repository secret"
+      fi
+      
+      # Load external domain from temporary global-config.yaml or use default
+      if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
+        EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
+        echo "Loaded from temporary global-config.yaml"
+      else
+        EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
+        echo "Using default external domain"
+      fi
       
       # Verify the external domain is loaded
       if [ -z "$EXTERNAL_DOMAIN" ]; then
-        echo "ERROR: External domain not found in global-config.yaml!"
+        echo "ERROR: External domain not found!"
         exit 1
       fi
       echo "Using external domain: $EXTERNAL_DOMAIN"
