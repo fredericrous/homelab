@@ -131,8 +131,10 @@ resource "null_resource" "argocd_bootstrap" {
       # Apply repository secret for homelab-values
       echo "🔑 Applying repository secret for homelab-values..."
       GITHUB_HOMELAB_VALUES_TOKEN="${var.github_homelab_values_token}"
+      GITHUB_HOMELAB_VALUES_REPO="${var.github_homelab_values_repo}"
       if [ -n "$GITHUB_HOMELAB_VALUES_TOKEN" ]; then
         export GITHUB_HOMELAB_VALUES_TOKEN
+        export GITHUB_HOMELAB_VALUES_REPO
         envsubst < ${path.module}/../manifests/argocd/bootstrap/repo-secret-homelab-values.yaml | kubectl apply -f -
         echo "✅ Repository secret applied"
       else
@@ -157,7 +159,10 @@ resource "null_resource" "argocd_bootstrap" {
       # Direct substitution - no need for ARGO_ prefix
       
       # Use kustomize with --enable-helm flag to process Helm charts and substitute variables
-      kustomize build ${path.module}/../manifests/argocd --enable-helm | sed "s/\$${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" | kubectl apply -f -
+      kustomize build ${path.module}/../manifests/argocd --enable-helm | \
+        sed -e "s/\$${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" \
+            -e "s|GITHUB_HOMELAB_VALUES_REPO_PLACEHOLDER|${var.github_homelab_values_repo}|g" | \
+        kubectl apply -f -
       
       # If kustomize fails, check what happened but don't fail the deployment
       if [ $? -ne 0 ]; then

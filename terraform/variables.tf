@@ -221,3 +221,9 @@ variable "github_homelab_values_token" {
   default     = ""
   sensitive   = true
 }
+
+variable "github_homelab_values_repo" {
+  description = "GitHub repository URL for homelab values"
+  type        = string
+  default     = "https://github.com/fredericrous/homelab-values"
+}

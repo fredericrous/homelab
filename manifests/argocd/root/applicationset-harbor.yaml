@@ -16,7 +16,7 @@ spec:
             path: manifests/apps/harbor
             syncWave: "25"
       - git:
-          repoURL: https://github.com/fredericrous/homelab-values.git
+          repoURL: GITHUB_HOMELAB_VALUES_REPO_PLACEHOLDER
           revision: main
           files:
           - path: "global-config.yaml"

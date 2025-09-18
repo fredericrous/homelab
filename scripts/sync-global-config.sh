@@ -12,9 +12,14 @@ if [ ! -f "${ROOT_DIR}/.env" ]; then
     exit 1
 fi
 
-# Check if GitHub token is provided
+# Check if required environment variables are provided
 if [ -z "${GITHUB_HOMELAB_VALUES_TOKEN:-}" ]; then
     echo "Error: GITHUB_HOMELAB_VALUES_TOKEN environment variable is not set"
+    exit 1
+fi
+
+if [ -z "${GITHUB_HOMELAB_VALUES_REPO:-}" ]; then
+    echo "Error: GITHUB_HOMELAB_VALUES_REPO environment variable is not set"
     exit 1
 fi
 
@@ -64,7 +69,15 @@ TEMP_DIR=$(mktemp -d)
 trap "rm -rf ${TEMP_DIR}" EXIT
 
 echo "Cloning homelab-values repository..."
-git clone https://fredericrous:${GITHUB_HOMELAB_VALUES_TOKEN}@github.com/fredericrous/homelab-values.git "${TEMP_DIR}/homelab-values"
+# Extract username and repo from the URL
+REPO_URL="${GITHUB_HOMELAB_VALUES_REPO}"
+# Remove https:// prefix
+REPO_PATH="${REPO_URL#https://}"
+# Extract GitHub username and repo name
+GITHUB_USER=$(echo "${REPO_PATH}" | cut -d'/' -f2)
+GITHUB_REPO=$(echo "${REPO_PATH}" | cut -d'/' -f3)
+
+git clone "https://${GITHUB_USER}:${GITHUB_HOMELAB_VALUES_TOKEN}@github.com/${GITHUB_USER}/${GITHUB_REPO}.git" "${TEMP_DIR}/homelab-values"
 
 # Copy the global-config.yaml to the repo
 cp "${ROOT_DIR}/global-config.yaml" "${TEMP_DIR}/homelab-values/global-config.yaml"

@@ -25,6 +25,7 @@ resource "null_resource" "sync_global_config" {
       
       # Run the sync script
       export GITHUB_HOMELAB_VALUES_TOKEN="${var.github_homelab_values_token}"
+      export GITHUB_HOMELAB_VALUES_REPO="${var.github_homelab_values_repo}"
       cd ${path.module}/.. && ./scripts/sync-global-config.sh
       
       echo "✅ Global configuration synced successfully"

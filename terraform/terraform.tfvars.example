@@ -74,3 +74,6 @@ nodes = {
 
 # GitHub PAT for homelab-values private repository
 github_homelab_values_token = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# GitHub repository URL for values (change if using your own fork)
+# github_homelab_values_repo = "https://github.com/yourusername/your-homelab-values"
