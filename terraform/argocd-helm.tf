@@ -21,11 +21,12 @@ resource "null_resource" "argocd_install" {
         if helm status argocd -n argocd | grep -q "STATUS: failed"; then
           echo "⚠️  ArgoCD is in failed state, upgrading..."
           
-          # Load external domain from temporary global-config.yaml or use default
+          # Load external domain from temporary global-config.yaml
           if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
             EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
           else
-            EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
+            echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+            exit 1
           fi
           # Direct substitution - no need for ARGO_ prefix
           
@@ -33,14 +34,14 @@ resource "null_resource" "argocd_install" {
           echo "📦 Creating ArgoCD namespace..."
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           
-          # Load external domain from temporary global-config.yaml or use default
+          # Load external domain from temporary global-config.yaml
           echo "📦 Loading external domain..."
           if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
             EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
             echo "Loaded from temporary global-config.yaml"
           else
-            EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
-            echo "Using default external domain"
+            echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+            exit 1
           fi
           # Direct substitution - no need for ARGO_ prefix
           
@@ -65,14 +66,14 @@ resource "null_resource" "argocd_install" {
         exit 0
       fi
       
-      # Load external domain from temporary global-config.yaml or use default
+      # Load external domain from temporary global-config.yaml
       echo "📦 Loading external domain..."
       if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
         EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
         echo "Loaded from temporary global-config.yaml"
       else
-        EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
-        echo "Using default external domain"
+        echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+        exit 1
       fi
       # Direct substitution - no need for ARGO_ prefix
       
@@ -138,13 +139,13 @@ resource "null_resource" "argocd_bootstrap" {
         echo "⚠️  WARNING: GITHUB_HOMELAB_VALUES_TOKEN not set, skipping repository secret"
       fi
       
-      # Load external domain from temporary global-config.yaml or use default
+      # Load external domain from temporary global-config.yaml
       if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
         EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
         echo "Loaded from temporary global-config.yaml"
       else
-        EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
-        echo "Using default external domain"
+        echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+        exit 1
       fi
       
       # Verify the external domain is loaded

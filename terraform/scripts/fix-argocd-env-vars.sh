@@ -6,13 +6,13 @@ export KUBECONFIG
 
 echo "🔧 Fixing ArgoCD environment variables..."
 
-# Load external domain from temporary global-config.yaml or use default
+# Load external domain from temporary global-config.yaml
 if [ -f "$(dirname "$0")/../../.global-config.yaml.tmp" ]; then
   EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' "$(dirname "$0")/../../.global-config.yaml.tmp")
   echo "Loaded external domain from temporary global-config.yaml"
 else
-  EXTERNAL_DOMAIN="daddyshome.fr"  # Default fallback
-  echo "Using default external domain"
+  echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+  exit 1
 fi
 
 # Verify the external domain is loaded

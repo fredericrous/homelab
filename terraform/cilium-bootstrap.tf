@@ -33,15 +33,14 @@ resource "null_resource" "cilium_bootstrap" {
 
       echo "🚀 Installing Cilium CNI..."
       
-      # Load control plane IP from temporary global-config.yaml or use default
+      # Load control plane IP from temporary global-config.yaml
       echo "Loading control plane IP..."
       if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
         CONTROL_PLANE_IP=$(yq '.controlPlaneIP' ${path.module}/../.global-config.yaml.tmp)
         echo "Loaded control plane IP from temporary global-config.yaml"
       else
-        # Fallback to hardcoded value from variables
-        CONTROL_PLANE_IP="${local.all_nodes.controlplane.ip}"
-        echo "Using control plane IP from terraform variables"
+        echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+        exit 1
       fi
       
       # Verify the control plane IP is loaded
