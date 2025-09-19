@@ -34,18 +34,50 @@ spec:
       - resources-finalizer.argocd.argoproj.io
     spec:
       project: '{{project}}'
-      sources:
-      # First source: global-config from homelab-values repo
-      - repoURL: https://github.com/fredericrous/homelab-values
-        targetRevision: main
-        path: .
-        ref: values
-      # Second source: actual application manifests  
-      - repoURL: https://github.com/fredericrous/homelab.git
+      source:
+        repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
         kustomize:
           patches:
+          # Patch for Vault to use NAS vault address from global config
+          - target:
+              kind: ConfigMap
+              name: vault-config
+              namespace: vault
+            patch: |-
+              - op: replace
+                path: /data/vault.hcl
+                value: |
+                  ui = true
+                  disable_mlock = true
+                  
+                  listener "tcp" {
+                    tls_disable = 1
+                    address = "[::]:8200"
+                    cluster_address = "[::]:8201"
+                  }
+                  
+                  storage "file" {
+                    path = "/vault/data"
+                  }
+                  
+                  # Transit auto-unseal using NAS Vault
+                  seal "transit" {
+                    address = "{{config.nasVaultAddr}}"
+                    disable_renewal = "false"
+                    key_name = "autounseal"
+                    mount_path = "transit"
+                    tls_skip_verify = "true"
+                    # Token will be injected via init container
+                    token = "TRANSIT_TOKEN_PLACEHOLDER"
+                  }
+                  
+                  # API address
+                  api_addr = "http://vault.vault.svc.cluster.local:8200"
+                  
+                  # Enable the database secrets engine
+                  # This will be configured after initialization
           # Patch for Cilium to use control plane IP from global config
           - target:
               kind: DaemonSet

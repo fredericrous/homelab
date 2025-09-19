@@ -20,8 +20,6 @@ configMapGenerator:
       disableNameSuffixHash: true
 
 resources:
-  # Global config from values reference
-  - $values/global-config.yaml
   # NOTE: Vault doesn't use base templates because:
   # 1. It doesn't need VSO to manage its own secrets
   # 2. This avoids circular dependency (VSO needs Vault, Vault needs VSO CRDs)
@@ -58,9 +56,6 @@ patches:
     target:
       kind: StatefulSet
       name: vault
-
-replacements:
-  - path: ../../base/replacements/nas-vault-addr.yaml
 
 
   # Jobs removed - configuration is now handled by vault-transit-unseal-operator's postUnsealConfig
