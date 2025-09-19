@@ -30,22 +30,22 @@ resource "null_resource" "dns_bootstrap" {
       if [ -n "$K8S_SERVICE" ]; then
         # Extract subnet from kubernetes service (e.g., 10.96.0.1 -> 10.96)
         SERVICE_PREFIX=$(echo "$K8S_SERVICE" | cut -d. -f1-2)
-        echo "  Detected service prefix from kubernetes service: \$SERVICE_PREFIX (IP: $K8S_SERVICE)"
+        echo "  Detected service prefix from kubernetes service: $SERVICE_PREFIX (IP: $K8S_SERVICE)"
       else
         # Fallback to checking any service
         EXISTING_SERVICE=$(kubectl get svc -A -o jsonpath='{.items[0].spec.clusterIP}' 2>/dev/null || echo "")
         if [ -n "$EXISTING_SERVICE" ]; then
           SERVICE_PREFIX=$(echo "$EXISTING_SERVICE" | cut -d. -f1-2)
-          echo "  Detected service prefix from existing services: \$SERVICE_PREFIX"
+          echo "  Detected service prefix from existing services: $SERVICE_PREFIX"
         else
           # Use Talos default
           SERVICE_PREFIX="10.96"
-          echo "  Using Talos default service prefix: \$SERVICE_PREFIX"
+          echo "  Using Talos default service prefix: $SERVICE_PREFIX"
         fi
       fi
       
       DNS_IP="$${SERVICE_PREFIX}.0.10"
-      echo "  Will use DNS IP: \$DNS_IP"
+      echo "  Will use DNS IP: $DNS_IP"
       
       # Wait a bit for service controller to be ready
       echo "⏳ Waiting for service controller to be ready..."
@@ -58,23 +58,21 @@ resource "null_resource" "dns_bootstrap" {
         sleep 2
       done
       
-      echo "🔍 Checking if kube-dns service exists..."
-      if kubectl get svc -n kube-system kube-dns >/dev/null 2>&1; then
-        echo "✅ kube-dns service already exists"
-        # Check if it has the correct selector
-        SELECTOR=$(kubectl get svc -n kube-system kube-dns -o jsonpath='{.spec.selector}' | jq -r 'to_entries | map(select(.key == "k8s-app" and .value == "kube-dns")) | length')
-        if [ "$SELECTOR" -eq 1 ]; then
-          OTHER_SELECTORS=$(kubectl get svc -n kube-system kube-dns -o jsonpath='{.spec.selector}' | jq -r 'to_entries | length')
-          if [ "$OTHER_SELECTORS" -eq 1 ]; then
-            echo "✅ kube-dns service has correct selector"
-            exit 0
-          fi
+      echo "🔍 Checking for CoreDNS deployment..."
+      if kubectl get deployment -n kube-system coredns >/dev/null 2>&1; then
+        echo "✅ CoreDNS deployment found (likely from Talos)"
+        echo "🔍 Checking if kube-dns service exists..."
+        if kubectl get svc -n kube-system kube-dns >/dev/null 2>&1; then
+          echo "✅ kube-dns service already exists"
+          exit 0
+        else
+          echo "⚠️  CoreDNS deployment exists but kube-dns service is missing"
         fi
-        echo "⚠️  kube-dns service exists but has incorrect selector, recreating..."
-        kubectl delete svc -n kube-system kube-dns
+      else
+        echo "⚠️  No CoreDNS deployment found yet"
       fi
       
-      echo "🚀 Creating bootstrap kube-dns service with IP \$DNS_IP..."
+      echo "🚀 Creating bootstrap kube-dns service with IP $DNS_IP..."
       APPLY_OUTPUT=$(cat <<EOF | kubectl apply -f - 2>&1
 apiVersion: v1
 kind: Service
