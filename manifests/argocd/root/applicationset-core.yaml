@@ -22,6 +22,7 @@ spec:
           revision: main
           files:
           - path: "global-config.yaml"
+          pathParamPrefix: config
 
   template:
     metadata:
@@ -57,38 +58,38 @@ spec:
                     - name: cilium-agent
                       env:
                       - name: KUBERNETES_SERVICE_HOST
-                        value: '{{controlPlaneIP}}'
+                        value: '{{config.controlPlaneIp}}'
                       - name: KUBERNETES_SERVICE_PORT
                         value: "6443"
                     initContainers:
                     - name: config
                       env:
                       - name: KUBERNETES_SERVICE_HOST
-                        value: '{{controlPlaneIP}}'
+                        value: '{{config.controlPlaneIp}}'
                       - name: KUBERNETES_SERVICE_PORT
                         value: "6443"
                     - name: mount-cgroup
                       env:
                       - name: KUBERNETES_SERVICE_HOST
-                        value: '{{controlPlaneIP}}'
+                        value: '{{config.controlPlaneIp}}'
                       - name: KUBERNETES_SERVICE_PORT
                         value: "6443"
                     - name: apply-sysctl-overwrites
                       env:
                       - name: KUBERNETES_SERVICE_HOST
-                        value: '{{controlPlaneIP}}'
+                        value: '{{config.controlPlaneIp}}'
                       - name: KUBERNETES_SERVICE_PORT
                         value: "6443"
                     - name: clean-cilium-state
                       env:
                       - name: KUBERNETES_SERVICE_HOST
-                        value: '{{controlPlaneIP}}'
+                        value: '{{config.controlPlaneIp}}'
                       - name: KUBERNETES_SERVICE_PORT
                         value: "6443"
                     - name: install-cni-binaries
                       env:
                       - name: KUBERNETES_SERVICE_HOST
-                        value: '{{controlPlaneIP}}'
+                        value: '{{config.controlPlaneIp}}'
                       - name: KUBERNETES_SERVICE_PORT
                         value: "6443"
       destination:
