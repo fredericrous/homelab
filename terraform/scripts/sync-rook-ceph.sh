@@ -84,7 +84,7 @@ while true; do
     
     # Retry the sync
     echo "🔄 Retrying sync..."
-    kubectl patch app -n argocd rook-ceph --type merge -p '{"operation":{"initiatedBy":{"username":"terraform"},"sync":{"prune":true,"retry":{"limit":5}}}}'
+    kubectl patch app -n argocd rook-ceph --type merge -p '{"operation":{"initiatedBy":{"username":"terraform"},"sync":{"prune":true},"retry":{"limit":5}}}'
     sleep 10
     continue
   fi
