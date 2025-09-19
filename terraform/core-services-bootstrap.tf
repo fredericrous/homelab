@@ -6,7 +6,8 @@ resource "null_resource" "rook_ceph_sync" {
   count = var.configure_talos ? 1 : 0
   
   depends_on = [
-    null_resource.argocd_bootstrap
+    null_resource.argocd_bootstrap,
+    null_resource.wait_for_appsets  # Wait for ApplicationSets to be ready first
   ]
 
   provisioner "local-exec" {

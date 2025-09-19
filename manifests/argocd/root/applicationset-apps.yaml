@@ -42,9 +42,9 @@ spec:
               spec:
                 tls:
                 - hosts:
-                  - '{{name}}.{{defaultExternalDomain}}'
+                  - '{{name}}.{{config.externalDomain}}'
                 rules:
-                - host: '{{name}}.{{defaultExternalDomain}}'
+                - host: '{{name}}.{{config.externalDomain}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'

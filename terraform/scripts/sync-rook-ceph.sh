@@ -51,21 +51,33 @@ while true; do
   sync_status=$(kubectl get app -n argocd rook-ceph -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
   health_status=$(kubectl get app -n argocd rook-ceph -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
   
-  # Accept as successful if Synced, or if Unknown but Healthy (DNS issues)
-  if [ "$sync_status" = "Synced" ] || ([ "$sync_status" = "Unknown" ] && [ "$health_status" = "Healthy" ]); then
-    echo "✅ Rook-Ceph ready (Sync: $sync_status, Health: $health_status)"
+  # Accept as successful if Synced
+  if [ "$sync_status" = "Synced" ]; then
+    echo "✅ Rook-Ceph synced successfully (Health: $health_status)"
+    break
+  fi
+  
+  # For Unknown sync status with Healthy app, check if it's a DNS issue
+  if [ "$sync_status" = "Unknown" ] && [ "$health_status" = "Healthy" ]; then
+    # Check if we have DNS/comparison errors in the conditions
+    has_comparison_error=$(kubectl get app -n argocd rook-ceph -o json | jq -r '.status.conditions[]? | select(.type == "ComparisonError") | .message' | grep -q "connection error" && echo "yes" || echo "no")
     
-    # For Unknown sync status, verify key resources exist
-    if [ "$sync_status" = "Unknown" ]; then
+    if [ "$has_comparison_error" = "yes" ]; then
+      echo "⚠️  Sync status Unknown due to DNS/connection issues, but app is Healthy"
+      echo "   Checking if key resources exist..."
+      
+      # Give it some time for resources to appear
+      sleep 10
+      
       if kubectl get storageclass rook-ceph-block &>/dev/null && \
          kubectl get deployment -n rook-ceph rook-ceph-operator &>/dev/null; then
-        echo "✅ Key resources verified - considering deployment successful"
+        echo "✅ Key resources verified - Rook-Ceph is functional despite sync issues"
         break
       else
-        echo "⚠️  Sync status Unknown but key resources missing, continuing..."
+        echo "   Key resources not yet available, will continue monitoring..."
       fi
     else
-      break
+      echo "⚠️  Sync status Unknown but no DNS errors detected, continuing..."
     fi
   fi
   

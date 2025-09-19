@@ -22,6 +22,7 @@ spec:
           revision: main
           files:
           - path: "global-config.yaml"
+          pathParamPrefix: config
 
   template:
     metadata:
@@ -51,9 +52,9 @@ spec:
               spec:
                 tls:
                 - hosts:
-                  - harbor.{{defaultExternalDomain}}
+                  - harbor.{{config.externalDomain}}
                 rules:
-                - host: harbor.{{defaultExternalDomain}}
+                - host: harbor.{{config.externalDomain}}
           # Harbor IP pool
           - target:
               kind: IPAddressPool
@@ -66,7 +67,7 @@ spec:
                 namespace: metallb-system
               spec:
                 addresses:
-                - {{harborIP}}-192.168.1.91
+                - {{config.harborIp}}-192.168.1.91
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'

@@ -9,7 +9,9 @@ helmCharts:
     releaseName: cilium
     namespace: kube-system
     includeCRDs: true
-    valuesFile: values.talos.yaml
+    # Switch to native routing to fix DNS issues
+    # valuesFile: values.talos.yaml  # Uses VXLAN tunneling
+    valuesFile: values-native.yaml   # Uses native routing (recommended)
 
 patches:
   - path: patch-hubble-ui-nginx.yaml

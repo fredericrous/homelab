@@ -16,11 +16,12 @@ spec:
             path: manifests/apps/stremio
             syncWave: "30"
       - git:
-          repoURL: https://github.com/fredericrous/homelab.git
+          repoURL: https://github.com/fredericrous/homelab-values
           revision: main
           files:
-          - path: "manifests/argocd/root/global-config.yaml"
-  
+          - path: "global-config.yaml"
+          pathParamPrefix: config
+
   template:
     metadata:
       name: '{{name}}'
@@ -49,9 +50,9 @@ spec:
               spec:
                 tls:
                 - hosts:
-                  - stremio.{{defaultExternalDomain}}
+                  - stremio.{{config.externalDomain}}
                 rules:
-                - host: stremio.{{defaultExternalDomain}}
+                - host: stremio.{{config.externalDomain}}
           # Stremio deployment with Harbor registry
           - target:
               kind: Deployment
@@ -66,7 +67,7 @@ spec:
                   spec:
                     initContainers:
                     - name: copy-build
-                      image: {{harborRegistry}}/library/stremio-web:latest
+                      image: {{config.harborRegistry}}/library/stremio-web:latest
           # BuildKit config
           - target:
               kind: ConfigMap
@@ -88,7 +89,7 @@ spec:
                     insecure = true
                     ca=["/etc/ssl/certs/ca-certificates.crt"]
 
-                  [registry."{{harborRegistry}}"]
+                  [registry."{{config.harborRegistry}}"]
                     http = true
                     insecure = true
           # Harbor registry secrets
@@ -109,12 +110,12 @@ spec:
                         {{`{{- $password := .password -}}
                         {
                           "auths": {
-                            "`}}{{harborRegistry}}{{`": {
+                            "`}}{{config.harborRegistry}}{{`": {
                               "username": "admin",
                               "password": "{{ $password }}",
                               "auth": "{{ printf "admin:%s" $password | b64enc }}"
                             },
-                            "`}}{{harborRegistryTLS}}{{`": {
+                            "`}}{{config.harborRegistryTls}}{{`": {
                               "username": "admin",
                               "password": "{{ $password }}",
                               "auth": "{{ printf "admin:%s" $password | b64enc }}"
@@ -139,7 +140,7 @@ spec:
                         {{- $password := .password -}}
                         {
                           "auths": {
-                            "`}}{{harborRegistry}}{{`": {
+                            "`}}{{config.harborRegistry}}{{`": {
                               "username": "{{ $username }}",
                               "password": "{{ $password }}",
                               "auth": "{{ printf "%s:%s" $username $password | b64enc }}"
@@ -165,7 +166,7 @@ spec:
                     - |
                       export HARBOR_USER=$(cat ~/.docker/config.json | jq -r '.auths["harbor-registry.harbor.svc.cluster.local:5000"].username')
                       export HARBOR_PASS=$(cat ~/.docker/config.json | jq -r '.auths["harbor-registry.harbor.svc.cluster.local:5000"].password')
-                      
+
                       # Check if image exists (try LoadBalancer IP for reliability)
                       echo "Checking if image already exists in Harbor..." >&2
                       if curl -f -s -u "$HARBOR_USER:$HARBOR_PASS" \
@@ -176,7 +177,7 @@ spec:
                         echo "Image not found in Harbor." >&2
                         echo "not-found" > /tmp/result
                       fi
-                      
+
                       # Output only the result to stdout
                       cat /tmp/result
       destination:

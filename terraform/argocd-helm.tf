@@ -23,7 +23,7 @@ resource "null_resource" "argocd_install" {
           
           # Load external domain from temporary global-config.yaml
           if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-            EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
+            EXTERNAL_DOMAIN=$(yq '.externalDomain' ${path.module}/../.global-config.yaml.tmp)
           else
             echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
             exit 1
@@ -37,7 +37,7 @@ resource "null_resource" "argocd_install" {
           # Load external domain from temporary global-config.yaml
           echo "📦 Loading external domain..."
           if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-            EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
+            EXTERNAL_DOMAIN=$(yq '.externalDomain' ${path.module}/../.global-config.yaml.tmp)
             echo "Loaded from temporary global-config.yaml"
           else
             echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
@@ -69,7 +69,7 @@ resource "null_resource" "argocd_install" {
       # Load external domain from temporary global-config.yaml
       echo "📦 Loading external domain..."
       if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-        EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
+        EXTERNAL_DOMAIN=$(yq '.externalDomain' ${path.module}/../.global-config.yaml.tmp)
         echo "Loaded from temporary global-config.yaml"
       else
         echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
@@ -143,7 +143,7 @@ resource "null_resource" "argocd_bootstrap" {
       
       # Load external domain from temporary global-config.yaml
       if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-        EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' ${path.module}/../.global-config.yaml.tmp)
+        EXTERNAL_DOMAIN=$(yq '.externalDomain' ${path.module}/../.global-config.yaml.tmp)
         echo "Loaded from temporary global-config.yaml"
       else
         echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"

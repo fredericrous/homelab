@@ -1,4 +1,4 @@
-# Bootstrap Cilium CNI using kustomize
+# Bootstrap Cilium CNI with native routing for better performance and DNS reliability
 resource "null_resource" "cilium_bootstrap" {
   count = var.configure_talos ? 1 : 0
 
@@ -31,12 +31,12 @@ resource "null_resource" "cilium_bootstrap" {
         exit 0
       fi
 
-      echo "🚀 Installing Cilium CNI..."
+      echo "🚀 Installing Cilium CNI with native routing (no VXLAN overlay)..."
       
       # Load control plane IP from temporary global-config.yaml
       echo "Loading control plane IP..."
       if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-        CONTROL_PLANE_IP=$(yq '.controlPlaneIP' ${path.module}/../.global-config.yaml.tmp)
+        CONTROL_PLANE_IP=$(yq '.controlPlaneIp' ${path.module}/../.global-config.yaml.tmp)
         echo "Loaded control plane IP from temporary global-config.yaml"
       else
         echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
@@ -55,7 +55,7 @@ resource "null_resource" "cilium_bootstrap" {
       # Create a temporary values file with substituted variables
       echo "Creating temporary values file with substituted variables..."
       TEMP_VALUES=$(mktemp)
-      sed "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" ${path.module}/../manifests/core/cilium/values.talos.yaml > "$TEMP_VALUES"
+      sed "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" ${path.module}/../manifests/core/cilium/values-native.yaml > "$TEMP_VALUES"
       
       # Use Helm directly to install Cilium with the substituted values
       echo "Installing Cilium with Helm..."

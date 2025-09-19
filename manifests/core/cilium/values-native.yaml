@@ -1,0 +1,106 @@
+# Cilium optimized for native routing in homelab
+# This should resolve DNS and performance issues
+
+# Enable native routing instead of overlay
+routingMode: "native"
+ipv4NativeRoutingCIDR: "10.244.0.0/16"
+autoDirectNodeRoutes: true
+endpointRoutes:
+  enabled: true
+
+# Since we're using kube-proxy-replacement, ensure proper configuration
+kubeProxyReplacement: true
+k8sServiceHost: "PLACEHOLDER_CONTROL_PLANE_IP"
+k8sServicePort: 6443
+
+# Bandwidth Manager with BBR (works better with native routing)
+bandwidthManager:
+  enabled: true
+  bbr: true
+
+# BPF settings optimized for native
+bpf:
+  masquerade: true
+  tproxy: true
+  # Host routing is automatic with native mode
+  hostRouting: false  # Let Cilium manage this
+
+# IPAM configuration
+ipam:
+  mode: "kubernetes"
+  operator:
+    clusterPoolIPv4PodCIDRList: ["10.244.0.0/16"]
+    clusterPoolIPv4MaskSize: 24
+
+# DNS improvements
+dnsProxy:
+  enabled: true
+  enableTransparentMode: true
+  minTTL: 3600
+  maxTTL: 86400
+
+# MTU - critical for native routing
+# Set to your network MTU minus overhead
+mtu: 1450  # Adjust based on your network (usually 1500 - 50)
+
+# Host firewall for better security with native routing
+hostFirewall:
+  enabled: false  # Enable after cluster is stable
+
+# Hubble for observability
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+  metrics:
+    enabled:
+      - dns:query
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+
+# Operator configuration
+operator:
+  replicas: 1
+  prometheus:
+    enabled: true
+
+# Note: tunnel option was removed in Cilium 1.15+
+# Native routing is enabled by setting routingMode: "native"
+
+# Enable direct routing health checks
+healthChecking: true
+healthPort: 9879
+
+# For Talos
+sysctlfix:
+  enabled: false
+
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+# Prometheus metrics
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: false
