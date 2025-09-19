@@ -28,4 +28,4 @@ manifests/**/*-patch.yaml
 .task/
 
 # Temporary files
-.global-config.yaml.tmp
+.global-config.yaml
