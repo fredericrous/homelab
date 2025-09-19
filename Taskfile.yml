@@ -10,13 +10,13 @@ vars:
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/talosconfig'
   CONTROL_PLANE_IP:
-    sh: '[ -f .global-config.yaml.tmp ] && yq ".controlPlaneIP" .global-config.yaml.tmp || echo ""'
+    sh: '[ -f .global-config.yaml.tmp ] && yq ".controlPlaneIp" .global-config.yaml.tmp || echo ""'
   WORKER_1_IP:
-    sh: '[ -f .global-config.yaml.tmp ] && yq ".worker1IP" .global-config.yaml.tmp || echo ""'
+    sh: '[ -f .global-config.yaml.tmp ] && yq ".worker1Ip" .global-config.yaml.tmp || echo ""'
   WORKER_2_IP:
-    sh: '[ -f .global-config.yaml.tmp ] && yq ".worker2IP" .global-config.yaml.tmp || echo ""'
+    sh: '[ -f .global-config.yaml.tmp ] && yq ".worker2Ip" .global-config.yaml.tmp || echo ""'
   EXTERNAL_DOMAIN:
-    sh: '[ -f .global-config.yaml.tmp ] && yq ".defaultExternalDomain" .global-config.yaml.tmp || echo ""'
+    sh: '[ -f .global-config.yaml.tmp ] && yq ".externalDomain" .global-config.yaml.tmp || echo ""'
 
 env:
   KUBECONFIG: '{{.KUBECONFIG}}'
@@ -68,17 +68,25 @@ tasks:
     desc: Generate temporary global config from .env
     deps: [check-prereq]
     cmds:
+      - ./scripts/generate-config-from-env.sh
+
+  sync-global-config:
+    desc: Sync global config to homelab-values repository
+    deps: [check-prereq, generate-config]
+    dotenv: ['.env']
+    cmds:
       - |
-        echo "Generating temporary global-config.yaml from .env..."
-        source .env
-        # Use ARGO_ prefixed variables from .env
-        cat > .global-config.yaml.tmp << EOF
-        controlPlaneIP: ${ARGO_CONTROL_PLANE_IP:-${CONTROL_PLANE_IP}}
-        worker1IP: ${ARGO_WORKER_1_IP:-${WORKER_1_IP}}
-        worker2IP: ${ARGO_WORKER_2_IP:-${WORKER_2_IP}}
-        defaultExternalDomain: ${ARGO_EXTERNAL_DOMAIN:-${EXTERNAL_DOMAIN}}
-        EOF
-        echo "Generated .global-config.yaml.tmp"
+        if [ -z "${GITHUB_HOMELAB_VALUES_TOKEN}" ]; then
+          echo "⚠️  WARNING: GITHUB_HOMELAB_VALUES_TOKEN not set in .env, skipping sync"
+          exit 0
+        fi
+        if [ -z "${GITHUB_HOMELAB_VALUES_REPO}" ]; then
+          echo "⚠️  WARNING: GITHUB_HOMELAB_VALUES_REPO not set in .env, skipping sync"
+          exit 0
+        fi
+        export GITHUB_HOMELAB_VALUES_TOKEN="${GITHUB_HOMELAB_VALUES_TOKEN}"
+        export GITHUB_HOMELAB_VALUES_REPO="${GITHUB_HOMELAB_VALUES_REPO}"
+        ./scripts/sync-global-config.sh
 
   prereq:
     desc: Pre-flight checks

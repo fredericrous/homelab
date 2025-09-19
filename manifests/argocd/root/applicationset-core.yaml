@@ -12,17 +12,17 @@ spec:
       generators:
       # Get all core app configurations
       - git:
-          repoURL: https://github.com/fredericrous/homelab.git
+          repoURL: https://github.com/fredericrous/homelab
           revision: main
           files:
           - path: "manifests/core/**/app.yaml"
       # Get global configuration from private repo
       - git:
-          repoURL: https://github.com/fredericrous/homelab-values.git
+          repoURL: https://github.com/fredericrous/homelab-values
           revision: main
           files:
           - path: "global-config.yaml"
-  
+
   template:
     metadata:
       name: '{{name}}'
@@ -111,7 +111,7 @@ spec:
             factor: 2
             maxDuration: 3m
       revisionHistoryLimit: 3
-      
+
       # Standard ignore differences for common operators
       ignoreDifferences:
       # CloudNativePG

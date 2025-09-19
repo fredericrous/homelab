@@ -23,46 +23,13 @@ if [ -z "${GITHUB_HOMELAB_VALUES_REPO:-}" ]; then
     exit 1
 fi
 
-# Source the .env file
-set -a
-source "${ROOT_DIR}/.env"
-set +a
+# Check if global-config.yaml exists
+if [ ! -f "${ROOT_DIR}/global-config.yaml" ]; then
+    echo "Error: global-config.yaml not found. Please run generate-config task first."
+    exit 1
+fi
 
-# Create global-config.yaml content
-cat > "${ROOT_DIR}/global-config.yaml" << EOF
-# Global configuration values for all applications
-# This file is generated from .env - DO NOT EDIT MANUALLY
-# Last updated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
-# Domain configuration
-defaultExternalDomain: ${EXTERNAL_DOMAIN}
-clusterDomain: ${CLUSTER_DOMAIN}
-
-# Infrastructure IPs and URLs
-controlPlaneIP: ${CONTROL_PLANE_IP}
-worker1IP: ${WORKER_1_IP}
-worker2IP: ${WORKER_2_IP}
-metallbPool: ${METALLB_POOL}
-haproxyMobileIP: ${HAPROXY_MOBILE_IP}
-harborIP: ${HARBOR_IP}
-harborRegistry: ${HARBOR_REGISTRY}
-harborRegistryTLS: ${HARBOR_REGISTRY_TLS}
-
-# NAS configuration
-qnapNasIP: ${QNAP_NAS_IP}
-nasVaultAddr: ${NAS_VAULT_ADDR}
-minioQnapUrl: ${MINIO_QNAP_URL}
-
-# MinIO browser configuration
-minioBrowserRedirectUrl: ${MINIO_BROWSER_REDIRECT_URL}
-minioServerUrl: ${MINIO_SERVER_URL}
-
-# Vault API addresses
-vaultApiAddr: ${VAULT_API_ADDR}
-vaultClusterAddr: ${VAULT_CLUSTER_ADDR}
-EOF
-
-echo "Generated global-config.yaml"
+echo "Using existing global-config.yaml"
 
 # Clone or update homelab-values repo
 TEMP_DIR=$(mktemp -d)
@@ -77,7 +44,7 @@ REPO_PATH="${REPO_URL#https://}"
 GITHUB_USER=$(echo "${REPO_PATH}" | cut -d'/' -f2)
 GITHUB_REPO=$(echo "${REPO_PATH}" | cut -d'/' -f3)
 
-git clone "https://${GITHUB_USER}:${GITHUB_HOMELAB_VALUES_TOKEN}@github.com/${GITHUB_USER}/${GITHUB_REPO}.git" "${TEMP_DIR}/homelab-values"
+git clone "https://${GITHUB_HOMELAB_VALUES_TOKEN}@github.com/${GITHUB_USER}/${GITHUB_REPO}.git" "${TEMP_DIR}/homelab-values"
 
 # Copy the global-config.yaml to the repo
 cp "${ROOT_DIR}/global-config.yaml" "${TEMP_DIR}/homelab-values/global-config.yaml"
@@ -86,6 +53,9 @@ cp "${ROOT_DIR}/global-config.yaml" "${TEMP_DIR}/homelab-values/global-config.ya
 cd "${TEMP_DIR}/homelab-values"
 git config user.email "terraform@homelab.local"
 git config user.name "Terraform Automation"
+
+# Set the remote URL with token for push
+git remote set-url origin "https://${GITHUB_HOMELAB_VALUES_TOKEN}@github.com/${GITHUB_USER}/${GITHUB_REPO}.git"
 
 if ! git diff --quiet; then
     git add global-config.yaml
@@ -101,10 +71,7 @@ else
     echo "No changes detected in global-config.yaml"
 fi
 
-# Keep a copy for terraform to use temporarily
-cp "${ROOT_DIR}/global-config.yaml" "${ROOT_DIR}/.global-config.yaml.tmp"
-
-# Clean up local global-config.yaml
+# Clean up local global-config.yaml after sync
 rm -f "${ROOT_DIR}/global-config.yaml"
 
 echo "Sync completed successfully"

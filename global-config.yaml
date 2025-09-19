@@ -1,0 +1,22 @@
+# Global configuration values for all applications
+# This file is generated from .env - DO NOT EDIT MANUALLY
+# Last updated: 2025-09-19 05:29:31 UTC
+
+nasVaultAddr: http://192.168.1.42:61200
+externalDomain: daddyshome.fr
+clusterName: homelab
+clusterDomain: cluster.local
+qnapNasIp: 192.168.1.42
+controlPlaneIp: 192.168.1.67
+metallbPool: 192.168.1.80-192.168.1.89
+harborIp: 192.168.1.90
+harborRegistry: 192.168.1.90:5000
+harborRegistryTls: 192.168.1.90:5443
+haproxyMobileIp: 192.168.1.81
+minioBrowserRedirectUrl: http://192.168.1.42:61901
+minioServerUrl: http://192.168.1.42:61900
+minioQnapUrl: http://192.168.1.42:9000
+vaultApiAddr: http://192.168.1.42:8200
+vaultClusterAddr: http://192.168.1.42:8201
+worker1Ip: 192.168.1.68
+worker2Ip: 192.168.1.69
