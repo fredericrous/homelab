@@ -24,6 +24,40 @@ resource "null_resource" "dns_bootstrap" {
         sleep 5
       done
       
+      echo "🔍 Checking cluster service subnet..."
+      # First check if the kubernetes service exists - it's always the first service
+      K8S_SERVICE=$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "")
+      if [ -n "$K8S_SERVICE" ]; then
+        # Extract subnet from kubernetes service (e.g., 10.96.0.1 -> 10.96)
+        SERVICE_PREFIX=$(echo "$K8S_SERVICE" | cut -d. -f1-2)
+        echo "  Detected service prefix from kubernetes service: \$SERVICE_PREFIX (IP: $K8S_SERVICE)"
+      else
+        # Fallback to checking any service
+        EXISTING_SERVICE=$(kubectl get svc -A -o jsonpath='{.items[0].spec.clusterIP}' 2>/dev/null || echo "")
+        if [ -n "$EXISTING_SERVICE" ]; then
+          SERVICE_PREFIX=$(echo "$EXISTING_SERVICE" | cut -d. -f1-2)
+          echo "  Detected service prefix from existing services: \$SERVICE_PREFIX"
+        else
+          # Use Talos default
+          SERVICE_PREFIX="10.96"
+          echo "  Using Talos default service prefix: \$SERVICE_PREFIX"
+        fi
+      fi
+      
+      DNS_IP="$${SERVICE_PREFIX}.0.10"
+      echo "  Will use DNS IP: \$DNS_IP"
+      
+      # Wait a bit for service controller to be ready
+      echo "⏳ Waiting for service controller to be ready..."
+      for i in {1..10}; do
+        if kubectl get svc kubernetes -n default >/dev/null 2>&1; then
+          echo "✅ Service controller is ready"
+          break
+        fi
+        echo "  Waiting... ($i/10)"
+        sleep 2
+      done
+      
       echo "🔍 Checking if kube-dns service exists..."
       if kubectl get svc -n kube-system kube-dns >/dev/null 2>&1; then
         echo "✅ kube-dns service already exists"
@@ -40,8 +74,8 @@ resource "null_resource" "dns_bootstrap" {
         kubectl delete svc -n kube-system kube-dns
       fi
       
-      echo "🚀 Creating bootstrap kube-dns service..."
-      cat <<EOF | kubectl apply -f -
+      echo "🚀 Creating bootstrap kube-dns service with IP \$DNS_IP..."
+      APPLY_OUTPUT=$(cat <<EOF | kubectl apply -f - 2>&1
 apiVersion: v1
 kind: Service
 metadata:
@@ -57,7 +91,7 @@ metadata:
 spec:
   selector:
     k8s-app: kube-dns
-  clusterIP: 10.96.0.10
+  clusterIP: $DNS_IP
   ports:
   - name: dns
     port: 53
@@ -72,6 +106,51 @@ spec:
     protocol: TCP
     targetPort: 9153
 EOF
+)
+      APPLY_EXIT_CODE=$?
+      echo "$APPLY_OUTPUT"
+      
+      if [ $APPLY_EXIT_CODE -eq 0 ] || echo "$APPLY_OUTPUT" | grep -qE "(created|configured)"; then
+        echo "✅ kube-dns service operation completed successfully"
+      else
+        echo "❌ Failed to create kube-dns service. This might be a transient error."
+        echo "The error about 'network does not match the current range' might mean:"
+        echo "1. The service controller is not ready yet"
+        echo "2. The service CIDR is different than expected"
+        echo ""
+        echo "Let's check what services exist:"
+        kubectl get svc -A
+        echo ""
+        echo "Trying without explicit clusterIP..."
+        # Try creating without specifying clusterIP
+        cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-dns
+  namespace: kube-system
+  labels:
+    k8s-app: kube-dns
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "CoreDNS"
+spec:
+  selector:
+    k8s-app: kube-dns
+  ports:
+  - name: dns
+    port: 53
+    protocol: UDP
+    targetPort: 53
+  - name: dns-tcp
+    port: 53
+    protocol: TCP
+    targetPort: 53
+  - name: metrics
+    port: 9153
+    protocol: TCP
+    targetPort: 9153
+EOF
+      fi
       
       echo "⏳ Waiting for DNS endpoints to be ready..."
       for i in {1..30}; do
@@ -100,7 +179,7 @@ EOF
           echo "  🧪 Testing DNS resolution..."
           TEST_OUTPUT=$(kubectl run dns-test-$RANDOM --image=busybox:1.28 --restart=Never --rm -i --timeout=10s --command -- nslookup kubernetes.default.svc.cluster.local 2>&1 || echo "DNS test failed")
           
-          if echo "$TEST_OUTPUT" | grep -q "Address.*10.96.0.1"; then
+          if echo "$TEST_OUTPUT" | grep -q "Address.*$${SERVICE_PREFIX}.0.1"; then
             echo "  ✅ DNS resolution is working!"
             break
           else

@@ -50,7 +50,7 @@ variable "gateway" {
 variable "dns_servers" {
   description = "DNS servers"
   type        = list(string)
-  default     = ["1.1.1.1", "1.0.0.1"]
+  default     = ["1.1.1.1", "8.8.8.8"]
 }
 
 # Cluster configuration

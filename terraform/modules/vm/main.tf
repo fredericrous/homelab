@@ -43,10 +43,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
   dynamic "hostpci" {
     for_each = var.gpu_passthrough != "" && var.gpu_passthrough != null ? [1] : []
     content {
-      device  = "hostpci0"
-      id      = var.gpu_passthrough
-      pcie    = true
-      rombar  = false  # Disable ROM BAR to avoid reset issues
+      device = "hostpci0"
+      id     = var.gpu_passthrough
+      pcie   = true
+      rombar = false # Disable ROM BAR to avoid reset issues
     }
   }
 
@@ -98,30 +98,38 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   # Cloud-init configuration for network (only if IP is provided)
+  # Talos doesn't use cloud-init users, but Proxmox requires the field
   dynamic "initialization" {
     for_each = var.ip_address != "" ? [1] : []
     content {
       interface = "ide2"
-      
+
+      # Minimal user config to satisfy Proxmox requirements
+      user_account {
+        username = "talos"
+        password = "disabled"  # Not used by Talos
+        keys     = []
+      }
+
       ip_config {
         ipv4 {
           address = "${var.ip_address}/24"
           gateway = var.gateway != "" ? var.gateway : "192.168.1.1"
         }
       }
-      
+
       # DNS servers
       dns {
-        servers = length(var.dns_servers) > 0 ? var.dns_servers : ["1.1.1.1", "1.0.0.1"]
+        servers = length(var.dns_servers) > 0 ? var.dns_servers : ["1.1.1.1", "8.8.8.8"]
       }
     }
   }
 
   # Timeout configurations for various operations
-  timeout_create      = 600   # 10 minutes for creation
-  timeout_stop_vm     = 60    # 1 minute for stopping (reduced for faster destroy)
-  timeout_shutdown_vm = 60    # 1 minute for shutdown (Talos doesn't respond to ACPI)
-  timeout_reboot      = 300   # 5 minutes for reboot
+  timeout_create      = 600 # 10 minutes for creation
+  timeout_stop_vm     = 60  # 1 minute for stopping (reduced for faster destroy)
+  timeout_shutdown_vm = 60  # 1 minute for shutdown (Talos doesn't respond to ACPI)
+  timeout_reboot      = 300 # 5 minutes for reboot
 
   # Force stop on destroy since Talos doesn't respond to graceful shutdown
   stop_on_destroy = true

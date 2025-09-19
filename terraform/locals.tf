@@ -90,7 +90,7 @@ locals {
           wipe  = var.talos_install_wipe
         }
         kubelet = {
-          clusterDNS = ["10.96.0.10"]
+          clusterDNS = ["10.96.0.10"]  # This should match the service CIDR
         }
       }
     })
