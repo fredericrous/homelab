@@ -19,6 +19,7 @@ spec:
   # Allow deployments from our repo (path filtering happens in ApplicationSet)
   sourceRepos:
   - https://github.com/fredericrous/homelab.git
+  - https://github.com/fredericrous/homelab-values  # For global config values
   # - ssh://git@github.com/fredericrous/homelab.git  # Uncomment if using SSH in Argo
   
   # Allow deployment to any namespace in the local cluster
