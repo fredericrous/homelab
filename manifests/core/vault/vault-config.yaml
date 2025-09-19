@@ -20,7 +20,7 @@ data:
     
     # Transit auto-unseal using NAS Vault
     seal "transit" {
-      address = "http://192.168.1.42:61200"
+      address = "PLACEHOLDER_NAS_VAULT_ADDR"
       disable_renewal = "false"
       key_name = "autounseal"
       mount_path = "transit"
