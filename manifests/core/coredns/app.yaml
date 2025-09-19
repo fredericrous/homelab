@@ -2,5 +2,5 @@ name: coredns
 project: core
 namespace: kube-system
 path: manifests/core/coredns
-syncWave: "-6"
+syncWave: "-28"  # Deploy right after Cilium (-30) for DNS resolution
 createNamespace: "false"  # kube-system already exists

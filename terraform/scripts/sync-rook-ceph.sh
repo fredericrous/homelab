@@ -51,9 +51,22 @@ while true; do
   sync_status=$(kubectl get app -n argocd rook-ceph -o jsonpath="{.status.sync.status}" 2>/dev/null || echo "Unknown")
   health_status=$(kubectl get app -n argocd rook-ceph -o jsonpath="{.status.health.status}" 2>/dev/null || echo "Unknown")
   
-  if [ "$sync_status" = "Synced" ]; then
-    echo "✅ Rook-Ceph synced (Health: $health_status)"
-    break
+  # Accept as successful if Synced, or if Unknown but Healthy (DNS issues)
+  if [ "$sync_status" = "Synced" ] || ([ "$sync_status" = "Unknown" ] && [ "$health_status" = "Healthy" ]); then
+    echo "✅ Rook-Ceph ready (Sync: $sync_status, Health: $health_status)"
+    
+    # For Unknown sync status, verify key resources exist
+    if [ "$sync_status" = "Unknown" ]; then
+      if kubectl get storageclass rook-ceph-block &>/dev/null && \
+         kubectl get deployment -n rook-ceph rook-ceph-operator &>/dev/null; then
+        echo "✅ Key resources verified - considering deployment successful"
+        break
+      else
+        echo "⚠️  Sync status Unknown but key resources missing, continuing..."
+      fi
+    else
+      break
+    fi
   fi
   
   # Get more details about the sync status
@@ -232,16 +245,24 @@ spec:
       storage: 1Gi
 EOF
 
-# Wait for test PVC to be bound
+# Wait for test PVC to be bound (first PVC can take longer)
+echo "⏳ Waiting for test PVC to be bound (this can take up to 3 minutes on first PVC)..."
 KUBECONFIG_PATH="$KUBECONFIG"
-timeout 60s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
+timeout 180s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
   pvc_status=\$(kubectl get pvc test-ceph-pvc -n default -o jsonpath='{.status.phase}' 2>/dev/null || echo 'Unknown')
   if [ \"\$pvc_status\" = 'Bound' ]; then
     echo '✅ Test PVC successfully bound - storage is working'
     kubectl delete pvc test-ceph-pvc -n default --wait=false
     break
   fi
-  echo \"Test PVC status: \$pvc_status\"
+  
+  # Show more details every 30 seconds
+  if [ \$((SECONDS % 30)) -eq 0 ]; then
+    echo \"Test PVC status: \$pvc_status - checking events...\"
+    kubectl describe pvc test-ceph-pvc -n default | tail -5 || true
+  else
+    echo \"Test PVC status: \$pvc_status\"
+  fi
   sleep 5
 done"
 
