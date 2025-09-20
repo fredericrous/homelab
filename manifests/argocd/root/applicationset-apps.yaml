@@ -29,24 +29,8 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{.path}}'
-        # Use Kustomize patches to substitute values from global-config.yaml
-        kustomize:
-          patches:
-          # Common patch for all apps with Ingress
-          - target:
-              kind: Ingress
-              name: '{{.name}}'
-            patch: |
-              apiVersion: networking.k8s.io/v1
-              kind: Ingress
-              metadata:
-                name: '{{.name}}'
-              spec:
-                tls:
-                - hosts:
-                  - '{{.name}}.{{.config.externalDomain}}'
-                rules:
-                - host: '{{.name}}.{{.config.externalDomain}}'
+        plugin:
+          name: '{{.plugin | default ""}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{.namespace}}'

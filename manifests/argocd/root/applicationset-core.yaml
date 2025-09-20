@@ -1,6 +1,4 @@
 # ApplicationSet for core platform components
-# Note: To use a different homelab-values repo, update the repoURL below
-# and ensure you've created a repository secret with matching URL
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -8,23 +6,13 @@ metadata:
   namespace: argocd
 spec:
   goTemplate: true
-  goTemplateOptions: ["missingkey="]
+  goTemplateOptions: ["missingkey=error"]
   generators:
-  - matrix:
-      generators:
-      # Get all core app configurations
-      - git:
-          repoURL: https://github.com/fredericrous/homelab
-          revision: main
-          files:
-          - path: "manifests/core/**/app.yaml"
-      # Get global configuration from private repo
-      - git:
-          repoURL: https://github.com/fredericrous/homelab-values
-          revision: main
-          files:
-          - path: "global-config.yaml"
-          pathParamPrefix: config
+  - git:
+      repoURL: https://github.com/fredericrous/homelab
+      revision: main
+      files:
+      - path: "manifests/core/**/app.yaml"
 
   template:
     metadata:
