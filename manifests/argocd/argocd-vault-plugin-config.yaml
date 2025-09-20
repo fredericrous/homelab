@@ -1,0 +1,48 @@
+# ConfigMap for ArgoCD Vault Plugin sidecar
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-vault-plugin-config-yaml
+  namespace: argocd
+data:
+  plugin.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: argocd-vault-plugin
+    spec:
+      version: v1.0
+      generate:
+        command: [sh, -c]
+        args:
+          - |
+            argocd-vault-plugin generate $ARGOCD_APP_PATH
+      discover:
+        find:
+          command: [sh, -c]
+          args:
+            - |
+              find . -name '*.yaml' -o -name '*.yml' -o -name '*.json' | xargs grep -l "<path:.*>" || true
+    ---
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: argocd-vault-plugin-kustomize
+    spec:
+      version: v1.0
+      init:
+        command: [sh, -c]
+        args:
+          - |
+            kustomize build --enable-helm . > manifest.yaml
+      generate:
+        command: [sh, -c]
+        args:
+          - |
+            argocd-vault-plugin generate manifest.yaml
+      discover:
+        find:
+          command: [sh, -c]
+          args:
+            - |
+              find . -name 'kustomization.yaml' -o -name 'kustomization.yml'

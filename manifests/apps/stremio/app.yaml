@@ -3,4 +3,3 @@ project: apps
 namespace: stremio
 path: manifests/apps/stremio
 syncWave: "20"
-plugin: argocd-vault-plugin-kustomize
