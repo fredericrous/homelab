@@ -97,8 +97,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
     type = "l26"
   }
 
-  # Cloud-init configuration
-  # Talos doesn't use cloud-init, but Proxmox requires the initialization block
+  # Cloud-init configuration for network only
+  # Talos doesn't use cloud-init users, but needs network configuration
   initialization {
     interface    = "ide0"  # Use ide0 for cloud-init, ide2 is for cdrom
     datastore_id = var.disk_storage
@@ -119,6 +119,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
       servers = length(var.dns_servers) > 0 ? var.dns_servers : ["1.1.1.1", "8.8.8.8"]
     }
   }
+
 
   # Timeout configurations for various operations
   timeout_create      = 600 # 10 minutes for creation

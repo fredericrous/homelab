@@ -133,7 +133,7 @@ repoServer:
         - mountPath: /home/argocd/cmp-server/plugins
           name: plugins
         - mountPath: /tmp
-          name: tmp
+          name: cmp-tmp
         - mountPath: /home/argocd/cmp-server/config/plugin.yaml
           subPath: plugin.yaml
           name: argocd-vault-plugin-config-yaml
@@ -146,23 +146,11 @@ repoServer:
           memory: 256Mi
   
   volumes:
-    - name: var-files
-      emptyDir: {}
-    - name: plugins
-      emptyDir: {}
-    - name: tmp
-      emptyDir: {}
     - name: argocd-vault-plugin-config-yaml
       configMap:
         name: argocd-vault-plugin-config-yaml
-  
-  volumeMounts:
-    - mountPath: /var/run/argocd
-      name: var-files
-    - mountPath: /home/argocd/cmp-server/plugins
-      name: plugins
-    - mountPath: /tmp
-      name: tmp
+    - name: cmp-tmp
+      emptyDir: {}
   
   initContainers:
     - name: download-tools
