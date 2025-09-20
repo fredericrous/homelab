@@ -6,7 +6,6 @@ metadata:
   namespace: argocd
 spec:
   goTemplate: true
-  goTemplateOptions: ["missingkey=error"]
   generators:
   - git:
       repoURL: https://github.com/fredericrous/homelab
@@ -27,11 +26,9 @@ spec:
       source:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
-        path: '{{.path.path}}'
-        {{- if .plugin }}
+        path: '{{.path.path}}'{{if .plugin}}
         plugin:
-          name: '{{.plugin}}'
-        {{- end }}
+          name: '{{.plugin}}'{{end}}
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{.namespace}}'
