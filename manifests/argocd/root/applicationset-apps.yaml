@@ -5,6 +5,8 @@ metadata:
   name: apps
   namespace: argocd
 spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
   generators:
   # Single git generator for app configurations
   - git:
@@ -15,39 +17,39 @@ spec:
   
   template:
     metadata:
-      name: '{{name}}'
+      name: '{{.name}}'
       namespace: argocd
       annotations:
-        argocd.argoproj.io/sync-wave: "{{syncWave}}"
+        argocd.argoproj.io/sync-wave: "{{.syncWave}}"
       finalizers:
       - resources-finalizer.argocd.argoproj.io
     spec:
-      project: '{{project}}'
+      project: '{{.project}}'
       source:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
-        path: '{{path}}'
+        path: '{{.path}}'
         # Use Kustomize patches to substitute values from global-config.yaml
         kustomize:
           patches:
           # Common patch for all apps with Ingress
           - target:
               kind: Ingress
-              name: '{{name}}'
+              name: '{{.name}}'
             patch: |
               apiVersion: networking.k8s.io/v1
               kind: Ingress
               metadata:
-                name: '{{name}}'
+                name: '{{.name}}'
               spec:
                 tls:
                 - hosts:
-                  - '{{name}}.{{config.externalDomain}}'
+                  - '{{.name}}.{{.config.externalDomain}}'
                 rules:
-                - host: '{{name}}.{{config.externalDomain}}'
+                - host: '{{.name}}.{{.config.externalDomain}}'
       destination:
         server: https://kubernetes.default.svc
-        namespace: '{{namespace}}'
+        namespace: '{{.namespace}}'
       syncPolicy:
         automated:
           prune: true
