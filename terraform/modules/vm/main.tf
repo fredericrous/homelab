@@ -106,7 +106,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
   # Cloud-init configuration
   # Talos doesn't use cloud-init, but Proxmox requires the user field
   initialization {
-    interface = "ide0"  # Use ide0 for cloud-init, ide2 is for cdrom
+    interface    = "ide0"  # Use ide0 for cloud-init, ide2 is for cdrom
+    datastore_id = var.disk_storage
 
     # Minimal user config to satisfy Proxmox requirements
     user_account {
