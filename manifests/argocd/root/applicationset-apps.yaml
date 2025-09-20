@@ -28,7 +28,7 @@ spec:
       source:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
-        path: '{{.path}}'
+        path: '{{.path.path}}'
         plugin:
           name: '{{.plugin | default ""}}'
       destination:
