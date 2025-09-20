@@ -1,9 +1,3 @@
-# Generate a random password for cloud-init (not used by Talos, but required by Proxmox)
-resource "random_password" "vm_password" {
-  length  = 20
-  special = true
-}
-
 resource "proxmox_virtual_environment_vm" "vm" {
   vm_id       = var.vmid
   name        = var.name
@@ -104,17 +98,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   # Cloud-init configuration
-  # Talos doesn't use cloud-init, but Proxmox requires the user field
+  # Talos doesn't use cloud-init, but Proxmox requires the initialization block
   initialization {
     interface    = "ide0"  # Use ide0 for cloud-init, ide2 is for cdrom
     datastore_id = var.disk_storage
-
-    # Minimal user config to satisfy Proxmox requirements
-    user_account {
-      username = "talos"
-      password = random_password.vm_password.result
-      keys     = []
-    }
 
     # Network configuration (only if IP is provided)
     dynamic "ip_config" {
