@@ -103,68 +103,9 @@ repoServer:
   metrics:
     enabled: true
 
-  # ArgoCD Vault Plugin sidecar configuration
-  extraContainers:
-    - name: argocd-vault-plugin
-      image: quay.io/argoproj/argocd:v2.11.7
-      command: [/var/run/argocd/argocd-vault-plugin]
-      args:
-        - server
-      env:
-        - name: AVP_TYPE
-          value: "vault"
-        - name: AVP_AUTH_TYPE
-          value: "token"
-        - name: AVP_VAULT_ADDR
-          valueFrom:
-            secretKeyRef:
-              name: argocd-vault-plugin-config
-              key: AVP_VAULT_ADDR
-        - name: AVP_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: argocd-vault-plugin-config
-              key: AVP_TOKEN
-        - name: AVP_SECRET_PATH
-          value: "secret/data/bootstrap"
-      volumeMounts:
-        - mountPath: /var/run/argocd
-          name: var-files
-        - mountPath: /home/argocd/cmp-server/plugins
-          name: plugins
-        - mountPath: /tmp
-          name: cmp-tmp
-        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
-          subPath: plugin.yaml
-          name: argocd-vault-plugin-config-yaml
-      resources:
-        requests:
-          cpu: 50m
-          memory: 128Mi
-        limits:
-          cpu: 200m
-          memory: 256Mi
-  
-  volumes:
-    - name: argocd-vault-plugin-config-yaml
-      configMap:
-        name: argocd-vault-plugin-config-yaml
-    - name: cmp-tmp
-      emptyDir: {}
-  
-  initContainers:
-    - name: download-tools
-      image: alpine/curl:latest
-      command: [sh, -c]
-      args:
-        - |
-          # Download argocd-vault-plugin
-          AVP_VERSION="1.18.1"
-          curl -L -o /var/run/argocd/argocd-vault-plugin https://github.com/argoproj-labs/argocd-vault-plugin/releases/download/v${AVP_VERSION}/argocd-vault-plugin_${AVP_VERSION}_linux_amd64
-          chmod +x /var/run/argocd/argocd-vault-plugin
-      volumeMounts:
-        - mountPath: /var/run/argocd
-          name: var-files
+  # ArgoCD Vault Plugin configuration moved to manifests/core/argocd-config/
+  # This follows the self-management pattern where ArgoCD manages its own config
+  # after the initial bootstrap
 
 # ApplicationSet controller
 applicationSet:
