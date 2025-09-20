@@ -155,18 +155,6 @@ resource "null_resource" "argocd_bootstrap" {
       fi
       ${path.module}/scripts/setup-argocd-vault-plugin.sh "${abspath(local_file.kubeconfig[0].filename)}"
       
-      # Apply repository secret for homelab-values
-      echo "🔑 Applying repository secret for homelab-values..."
-      GITHUB_HOMELAB_VALUES_TOKEN="${var.github_homelab_values_token}"
-      GITHUB_HOMELAB_VALUES_REPO="${var.github_homelab_values_repo}"
-      if [ -n "$GITHUB_HOMELAB_VALUES_TOKEN" ]; then
-        export GITHUB_HOMELAB_VALUES_TOKEN
-        export GITHUB_HOMELAB_VALUES_REPO
-        envsubst < ${path.module}/../manifests/argocd/bootstrap/repo-secret-homelab-values.yaml | kubectl apply -f -
-        echo "✅ Repository secret applied"
-      else
-        echo "⚠️  WARNING: GITHUB_HOMELAB_VALUES_TOKEN not set, skipping repository secret"
-      fi
       
       # Load external domain from .env file
       PROJECT_ROOT="$(cd "${path.module}/.." && pwd)"

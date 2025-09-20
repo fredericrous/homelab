@@ -214,16 +214,3 @@ variable "k8s_vault_transit_token" {
   sensitive   = true
 }
 
-# GitHub configuration
-variable "github_homelab_values_token" {
-  description = "GitHub PAT for accessing homelab-values private repo"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "github_homelab_values_repo" {
-  description = "GitHub repository URL for homelab values"
-  type        = string
-  default     = "https://github.com/fredericrous/homelab-values"
-}

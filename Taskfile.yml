@@ -70,23 +70,6 @@ tasks:
     cmds:
       - ./scripts/generate-config-from-env.sh
 
-  sync-global-config:
-    desc: Sync global config to homelab-values repository
-    deps: [check-prereq, generate-config]
-    dotenv: ['.env']
-    cmds:
-      - |
-        if [ -z "${GITHUB_HOMELAB_VALUES_TOKEN}" ]; then
-          echo "⚠️  WARNING: GITHUB_HOMELAB_VALUES_TOKEN not set in .env, skipping sync"
-          exit 0
-        fi
-        if [ -z "${GITHUB_HOMELAB_VALUES_REPO}" ]; then
-          echo "⚠️  WARNING: GITHUB_HOMELAB_VALUES_REPO not set in .env, skipping sync"
-          exit 0
-        fi
-        export GITHUB_HOMELAB_VALUES_TOKEN="${GITHUB_HOMELAB_VALUES_TOKEN}"
-        export GITHUB_HOMELAB_VALUES_REPO="${GITHUB_HOMELAB_VALUES_REPO}"
-        ./scripts/sync-global-config.sh
 
   prereq:
     desc: Pre-flight checks
