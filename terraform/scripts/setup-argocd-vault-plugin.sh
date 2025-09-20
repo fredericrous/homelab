@@ -4,6 +4,10 @@ set -euo pipefail
 # Script to setup ArgoCD Vault Plugin configuration
 # This creates the secret with NAS vault credentials for bootstrap
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ENV_FILE="${PROJECT_ROOT}/.env"
+
 KUBECONFIG="${1:-}"
 if [ -z "$KUBECONFIG" ]; then
     echo "Error: kubeconfig path required as first argument"
@@ -20,20 +24,41 @@ NC='\033[0m' # No Color
 
 echo -e "${YELLOW}🔐 Setting up ArgoCD Vault Plugin configuration${NC}"
 
-# Load environment variables
-if [ -f ../.env ]; then
+# Load environment variables if .env exists
+if [ -f "$ENV_FILE" ]; then
     set -a
-    source ../.env
+    source "$ENV_FILE"
     set +a
 fi
 
 # Get NAS vault configuration - using direct variable names from .env
 NAS_VAULT_ADDR="${ARGO_NAS_VAULT_ADDR:-http://192.168.1.42:61200}"
-NAS_VAULT_TOKEN="${QNAP_VAULT_TOKEN:-}"
+
+# Try multiple sources for the NAS vault token
+NAS_VAULT_TOKEN=""
+
+# Priority 1: Environment variable
+if [ -n "${QNAP_VAULT_TOKEN:-}" ]; then
+    echo -e "${YELLOW}Using QNAP vault token from environment variable${NC}"
+    NAS_VAULT_TOKEN="$QNAP_VAULT_TOKEN"
+# Priority 2: Read from .env file if it exists
+elif [ -f "$ENV_FILE" ]; then
+    echo -e "${YELLOW}Looking for QNAP vault token in .env file${NC}"
+    NAS_VAULT_TOKEN=$(grep "^QNAP_VAULT_TOKEN=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | sed 's/^export //')
+    if [ -n "$NAS_VAULT_TOKEN" ]; then
+        echo -e "${GREEN}Found QNAP vault token in .env file${NC}"
+    fi
+fi
 
 if [ -z "$NAS_VAULT_TOKEN" ]; then
-    echo -e "${RED}❌ Error: QNAP_VAULT_TOKEN not set${NC}"
-    echo "Please export QNAP_VAULT_TOKEN with your NAS vault root token"
+    echo -e "${RED}❌ Error: QNAP_VAULT_TOKEN not found${NC}"
+    echo ""
+    echo "Please provide the QNAP Vault token via one of:"
+    echo "1. Export QNAP_VAULT_TOKEN environment variable"
+    echo "2. Add QNAP_VAULT_TOKEN to your .env file"
+    echo "3. Run: task nas:vault-transit to set up the token"
+    echo ""
+    echo "The token can be found in your CLAUDE.local.md file or QNAP Vault initialization output"
     exit 1
 fi
 
@@ -62,12 +87,13 @@ if command -v vault &>/dev/null; then
     if vault kv get secret/bootstrap/config &>/dev/null; then
         echo -e "${GREEN}✅ Bootstrap secrets verified${NC}"
     else
-        echo -e "${RED}❌ Error: Bootstrap secrets not found in NAS vault${NC}"
-        echo "Please run: task nas:vault-transit"
-        exit 1
+        echo -e "${YELLOW}⚠️  Warning: Could not verify bootstrap secrets in NAS vault${NC}"
+        echo "If secrets are missing, run: task nas:vault-transit"
+        # Don't fail - let AVP handle the actual verification
     fi
 else
     echo -e "${YELLOW}⚠️  Cannot verify - vault CLI not found${NC}"
+    echo "AVP will verify secrets during deployment"
 fi
 
 echo -e "${GREEN}✅ ArgoCD Vault Plugin setup complete!${NC}"

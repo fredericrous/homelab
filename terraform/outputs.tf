@@ -46,6 +46,14 @@ output "talos_client_configuration" {
   }
 }
 
+output "cloud_init_passwords" {
+  description = "Cloud-init passwords for VMs (not used by Talos, only for Proxmox)"
+  value = {
+    for k, v in module.vms : k => v.cloud_init_password
+  }
+  sensitive = true
+}
+
 output "next_steps" {
   description = "Next steps after deployment"
   value = <<-EOT

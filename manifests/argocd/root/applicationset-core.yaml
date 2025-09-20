@@ -38,13 +38,6 @@ spec:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
         path: '{{path}}'
-        {{- if .plugin }}
-        plugin:
-          name: '{{plugin}}'
-        {{- else }}
-        kustomize:
-          # Default Kustomize processing
-        {{- end }}
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'

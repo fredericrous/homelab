@@ -5,16 +5,14 @@ set -euo pipefail
 
 echo "🔐 Setting up bootstrap configuration for ArgoCD Vault Plugin..."
 
+# Get script directory and find project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ENV_FILE="${PROJECT_ROOT}/.env"
+
 # Check for .env file
-# Support both running from nas directory or via task from root
-if [ -f ".env" ]; then
-    ENV_FILE=".env"
-elif [ -f "../.env" ]; then
-    ENV_FILE="../.env"
-elif [ -f "../../.env" ]; then
-    ENV_FILE="../../.env"
-else
-    echo "❌ Error: .env file not found"
+if [ ! -f "$ENV_FILE" ]; then
+    echo "❌ Error: .env file not found at $ENV_FILE"
     echo "Please ensure .env exists in project root"
     exit 1
 fi

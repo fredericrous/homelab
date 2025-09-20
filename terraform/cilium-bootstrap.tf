@@ -34,10 +34,12 @@ resource "null_resource" "cilium_bootstrap" {
       
       # Load control plane IP from .env file
       echo "Loading control plane IP from .env..."
-      if [ -f "${path.module}/../.env" ]; then
+      PROJECT_ROOT="$(cd "${path.module}/.." && pwd)"
+      ENV_FILE="$${PROJECT_ROOT}/.env"
+      if [ -f "$${ENV_FILE}" ]; then
         # Source the .env file
         set -a
-        source "${path.module}/../.env"
+        source "$${ENV_FILE}"
         set +a
         
         # Get control plane IP from ARGO_CONTROL_PLANE_IP

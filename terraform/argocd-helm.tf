@@ -21,9 +21,11 @@ resource "null_resource" "argocd_install" {
           echo "⚠️  ArgoCD is in failed state, upgrading..."
           
           # Load external domain from .env file
-          if [ -f "${path.module}/../.env" ]; then
+          PROJECT_ROOT="$(cd "${path.module}/.." && pwd)"
+          ENV_FILE="$${PROJECT_ROOT}/.env"
+          if [ -f "$${ENV_FILE}" ]; then
             set -a
-            source "${path.module}/../.env"
+            source "$${ENV_FILE}"
             set +a
             EXTERNAL_DOMAIN="$${ARGO_EXTERNAL_DOMAIN:-}"
           else
@@ -38,9 +40,11 @@ resource "null_resource" "argocd_install" {
           
           # Load external domain from .env file
           echo "📦 Loading external domain..."
-          if [ -f "${path.module}/../.env" ]; then
+          PROJECT_ROOT="$(cd "${path.module}/.." && pwd)"
+          ENV_FILE="$${PROJECT_ROOT}/.env"
+          if [ -f "$${ENV_FILE}" ]; then
             set -a
-            source "${path.module}/../.env"
+            source "$${ENV_FILE}"
             set +a
             EXTERNAL_DOMAIN="$${ARGO_EXTERNAL_DOMAIN:-}"
             echo "Loaded from .env file"
@@ -73,9 +77,11 @@ resource "null_resource" "argocd_install" {
       
       # Load external domain from .env file
       echo "📦 Loading external domain..."
-      if [ -f "${path.module}/../.env" ]; then
+      PROJECT_ROOT="$(cd "${path.module}/.." && pwd)"
+      ENV_FILE="$${PROJECT_ROOT}/.env"
+      if [ -f "$${ENV_FILE}" ]; then
         set -a
-        source "${path.module}/../.env"
+        source "$${ENV_FILE}"
         set +a
         EXTERNAL_DOMAIN="$${ARGO_EXTERNAL_DOMAIN:-}"
         echo "Loaded from .env file"
@@ -138,6 +144,15 @@ resource "null_resource" "argocd_bootstrap" {
       
       # Setup ArgoCD Vault Plugin
       echo "🔐 Setting up ArgoCD Vault Plugin..."
+      # Export QNAP_VAULT_TOKEN if available from .env
+      PROJECT_ROOT="$(cd "${path.module}/.." && pwd)"
+      ENV_FILE="$${PROJECT_ROOT}/.env"
+      if [ -f "$${ENV_FILE}" ]; then
+        QNAP_VAULT_TOKEN=$(grep "^QNAP_VAULT_TOKEN=" "$${ENV_FILE}" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | sed 's/^export //')
+        if [ -n "$${QNAP_VAULT_TOKEN}" ]; then
+          export QNAP_VAULT_TOKEN
+        fi
+      fi
       ${path.module}/scripts/setup-argocd-vault-plugin.sh "${abspath(local_file.kubeconfig[0].filename)}"
       
       # Apply repository secret for homelab-values
@@ -154,9 +169,11 @@ resource "null_resource" "argocd_bootstrap" {
       fi
       
       # Load external domain from .env file
-      if [ -f "${path.module}/../.env" ]; then
+      PROJECT_ROOT="$(cd "${path.module}/.." && pwd)"
+      ENV_FILE="$${PROJECT_ROOT}/.env"
+      if [ -f "$${ENV_FILE}" ]; then
         set -a
-        source "${path.module}/../.env"
+        source "$${ENV_FILE}"
         set +a
         EXTERNAL_DOMAIN="$${ARGO_EXTERNAL_DOMAIN:-}"
         echo "Loaded from .env file"

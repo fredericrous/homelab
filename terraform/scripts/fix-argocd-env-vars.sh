@@ -1,20 +1,24 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ENV_FILE="${PROJECT_ROOT}/.env"
+
 KUBECONFIG="${1:-$HOME/Developer/Perso/homelab/kubeconfig}"
 export KUBECONFIG
 
 echo "🔧 Fixing ArgoCD environment variables..."
 
 # Load external domain from .env file
-if [ -f "$(dirname "$0")/../../.env" ]; then
+if [ -f "$ENV_FILE" ]; then
   set -a
-  source "$(dirname "$0")/../../.env"
+  source "$ENV_FILE"
   set +a
   EXTERNAL_DOMAIN="${ARGO_EXTERNAL_DOMAIN:-}"
   echo "Loaded external domain from .env file"
 else
-  echo "ERROR: .env file not found"
+  echo "ERROR: .env file not found at $ENV_FILE"
   exit 1
 fi
 
