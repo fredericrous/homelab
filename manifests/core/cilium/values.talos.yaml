@@ -19,7 +19,7 @@ ipam:
     clusterPoolIPv4MaskSize: 24
 
 # 6. Optimize for Talos - explicit API server endpoint
-k8sServiceHost: "PLACEHOLDER_CONTROL_PLANE_IP"
+k8sServiceHost: "<path:secret/data/bootstrap/config#controlPlaneIP>"
 k8sServicePort: 6443
 
 # Talos specifics (immutable host)

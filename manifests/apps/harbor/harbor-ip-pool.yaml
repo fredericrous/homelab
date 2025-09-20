@@ -5,7 +5,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - PLACEHOLDER_HARBOR_IP-192.168.1.91  # IP range for Harbor services
+  - <path:secret/data/bootstrap/config#harborIP>-192.168.1.91  # IP range for Harbor services
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement

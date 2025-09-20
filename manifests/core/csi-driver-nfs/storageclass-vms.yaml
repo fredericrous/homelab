@@ -4,7 +4,7 @@ metadata:
   name: nfs-vms
 provisioner: nfs.csi.k8s.io
 parameters:
-  server: "PLACEHOLDER_QNAP_NAS_IP"
+  server: "<path:secret/data/bootstrap/config#qnapNasIP>"
   share: "/VMs"
   csi.storage.k8s.io/node-stage-secret-name: "nfscreds"
   csi.storage.k8s.io/node-stage-secret-namespace: "default"

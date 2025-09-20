@@ -30,10 +30,11 @@ fi
 
 echo "Using external domain: $EXTERNAL_DOMAIN"
 
-# Get the current ArgoCD ConfigMap and substitute variables
+# Get the current ArgoCD ConfigMap and substitute AVP placeholders
 echo "📝 Patching ArgoCD ConfigMap..."
 kubectl get cm argocd-cm -n argocd -o yaml | \
-  sed -e "s/\${ARGO_EXTERNAL_DOMAIN}/$EXTERNAL_DOMAIN/g" -e "s/PLACEHOLDER_EXTERNAL_DOMAIN/$EXTERNAL_DOMAIN/g" | \
+  sed -e "s|<path:secret/data/bootstrap#argocd-url>|https://argocd.$EXTERNAL_DOMAIN|g" \
+      -e "s|<path:secret/data/bootstrap#argocd-dex-issuer>|https://argocd.$EXTERNAL_DOMAIN/api/dex|g" | \
   kubectl apply -f -
 
 # Restart ArgoCD server to pick up the changes

@@ -98,10 +98,17 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   # Cloud-init configuration for network only
-  # Talos doesn't use cloud-init users, but needs network configuration
+  # Talos doesn't use cloud-init users, but Proxmox requires a username
   initialization {
     interface    = "ide0"  # Use ide0 for cloud-init, ide2 is for cdrom
     datastore_id = var.disk_storage
+    
+    # Minimal user config to satisfy Proxmox requirement
+    # Talos ignores this, uses its own user management
+    user_account {
+      username = "talos"
+      keys     = []
+    }
 
     # Network configuration (only if IP is provided)
     dynamic "ip_config" {

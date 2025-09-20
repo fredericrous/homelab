@@ -9,7 +9,7 @@ controller:
   
   service:
     type: LoadBalancer
-    loadBalancerIP: PLACEHOLDER_HAPROXY_MOBILE_IP
+    loadBalancerIP: <path:secret/data/bootstrap/config#haproxyMobileIP>
     ports:
       http: 80
       https: 4443

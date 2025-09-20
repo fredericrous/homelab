@@ -68,9 +68,8 @@ resource "null_resource" "cilium_bootstrap" {
       # Create a temporary values file with substituted variables
       echo "Creating temporary values file with substituted variables..."
       TEMP_VALUES=$(mktemp)
-      # Replace both old placeholder and new AVP syntax
-      sed -e "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" \
-          -e "s|<path:secret/data/bootstrap/config#controlPlaneIP>|$CONTROL_PLANE_IP|g" \
+      # Replace AVP syntax with actual control plane IP
+      sed -e "s|<path:secret/data/bootstrap/config#controlPlaneIP>|$CONTROL_PLANE_IP|g" \
           ${path.module}/../manifests/core/cilium/values-native.yaml > "$TEMP_VALUES"
       
       # Use Helm directly to install Cilium with the substituted values

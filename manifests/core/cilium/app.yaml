@@ -2,7 +2,7 @@ name: cilium
 project: core
 namespace: kube-system
 path: manifests/core/cilium
-autoSync: "true"
+autoSync: "false"  # Critical component - deployed by terraform before AVP
 prune: "true"
 syncWave: "-30"
 createNamespace: "false"  # kube-system already exists
