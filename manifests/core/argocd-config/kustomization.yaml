@@ -4,4 +4,7 @@ namespace: argocd
 
 resources:
   - argocd-vault-plugin-config.yaml
-  - argocd-repo-server-patch.yaml
+  - argocd-vault-plugin-secret.yaml
+
+# The patch will be applied by ArgoCD's self-management
+# after the repo-server deployment exists

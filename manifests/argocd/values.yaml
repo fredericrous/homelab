@@ -141,7 +141,7 @@ configs:
   # Main configuration
   cm:
     # URL configuration
-    url: https://argocd.${ARGO_EXTERNAL_DOMAIN}
+    url: <path:secret/data/bootstrap#argocd-url>
 
     # Kustomize build options (required for Helm charts in Kustomize)
     kustomize.buildOptions: "--enable-helm"
@@ -262,7 +262,7 @@ configs:
 
     # LDAP configuration for LLDAP via Dex
     dex.config: |
-      issuer: https://argocd.${ARGO_EXTERNAL_DOMAIN}/api/dex
+      issuer: <path:secret/data/bootstrap#argocd-dex-issuer>
 
       connectors:
       - type: ldap
