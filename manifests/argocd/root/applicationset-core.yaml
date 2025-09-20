@@ -26,9 +26,7 @@ spec:
       source:
         repoURL: https://github.com/fredericrous/homelab.git
         targetRevision: main
-        path: '{{.path.path}}'{{if .plugin}}
-        plugin:
-          name: '{{.plugin}}'{{end}}
+        path: '{{.path.path}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{.namespace}}'
