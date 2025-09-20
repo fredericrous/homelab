@@ -1,4 +1,7 @@
 # ArgoCD Helm values for homelab
+# Minimal configuration for bootstrap
+# AVP and other advanced config will be managed by ArgoCD itself
+
 server:
   extraArgs:
     - --insecure
@@ -32,7 +35,14 @@ redis:
   enabled: true
 
 dex:
-  enabled: false
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
 
 applicationSet:
   enabled: true
@@ -43,3 +53,8 @@ applicationSet:
     requests:
       cpu: 250m
       memory: 256Mi
+
+# Configuration for self-management
+configs:
+  params:
+    kustomize.buildOptions: "--enable-helm"

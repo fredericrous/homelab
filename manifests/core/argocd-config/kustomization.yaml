@@ -1,19 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 namespace: argocd
 
 resources:
-  # External Secrets for ArgoCD
-  - argocd-ldap-externalsecret.yaml
-  # Note: envsubst values come from ConfigMap created by task deploy
-  # This ensures private values are never committed to Git
-  
-  # Any other ArgoCD configuration can be added here
-  # Examples:
-  # - argocd-cm-patch.yaml        # ArgoCD ConfigMap patches
-  # - argocd-rbac-cm-patch.yaml   # RBAC configuration
-  # - argocd-repositories.yaml    # Repository credentials
-
-# Note: The envsubst plugin is now configured as a sidecar in the ArgoCD repo-server
-# See manifests/argocd/values.yaml for the configuration
+  - argocd-vault-plugin-config.yaml
+  - argocd-repo-server-patch.yaml

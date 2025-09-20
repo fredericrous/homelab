@@ -23,9 +23,6 @@ resources:
 # Ingress for ArgoCD
 - ingress.yaml
 
-# AVP sidecar plugin configuration
-- argocd-vault-plugin-config.yaml
-
 # Vault integration moved to manifests/core/argocd-config/
 # This follows the self-management pattern where ArgoCD manages its own config
 # after VSO CRDs are available
