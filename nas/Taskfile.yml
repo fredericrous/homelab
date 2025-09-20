@@ -148,8 +148,9 @@ tasks:
         echo "vault secrets enable -path=secret kv-v2"
         echo ""
         echo "Then run:"
-        echo "  task nas:vault-secrets     # Setup MinIO password and AWS credentials"
-        echo "  task nas:vault-transit     # Configure transit unseal for main K8s"
+        echo "  task nas:vault-secrets          # Setup MinIO password and AWS credentials"
+        echo "  task nas:vault-transit          # Configure transit unseal for main K8s"
+        echo "  task nas:vault-bootstrap-config # Setup bootstrap configuration for AVP"
 
   vault-secrets:
     desc: Setup Vault secrets for MinIO and AWS
@@ -170,6 +171,18 @@ tasks:
         msg: "Not authenticated to Vault. Run: vault login <root-token>"
     cmds:
       - '{{.TASK_DIR}}/scripts/vault-transit-setup.sh'
+
+  vault-bootstrap-config:
+    desc: Setup bootstrap configuration for ArgoCD Vault Plugin
+    preconditions:
+      - sh: vault status &>/dev/null
+        msg: "Vault is not accessible at {{.VAULT_ADDR}}. Make sure Vault is unsealed and you're logged in"
+      - sh: vault token lookup &>/dev/null
+        msg: "Not authenticated to Vault. Run: vault login <root-token>"
+      - sh: test -f ../.env
+        msg: ".env file not found in project root. Copy .env.example to .env and configure"
+    cmds:
+      - '{{.TASK_DIR}}/scripts/vault-bootstrap-config.sh'
 
   vault-pki:
     desc: Setup PKI for mTLS certificates

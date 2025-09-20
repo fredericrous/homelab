@@ -74,6 +74,7 @@ K8S_TOKEN=$(vault token create \
 echo "💾 Storing transit token in Vault..."
 vault kv put secret/k8s-transit token="$K8S_TOKEN" || echo "Failed to store in KV"
 
+
 # Create a file with the token for easy access
 echo "$K8S_TOKEN" > /tmp/k8s-vault-transit-token
 
@@ -87,19 +88,8 @@ echo "The token has been:"
 echo "  - Stored in Vault at: secret/k8s-transit"
 echo "  - Written to: /tmp/k8s-vault-transit-token"
 echo ""
-echo "🔐 To deploy the main K8s cluster:"
-echo "   # Make sure you're still authenticated to QNAP Vault"
-echo "   export VAULT_ADDR=http://192.168.1.42:61200"
-echo "   vault status  # Should show authenticated"
-echo "   "
-echo "   # Then deploy from the main project directory"
-echo "   task deploy"
+echo "📌 Next step: Set up bootstrap configuration for ArgoCD Vault Plugin"
+echo "   task nas:vault-bootstrap-config"
 echo ""
-echo "The deployment will automatically retrieve this transit token from Vault."
-echo ""
-echo "📌 Next step (optional):"
-echo "   Set up PKI for mTLS client certificates:"
-echo "   task nas:vault-pki"
-echo ""
-echo "   This creates a Certificate Authority for generating client"
-echo "   certificates that authenticate users to your services."
+echo "This will convert your ARGO_ variables from .env into Vault"
+echo "for ArgoCD Vault Plugin to use during deployment."

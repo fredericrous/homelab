@@ -78,6 +78,8 @@ setup_transit_token() {
 
     # Create namespace
     kubectl create namespace "$VAULT_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+    
+    # Note: AVP handles configuration replacement from NAS vault
 
     # Check existing secret
     local existing_token

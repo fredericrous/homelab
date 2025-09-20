@@ -97,31 +97,32 @@ resource "proxmox_virtual_environment_vm" "vm" {
     type = "l26"
   }
 
-  # Cloud-init configuration for network (only if IP is provided)
-  # Talos doesn't use cloud-init users, but Proxmox requires the field
-  dynamic "initialization" {
-    for_each = var.ip_address != "" ? [1] : []
-    content {
-      interface = "ide2"
+  # Cloud-init configuration
+  # Talos doesn't use cloud-init, but Proxmox requires the user field
+  initialization {
+    interface = "ide2"
 
-      # Minimal user config to satisfy Proxmox requirements
-      user_account {
-        username = "talos"
-        password = "disabled"  # Not used by Talos
-        keys     = []
-      }
+    # Minimal user config to satisfy Proxmox requirements
+    user_account {
+      username = "talos"
+      password = "disabled"  # Not used by Talos
+      keys     = []
+    }
 
-      ip_config {
+    # Network configuration (only if IP is provided)
+    dynamic "ip_config" {
+      for_each = var.ip_address != "" ? [1] : []
+      content {
         ipv4 {
           address = "${var.ip_address}/24"
           gateway = var.gateway != "" ? var.gateway : "192.168.1.1"
         }
       }
+    }
 
-      # DNS servers
-      dns {
-        servers = length(var.dns_servers) > 0 ? var.dns_servers : ["1.1.1.1", "8.8.8.8"]
-      }
+    # DNS servers
+    dns {
+      servers = length(var.dns_servers) > 0 ? var.dns_servers : ["1.1.1.1", "8.8.8.8"]
     }
   }
 

@@ -103,9 +103,61 @@ repoServer:
   metrics:
     enabled: true
 
-  # No plugins needed - using ArgoCD native features
-
-  # No extra volumes needed
+  # ArgoCD Vault Plugin configuration
+  volumes:
+    - name: custom-tools
+      emptyDir: {}
+    - name: avp-config
+      secret:
+        secretName: argocd-vault-plugin-config
+        optional: true
+  
+  volumeMounts:
+    - mountPath: /custom-tools
+      name: custom-tools
+    - mountPath: /usr/local/bin/argocd-vault-plugin
+      name: custom-tools
+      subPath: argocd-vault-plugin
+    - mountPath: /etc/avp
+      name: avp-config
+      readOnly: true
+  
+  initContainers:
+    - name: download-tools
+      image: alpine/curl:latest
+      command: [sh, -c]
+      args:
+        - |
+          # Download argocd-vault-plugin
+          AVP_VERSION="1.18.1"
+          curl -L -o /custom-tools/argocd-vault-plugin https://github.com/argoproj-labs/argocd-vault-plugin/releases/download/v${AVP_VERSION}/argocd-vault-plugin_${AVP_VERSION}_linux_amd64
+          chmod +x /custom-tools/argocd-vault-plugin
+          # Verify download
+          /custom-tools/argocd-vault-plugin version
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+  
+  # Environment variables for AVP
+  env:
+    - name: AVP_TYPE
+      value: "vault"
+    - name: AVP_AUTH_TYPE
+      value: "token"
+    - name: AVP_VAULT_ADDR
+      valueFrom:
+        secretKeyRef:
+          name: argocd-vault-plugin-config
+          key: AVP_VAULT_ADDR
+          optional: true
+    - name: AVP_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: argocd-vault-plugin-config
+          key: AVP_TOKEN
+          optional: true
+    - name: HELM_PLUGINS
+      value: /custom-tools
 
 # ApplicationSet controller
 applicationSet:
@@ -145,6 +197,27 @@ configs:
 
     # Kustomize build options (required for Helm charts in Kustomize)
     kustomize.buildOptions: "--enable-helm"
+    
+    # Plugin configuration for argocd-vault-plugin
+    configManagementPlugins: |
+      - name: argocd-vault-plugin
+        generate:
+          command: ["sh", "-c"]
+          args: ["argocd-vault-plugin generate ./"]
+      - name: argocd-vault-plugin-kustomize
+        init:
+          command: ["sh", "-c"]
+          args: ["kustomize build . > manifest.yaml"]
+        generate:
+          command: ["sh", "-c"]
+          args: ["argocd-vault-plugin generate manifest.yaml"]
+      - name: argocd-vault-plugin-helm
+        init:
+          command: ["sh", "-c"]
+          args: ["helm dependency build"]
+        generate:
+          command: ["bash", "-c"]
+          args: ["helm template $ARGOCD_APP_NAME -n $ARGOCD_APP_NAMESPACE . --include-crds | argocd-vault-plugin generate -"]
 
     # Resource exclusions for Cilium
     resource.exclusions: |

@@ -7,3 +7,4 @@ prune: "true"
 syncWave: "-30"
 createNamespace: "false"  # kube-system already exists
 serverSideApply: "true"  # Required for Talos Linux
+plugin: argocd-vault-plugin-kustomize  # Use AVP to replace placeholders from NAS vault

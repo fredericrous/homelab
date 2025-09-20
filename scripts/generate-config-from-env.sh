@@ -64,5 +64,4 @@ done < .env
 
 echo "Generated $OUTPUT_FILE"
 
-# Also create a temp copy for terraform compatibility
-cp "$OUTPUT_FILE" ".global-config.yaml.tmp"
+# No longer creating .global-config.yaml.tmp - terraform uses .env directly

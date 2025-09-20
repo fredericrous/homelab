@@ -1,9 +1,0 @@
-# Placeholder ConfigMap that will be replaced by ArgoCD multi-source
-# This allows Kustomize replacements to work with values from homelab-values repo
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: global-config
-  namespace: vault
-data:
-  nasVaultAddr: "http://PLACEHOLDER:8200"  # This will be overridden by multi-source

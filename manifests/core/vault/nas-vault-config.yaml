@@ -7,7 +7,7 @@ metadata:
 data:
   config.yaml: |
     transit:
-      address: "PLACEHOLDER_NAS_VAULT_ADDR"
+      address: "<path:secret/data/bootstrap/config#nasVaultAddr>"
       mountPath: "transit"
       keyName: "autounseal"
       tlsSkipVerify: true

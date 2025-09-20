@@ -27,7 +27,6 @@ resources:
   # 4. It has its own specific job implementations
   # App-specific resources
   - namespace.yaml
-  - global-config-placeholder.yaml  # Will be overridden by multi-source
   - vault-config.yaml
   - nas-vault-config.yaml  # ConfigMap with transit vault configuration
   - vault-config-serviceaccount.yaml  # Service account for vault-config jobs
@@ -57,28 +56,7 @@ patches:
     target:
       kind: StatefulSet
       name: vault
-  # Override global-config with values from homelab-values repo
-  - path: $values/global-config.yaml
-    target:
-      kind: ConfigMap
-      name: global-config
-      namespace: vault
 
-replacements:
-  - source:
-      kind: ConfigMap
-      name: global-config
-      namespace: vault
-      fieldPath: data.nasVaultAddr
-    targets:
-      - select:
-          kind: ConfigMap
-          name: vault-config
-          namespace: vault
-        fieldPaths:
-          - data.vault\.hcl
-        options:
-          delimiter: "PLACEHOLDER_NAS_VAULT_ADDR"
 
 
   # Jobs removed - configuration is now handled by vault-transit-unseal-operator's postUnsealConfig

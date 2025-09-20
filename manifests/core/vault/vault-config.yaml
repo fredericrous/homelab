@@ -20,7 +20,7 @@ data:
     
     # Transit auto-unseal using NAS Vault
     seal "transit" {
-      address = "PLACEHOLDER_NAS_VAULT_ADDR"
+      address = "<path:secret/data/bootstrap/config#nasVaultAddr>"
       disable_renewal = "false"
       key_name = "autounseal"
       mount_path = "transit"

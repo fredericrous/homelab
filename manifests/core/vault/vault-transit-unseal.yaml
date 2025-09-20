@@ -9,7 +9,7 @@ spec:
     selector:
       app: vault
   transitVault:
-    address: PLACEHOLDER_NAS_VAULT_ADDR
+    address: <path:secret/data/bootstrap/config#nasVaultAddr>
     secretRef:
       name: vault-transit-token
       key: token

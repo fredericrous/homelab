@@ -6,12 +6,15 @@ export KUBECONFIG
 
 echo "🔧 Fixing ArgoCD environment variables..."
 
-# Load external domain from temporary global-config.yaml
-if [ -f "$(dirname "$0")/../../.global-config.yaml.tmp" ]; then
-  EXTERNAL_DOMAIN=$(yq '.defaultExternalDomain' "$(dirname "$0")/../../.global-config.yaml.tmp")
-  echo "Loaded external domain from temporary global-config.yaml"
+# Load external domain from .env file
+if [ -f "$(dirname "$0")/../../.env" ]; then
+  set -a
+  source "$(dirname "$0")/../../.env"
+  set +a
+  EXTERNAL_DOMAIN="${ARGO_EXTERNAL_DOMAIN:-}"
+  echo "Loaded external domain from .env file"
 else
-  echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+  echo "ERROR: .env file not found"
   exit 1
 fi
 

@@ -5,8 +5,7 @@ resource "null_resource" "argocd_install" {
   depends_on = [
     local_file.kubeconfig,
     null_resource.helm_repos,
-    null_resource.dns_bootstrap,
-    null_resource.sync_global_config
+    null_resource.dns_bootstrap
   ]
 
   provisioner "local-exec" {
@@ -21,11 +20,14 @@ resource "null_resource" "argocd_install" {
         if helm status argocd -n argocd | grep -q "STATUS: failed"; then
           echo "⚠️  ArgoCD is in failed state, upgrading..."
           
-          # Load external domain from temporary global-config.yaml
-          if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-            EXTERNAL_DOMAIN=$(yq '.externalDomain' ${path.module}/../.global-config.yaml.tmp)
+          # Load external domain from .env file
+          if [ -f "${path.module}/../.env" ]; then
+            set -a
+            source "${path.module}/../.env"
+            set +a
+            EXTERNAL_DOMAIN="$${ARGO_EXTERNAL_DOMAIN:-}"
           else
-            echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+            echo "ERROR: .env file not found"
             exit 1
           fi
           # Direct substitution - no need for ARGO_ prefix
@@ -34,13 +36,16 @@ resource "null_resource" "argocd_install" {
           echo "📦 Creating ArgoCD namespace..."
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           
-          # Load external domain from temporary global-config.yaml
+          # Load external domain from .env file
           echo "📦 Loading external domain..."
-          if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-            EXTERNAL_DOMAIN=$(yq '.externalDomain' ${path.module}/../.global-config.yaml.tmp)
-            echo "Loaded from temporary global-config.yaml"
+          if [ -f "${path.module}/../.env" ]; then
+            set -a
+            source "${path.module}/../.env"
+            set +a
+            EXTERNAL_DOMAIN="$${ARGO_EXTERNAL_DOMAIN:-}"
+            echo "Loaded from .env file"
           else
-            echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+            echo "ERROR: .env file not found"
             exit 1
           fi
           # Direct substitution - no need for ARGO_ prefix
@@ -66,13 +71,16 @@ resource "null_resource" "argocd_install" {
         exit 0
       fi
       
-      # Load external domain from temporary global-config.yaml
+      # Load external domain from .env file
       echo "📦 Loading external domain..."
-      if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-        EXTERNAL_DOMAIN=$(yq '.externalDomain' ${path.module}/../.global-config.yaml.tmp)
-        echo "Loaded from temporary global-config.yaml"
+      if [ -f "${path.module}/../.env" ]; then
+        set -a
+        source "${path.module}/../.env"
+        set +a
+        EXTERNAL_DOMAIN="$${ARGO_EXTERNAL_DOMAIN:-}"
+        echo "Loaded from .env file"
       else
-        echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+        echo "ERROR: .env file not found"
         exit 1
       fi
       # Direct substitution - no need for ARGO_ prefix
@@ -128,6 +136,10 @@ resource "null_resource" "argocd_bootstrap" {
       # Apply kustomize, but delete any existing jobs that might conflict
       kubectl delete job argocd-redis-secret-init -n argocd --ignore-not-found=true
       
+      # Setup ArgoCD Vault Plugin
+      echo "🔐 Setting up ArgoCD Vault Plugin..."
+      ${path.module}/scripts/setup-argocd-vault-plugin.sh "${abspath(local_file.kubeconfig[0].filename)}"
+      
       # Apply repository secret for homelab-values
       echo "🔑 Applying repository secret for homelab-values..."
       GITHUB_HOMELAB_VALUES_TOKEN="${var.github_homelab_values_token}"
@@ -141,12 +153,15 @@ resource "null_resource" "argocd_bootstrap" {
         echo "⚠️  WARNING: GITHUB_HOMELAB_VALUES_TOKEN not set, skipping repository secret"
       fi
       
-      # Load external domain from temporary global-config.yaml
-      if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-        EXTERNAL_DOMAIN=$(yq '.externalDomain' ${path.module}/../.global-config.yaml.tmp)
-        echo "Loaded from temporary global-config.yaml"
+      # Load external domain from .env file
+      if [ -f "${path.module}/../.env" ]; then
+        set -a
+        source "${path.module}/../.env"
+        set +a
+        EXTERNAL_DOMAIN="$${ARGO_EXTERNAL_DOMAIN:-}"
+        echo "Loaded from .env file"
       else
-        echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+        echo "ERROR: .env file not found"
         exit 1
       fi
       

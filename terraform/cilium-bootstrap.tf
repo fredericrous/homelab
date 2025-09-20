@@ -6,8 +6,7 @@ resource "null_resource" "cilium_bootstrap" {
     local_file.kubeconfig,
     null_resource.bootstrap_cluster,
     talos_cluster_kubeconfig.this,
-    null_resource.dns_bootstrap,
-    null_resource.sync_global_config
+    null_resource.dns_bootstrap
   ]
 
   provisioner "local-exec" {
@@ -33,13 +32,25 @@ resource "null_resource" "cilium_bootstrap" {
 
       echo "🚀 Installing Cilium CNI with native routing (no VXLAN overlay)..."
       
-      # Load control plane IP from temporary global-config.yaml
-      echo "Loading control plane IP..."
-      if [ -f "${path.module}/../.global-config.yaml.tmp" ]; then
-        CONTROL_PLANE_IP=$(yq '.controlPlaneIp' ${path.module}/../.global-config.yaml.tmp)
-        echo "Loaded control plane IP from temporary global-config.yaml"
+      # Load control plane IP from .env file
+      echo "Loading control plane IP from .env..."
+      if [ -f "${path.module}/../.env" ]; then
+        # Source the .env file
+        set -a
+        source "${path.module}/../.env"
+        set +a
+        
+        # Get control plane IP from ARGO_CONTROL_PLANE_IP
+        CONTROL_PLANE_IP="$${ARGO_CONTROL_PLANE_IP:-}"
+        
+        if [ -n "$CONTROL_PLANE_IP" ]; then
+          echo "Loaded control plane IP from .env: $CONTROL_PLANE_IP"
+        else
+          echo "ERROR: ARGO_CONTROL_PLANE_IP not found in .env"
+          exit 1
+        fi
       else
-        echo "ERROR: .global-config.yaml.tmp not found - ensure sync_global_config has run"
+        echo "ERROR: .env file not found"
         exit 1
       fi
       
@@ -55,7 +66,10 @@ resource "null_resource" "cilium_bootstrap" {
       # Create a temporary values file with substituted variables
       echo "Creating temporary values file with substituted variables..."
       TEMP_VALUES=$(mktemp)
-      sed "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" ${path.module}/../manifests/core/cilium/values-native.yaml > "$TEMP_VALUES"
+      # Replace both old placeholder and new AVP syntax
+      sed -e "s/PLACEHOLDER_CONTROL_PLANE_IP/$CONTROL_PLANE_IP/g" \
+          -e "s|<path:secret/data/bootstrap/config#controlPlaneIP>|$CONTROL_PLANE_IP|g" \
+          ${path.module}/../manifests/core/cilium/values-native.yaml > "$TEMP_VALUES"
       
       # Use Helm directly to install Cilium with the substituted values
       echo "Installing Cilium with Helm..."
