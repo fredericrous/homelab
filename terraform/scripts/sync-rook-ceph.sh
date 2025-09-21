@@ -192,15 +192,31 @@ echo "🔍 Checking if Ceph cluster is ready to provision volumes..."
 echo "📊 Monitoring Ceph cluster deployment..."
 KUBECONFIG_PATH="$KUBECONFIG"
 timeout 300s bash -c "export KUBECONFIG='$KUBECONFIG_PATH'; while true; do
-  # Check CephCluster status
-  if kubectl get cephcluster -n rook-ceph rook-ceph &>/dev/null; then
-    CEPH_PHASE=\$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.phase}' 2>/dev/null || echo 'Unknown')
-    CEPH_MESSAGE=\$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.message}' 2>/dev/null || echo '')
-    CEPH_HEALTH=\$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.ceph.health}' 2>/dev/null || echo '')
-    
-    echo \"CephCluster: Phase=\$CEPH_PHASE, Message=\\\"\$CEPH_MESSAGE\\\", Health=\$CEPH_HEALTH\"
+  # First check if CephCluster exists
+  if ! kubectl get cephcluster -n rook-ceph rook-ceph &>/dev/null; then
+    echo 'Waiting for CephCluster resource to be created...'
+    # Check if operator is running
+    if kubectl get deployment -n rook-ceph rook-ceph-operator &>/dev/null; then
+      operator_ready=\$(kubectl get deployment -n rook-ceph rook-ceph-operator -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo '0')
+      echo \"  Rook operator ready replicas: \$operator_ready\"
+    fi
+    sleep 10
+    continue
+  fi
+  
+  # Get CephCluster status - handle empty fields gracefully
+  CEPH_PHASE=\$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.phase}' 2>/dev/null || echo '')
+  CEPH_MESSAGE=\$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.message}' 2>/dev/null || echo '')
+  CEPH_HEALTH=\$(kubectl get cephcluster -n rook-ceph rook-ceph -o jsonpath='{.status.ceph.health}' 2>/dev/null || echo '')
+  
+  # If status fields are empty, show more details
+  if [ -z \"\$CEPH_PHASE\" ] && [ -z \"\$CEPH_HEALTH\" ]; then
+    echo \"CephCluster exists but status is not yet populated\"
+    # Check operator logs for issues
+    echo \"  Checking operator logs for errors...\"
+    kubectl logs -n rook-ceph deployment/rook-ceph-operator --tail=5 2>/dev/null | grep -i error || echo \"  No recent errors in operator logs\"
   else
-    echo 'CephCluster resource not found yet...'
+    echo \"CephCluster: Phase=\${CEPH_PHASE:-'not set'}, Message=\\\"\$CEPH_MESSAGE\\\", Health=\${CEPH_HEALTH:-'not set'}\"
   fi
   
   # Check if any Ceph OSD pods are running

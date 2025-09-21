@@ -1,7 +1,10 @@
+# BOOTSTRAP COMPONENT - Managed by applicationset-bootstrap.yaml
+# This file is kept for reference but not used by applicationset-core.yaml
 name: vault
 project: core
 namespace: vault
 path: manifests/core/vault
+bootstrap: "true"  # Marks this as a bootstrap component
 autoSync: "false"  # Vault is critical for secrets management
 prune: "false"     # Never auto-prune vault resources
 syncWave: "-16"

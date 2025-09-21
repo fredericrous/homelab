@@ -1,7 +1,10 @@
+# BOOTSTRAP COMPONENT - Managed by applicationset-bootstrap.yaml
+# This file is kept for reference but not used by applicationset-core.yaml
 name: rook-ceph
 project: core
 namespace: rook-ceph
 path: manifests/core/rook-ceph
+bootstrap: "true"  # Marks this as a bootstrap component
 autoSync: "false"  # Storage control plane is critical
 prune: "false"     # Never auto-prune storage resources
 syncWave: "-22"

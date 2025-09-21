@@ -132,7 +132,10 @@ resource "null_resource" "argocd_install" {
 resource "null_resource" "argocd_bootstrap" {
   count = var.configure_talos ? 1 : 0
 
-  depends_on = [null_resource.argocd_install]
+  depends_on = [
+    null_resource.argocd_install,
+    null_resource.cilium_bootstrap  # Ensure networking is ready
+  ]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -182,17 +185,43 @@ resource "null_resource" "argocd_bootstrap" {
       echo "Using external domain: $EXTERNAL_DOMAIN"
       # Direct substitution - no need for ARGO_ prefix
       
-      # Use kustomize with --enable-helm flag to process Helm charts and substitute variables
-      kustomize build ${path.module}/../manifests/argocd --enable-helm | \
-        sed -e "s|<path:secret/data/bootstrap#argocd-url>|https://argocd.$EXTERNAL_DOMAIN|g" \
-            -e "s|<path:secret/data/bootstrap#argocd-dex-issuer>|https://argocd.$EXTERNAL_DOMAIN/api/dex|g" | \
-        kubectl apply -f -
+      # Retry logic for network issues
+      echo "🔄 Applying ArgoCD kustomize manifests..."
+      RETRY_COUNT=0
+      MAX_RETRIES=5
+      RETRY_DELAY=10
       
-      # If kustomize fails, check what happened but don't fail the deployment
-      if [ $? -ne 0 ]; then
-        echo "⚠️  Some ArgoCD resources may have failed to apply (this is normal for CRDs)"
-        echo "ArgoCD will reconcile these once it's running"
-      fi
+      while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        # Check API server connectivity first
+        if kubectl cluster-info >/dev/null 2>&1; then
+          echo "✅ API server is reachable"
+          
+          # Use kustomize with --enable-helm flag to process Helm charts and substitute variables
+          if kustomize build ${path.module}/../manifests/argocd --enable-helm | \
+            sed -e "s|<path:secret/data/bootstrap#argocd-url>|https://argocd.$EXTERNAL_DOMAIN|g" \
+                -e "s|<path:secret/data/bootstrap#argocd-dex-issuer>|https://argocd.$EXTERNAL_DOMAIN/api/dex|g" | \
+            kubectl apply -f -; then
+            echo "✅ ArgoCD manifests applied successfully"
+            break
+          else
+            echo "⚠️  Failed to apply some ArgoCD resources"
+          fi
+        else
+          echo "❌ Cannot reach API server"
+        fi
+        
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+          echo "⏳ Retrying in $RETRY_DELAY seconds... (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+          sleep $RETRY_DELAY
+        else
+          echo "❌ Failed to apply ArgoCD manifests after $MAX_RETRIES attempts"
+          echo "You can manually apply later with:"
+          echo "  kustomize build manifests/argocd --enable-helm | kubectl apply -f -"
+          # Don't fail the entire deployment
+          exit 0
+        fi
+      done
       
       echo "✅ ArgoCD bootstrap initiated - it will manage all applications including Cilium"
     EOT

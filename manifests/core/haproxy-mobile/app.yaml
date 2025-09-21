@@ -1,7 +1,10 @@
+# BOOTSTRAP COMPONENT - Managed by applicationset-bootstrap.yaml
+# This file is kept for reference but not used by applicationset-core.yaml
 name: haproxy-mobile
 project: core
 namespace: haproxy-mobile
 path: manifests/core/haproxy-mobile
+bootstrap: "true"  # Marks this as a bootstrap component
 autoSync: "false"  # Ingress controller changes can lock out access
 prune: "false"     # Keep ingress resources safe
 syncWave: "-8"

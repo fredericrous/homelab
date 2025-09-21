@@ -89,7 +89,7 @@ tasks:
     # Environment variables loaded from .env file
     cmds:
       - echo "Creating VMs..."
-      - terraform apply -target=module.vms -auto-approve
+      - terraform apply -target=module.vms -auto-approve -parallelism=1
 
   stage2:
     desc: "Stage 2: Wait for VMs and configure Talos"

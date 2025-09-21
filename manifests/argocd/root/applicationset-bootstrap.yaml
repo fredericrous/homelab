@@ -1,0 +1,76 @@
+# ApplicationSet for bootstrap components deployed by Terraform
+# These components have critical dependencies on substituted values
+# and should NOT be auto-synced by ArgoCD
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: bootstrap
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+  - list:
+      elements:
+      # Cilium - needs control plane IP substituted by terraform
+      - name: cilium
+        namespace: kube-system
+        path: manifests/core/cilium
+        syncWave: "-30"
+      # Rook-Ceph - synced manually by terraform scripts
+      - name: rook-ceph
+        namespace: rook-ceph
+        path: manifests/core/rook-ceph
+        syncWave: "-20"
+      # Vault - uses NAS vault address for transit unseal
+      - name: vault
+        namespace: vault
+        path: manifests/core/vault
+        syncWave: "-25"
+      # External Secrets Operator - deployed before AVP is ready
+      - name: external-secrets-operator
+        namespace: external-secrets
+        path: manifests/core/external-secrets-operator
+        syncWave: "-15"
+      # HAProxy Ingress - may need IP configuration
+      - name: haproxy-ingress
+        namespace: haproxy-controller
+        path: manifests/core/haproxy-ingress
+        syncWave: "-10"
+      # HAProxy Mobile - needs load balancer IP
+      - name: haproxy-mobile
+        namespace: haproxy-mobile
+        path: manifests/core/haproxy-mobile
+        syncWave: "-10"
+
+  template:
+    metadata:
+      name: '{{.name}}'
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{.syncWave}}"
+      finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: core
+      source:
+        repoURL: https://github.com/fredericrous/homelab.git
+        targetRevision: main
+        path: '{{.path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.namespace}}'
+      syncPolicy:
+        # NO automated sync - these are managed by terraform/scripts
+        syncOptions:
+        - CreateNamespace=true
+        - PrunePropagationPolicy=foreground
+        - ApplyOutOfSyncOnly=true
+        - ServerSideApply=true
+        - Replace=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+      revisionHistoryLimit: 3

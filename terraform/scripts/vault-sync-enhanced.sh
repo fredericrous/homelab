@@ -407,6 +407,54 @@ EOF
     # Clear token from memory
     unset K8S_VAULT_TRANSIT_TOKEN
 
+    # Patch Vault configurations to substitute AVP placeholders
+    log_info "Patching Vault configurations with substituted values"
+    
+    # Load NAS vault address from .env file
+    PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+    ENV_FILE="${PROJECT_ROOT}/.env"
+    
+    if [ -f "${ENV_FILE}" ]; then
+        # Source the .env file
+        set -a
+        source "${ENV_FILE}"
+        set +a
+        
+        if [ -z "${ARGO_NAS_VAULT_ADDR:-}" ]; then
+            log_error "ARGO_NAS_VAULT_ADDR not found in .env file"
+            exit 1
+        fi
+        NAS_VAULT_ADDR="${ARGO_NAS_VAULT_ADDR}"
+        log_info "Loaded NAS vault address from .env: $NAS_VAULT_ADDR"
+    else
+        log_error ".env file not found at: ${ENV_FILE}"
+        exit 1
+    fi
+    
+    # Wait for ConfigMaps to exist
+    for i in {1..30}; do
+        if kubectl get cm vault-config -n "$VAULT_NAMESPACE" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 2
+    done
+    
+    # Patch vault-config ConfigMap if it exists
+    if kubectl get cm vault-config -n "$VAULT_NAMESPACE" >/dev/null 2>&1; then
+        log_info "Patching vault-config ConfigMap"
+        kubectl get cm vault-config -n "$VAULT_NAMESPACE" -o yaml | \
+            sed "s|<path:secret/data/bootstrap/config#nasVaultAddr>|$NAS_VAULT_ADDR|g" | \
+            kubectl apply -f -
+    fi
+    
+    # Patch nas-vault-config ConfigMap if it exists  
+    if kubectl get cm nas-vault-config -n "$VAULT_NAMESPACE" >/dev/null 2>&1; then
+        log_info "Patching nas-vault-config ConfigMap"
+        kubectl get cm nas-vault-config -n "$VAULT_NAMESPACE" -o yaml | \
+            sed "s|<path:secret/data/bootstrap/config#nasVaultAddr>|$NAS_VAULT_ADDR|g" | \
+            kubectl apply -f -
+    fi
+
     # Wait for Vault app
     if ! wait_for_app "vault"; then
         exit 1
@@ -422,6 +470,38 @@ EOF
     if ! monitor_sync "vault"; then
         log_error "Vault sync failed"
         exit 1
+    fi
+
+    # After sync, patch the resources again to ensure AVP placeholders are replaced
+    log_info "Patching Vault resources after sync"
+    
+    # Patch vault-config ConfigMap again
+    if kubectl get cm vault-config -n "$VAULT_NAMESPACE" >/dev/null 2>&1; then
+        kubectl get cm vault-config -n "$VAULT_NAMESPACE" -o yaml | \
+            sed "s|<path:secret/data/bootstrap/config#nasVaultAddr>|$NAS_VAULT_ADDR|g" | \
+            kubectl apply -f -
+    fi
+    
+    # Patch nas-vault-config ConfigMap again
+    if kubectl get cm nas-vault-config -n "$VAULT_NAMESPACE" >/dev/null 2>&1; then
+        kubectl get cm nas-vault-config -n "$VAULT_NAMESPACE" -o yaml | \
+            sed "s|<path:secret/data/bootstrap/config#nasVaultAddr>|$NAS_VAULT_ADDR|g" | \
+            kubectl apply -f -
+    fi
+    
+    # Patch VaultTransitUnseal CRD if it exists
+    if kubectl get vaulttransitunseal vault-main -n "$VAULT_NAMESPACE" >/dev/null 2>&1; then
+        log_info "Patching VaultTransitUnseal CRD"
+        kubectl get vaulttransitunseal vault-main -n "$VAULT_NAMESPACE" -o yaml | \
+            sed "s|<path:secret/data/bootstrap/config#nasVaultAddr>|$NAS_VAULT_ADDR|g" | \
+            kubectl apply -f -
+    fi
+    
+    # Force pod restart to pick up config changes
+    if kubectl get pod vault-0 -n "$VAULT_NAMESPACE" >/dev/null 2>&1; then
+        log_info "Restarting vault pod to apply configuration changes"
+        kubectl delete pod vault-0 -n "$VAULT_NAMESPACE" --force --grace-period=0 || true
+        sleep 10
     fi
 
     # Check deployment and initialize

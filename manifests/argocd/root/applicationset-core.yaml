@@ -1,4 +1,11 @@
 # ApplicationSet for core platform components
+# NOTE: Components marked with bootstrap: "true" in their app.yaml are managed
+# by applicationset-bootstrap.yaml instead. This includes:
+# - cilium (needs terraform substitution)
+# - rook-ceph (critical storage)
+# - vault (needs manual initialization)
+# - external-secrets-operator (deployed before AVP)
+# - haproxy-ingress/haproxy-mobile (ingress controllers)
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -31,11 +38,9 @@ spec:
         server: https://kubernetes.default.svc
         namespace: '{{.namespace}}'
       syncPolicy:
-        {{- if ne .autoSync "false" }}
         automated:
           prune: true
           selfHeal: true
-        {{- end }}
         syncOptions:
         - CreateNamespace={{if .createNamespace}}{{.createNamespace}}{{else}}true{{end}}
         - PrunePropagationPolicy=foreground
