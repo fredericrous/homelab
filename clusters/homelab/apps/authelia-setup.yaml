@@ -15,7 +15,7 @@ spec:
   force: true  # Force recreation of jobs
   dependsOn:
     - name: vault
-    - name: vault-secrets-operator
+    - name: external-secrets-config
     - name: lldap
   postBuild:
     substitute:

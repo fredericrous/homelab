@@ -14,7 +14,7 @@ spec:
   wait: true
   dependsOn:
     - name: vault
-    - name: vault-secrets-operator
+    - name: external-secrets-config
     - name: cloudnative-pg
     - name: lldap
     - name: authelia-setup

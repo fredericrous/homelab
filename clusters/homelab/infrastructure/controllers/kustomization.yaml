@@ -10,7 +10,8 @@ resources:
   - vault.yaml
   - vault-transit-unseal-operator.yaml
   - vault-transit-config.yaml
-  - vault-secrets-operator.yaml
+  - external-secrets-operator.yaml
+  - external-secrets-config.yaml
   - cert-manager.yaml
   - haproxy-ingress.yaml
   - cloudnative-pg.yaml

@@ -12,3 +12,4 @@ resources:
   - authelia.yaml
   - haproxy-ingress.yaml
   - fredericrous.yaml
+  - external-secrets.yaml

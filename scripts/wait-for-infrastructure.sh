@@ -18,9 +18,10 @@ for i in {1..60}; do
   sleep 10
 done
 
-# Wait for VSO
-echo "Waiting for Vault Secrets Operator..."
-kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/vault-secrets-operator
+# Wait for ESO
+echo "Waiting for External Secrets Operator..."
+kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/external-secrets
+kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/external-secrets-config
 
 # Wait for other infrastructure
 echo "Waiting for remaining infrastructure..."
