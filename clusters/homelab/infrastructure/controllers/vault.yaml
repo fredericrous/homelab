@@ -84,9 +84,9 @@ spec:
                   component: server
               topologyKey: kubernetes.io/hostname
       
-      extraEnvironmentVars:
-        VAULT_SEAL_TRANSIT_TOKEN:
-          secretRef: vault-transit-token
+      extraSecretEnvironmentVars:
+        - envName: VAULT_SEAL_TRANSIT_TOKEN
+          secretName: vault-transit-token
           secretKey: token
     
     ui:
