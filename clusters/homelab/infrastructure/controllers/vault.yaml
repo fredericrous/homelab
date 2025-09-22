@@ -51,6 +51,7 @@ spec:
               key_name = "autounseal"
               mount_path = "transit"
               tls_skip_verify = "true"
+              token = "${vault_transit_token}"
             }
             
             service_registration "kubernetes" {}
