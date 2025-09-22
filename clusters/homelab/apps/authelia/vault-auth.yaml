@@ -1,0 +1,11 @@
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: authelia
+  namespace: authelia
+spec:
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: authelia
+    serviceAccount: authelia

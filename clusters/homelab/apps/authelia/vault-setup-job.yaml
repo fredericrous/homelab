@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authelia-vault-setup
+  namespace: authelia
+spec:
+  template:
+    spec:
+      serviceAccountName: authelia
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-vault
+        image: curlimages/curl:8.11.1
+        command: ['sh', '-c']
+        args:
+          - |
+            until curl -s http://vault-vault.vault.svc.cluster.local:8200/v1/sys/health | grep -q '"initialized":true'; do
+              echo "Waiting for Vault to be initialized..."
+              sleep 5
+            done
+      containers:
+      - name: setup-vault
+        image: hashicorp/vault:1.18.3
+        env:
+        - name: VAULT_ADDR
+          value: http://vault-vault.vault.svc.cluster.local:8200
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token-reflector
+              key: token
+        command: ['sh', '-c']
+        args:
+          - |
+            set -e
+            
+            # Check if Authelia secrets already exist
+            if vault kv get -mount=secret authelia > /dev/null 2>&1; then
+              echo "Authelia secrets already exist in Vault"
+            else
+              echo "Creating Authelia secrets in Vault"
+              vault kv put -mount=secret authelia \
+                JWT_SECRET=$(head -c 32 /dev/urandom | base64) \
+                SESSION_SECRET=$(head -c 32 /dev/urandom | base64) \
+                STORAGE_ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64) \
+                LDAP_PASSWORD=$(head -c 16 /dev/urandom | base64)
+            fi
+            
+            # Check if PostgreSQL credentials exist
+            if vault kv get -mount=secret authelia/postgres > /dev/null 2>&1; then
+              echo "Authelia PostgreSQL credentials already exist"
+            else
+              echo "Creating Authelia PostgreSQL credentials"
+              vault kv put -mount=secret authelia/postgres \
+                username=authelia \
+                password=$(head -c 16 /dev/urandom | base64 | tr -d "=+/")
+            fi
+            
+            # Check if policy exists
+            if vault policy read authelia-policy > /dev/null 2>&1; then
+              echo "Authelia policy already exists"
+            else
+              echo "Creating Authelia policy"
+              echo 'path "secret/data/authelia" {
+                capabilities = ["read"]
+              }
+              path "secret/data/authelia/postgres" {
+                capabilities = ["read"]
+              }' | vault policy write authelia-policy -
+            fi
+            
+            # Check if role exists
+            if vault read auth/kubernetes/role/authelia > /dev/null 2>&1; then
+              echo "Authelia role already exists"
+            else
+              echo "Creating Authelia role"
+              vault write auth/kubernetes/role/authelia \
+                bound_service_account_names=authelia \
+                bound_service_account_namespaces=authelia \
+                policies=authelia-policy \
+                ttl=24h
+            fi
