@@ -66,14 +66,14 @@ spec:
           cpu: 250m
       
       affinity:
-        nodeAffinity:
+        podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: node.kubernetes.io/hostname
-                operator: In
-                values:
-                - "talos-cp-1"
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: vault
+                  app.kubernetes.io/instance: vault
+                  component: server
+              topologyKey: kubernetes.io/hostname
     
     ui:
       enabled: true
