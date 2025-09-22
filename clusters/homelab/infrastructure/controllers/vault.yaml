@@ -108,7 +108,7 @@ spec:
                   name: vault-transit-token
                   key: token
           volumeMounts:
-            - name: userconfig-vault-server-config
+            - name: config
               mountPath: /vault/config
       
       extraSecretEnvironmentVars:
