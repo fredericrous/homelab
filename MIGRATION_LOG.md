@@ -28,6 +28,11 @@ Key findings:
 - ✅ Created HelmRepositories for all core services
 - ✅ Cilium already installed via terraform (skipping)
 
+### Core Services Migration
+- ✅ MetalLB deployed with L2 advertisement
+
 Next steps:
-1. Migrate core services to Flux management
-2. Create HelmReleases for essential services
+1. Deploy Vault (critical for secrets)
+2. Deploy cert-manager
+3. Deploy HAProxy ingress
+4. Migrate remaining core services
