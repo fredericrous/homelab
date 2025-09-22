@@ -181,7 +181,6 @@ tasks:
     deps: [check-prereq]
     prompt: This will destroy the entire cluster and VMs. Are you sure?
     cmds:
-      - task: down
       - echo "🗑️  Destroying VMs..."
       - terraform destroy -auto-approve
       - echo "🧹 Cleaning up configs..."
