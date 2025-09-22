@@ -51,7 +51,7 @@ spec:
               key_name = "autounseal"
               mount_path = "transit"
               tls_skip_verify = "true"
-              token = "${env://VAULT_TOKEN?}"
+              token = "${VAULT_SEAL_TRANSIT_TOKEN}"
             }
             
             service_registration "kubernetes" {}
@@ -85,7 +85,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       
       extraEnvironmentVars:
-        VAULT_TOKEN:
+        VAULT_SEAL_TRANSIT_TOKEN:
           secretRef: vault-transit-token
           secretKey: token
     
