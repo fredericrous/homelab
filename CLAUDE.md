@@ -10,18 +10,24 @@ This is a homelab GitOps repository that manages a Kubernetes cluster running on
 
 ### Cluster Deployment
 ```bash
-# Complete deployment from root directory
+# Setup configuration
 cp .env.example .env  # Configure with your settings including VAULT_TRANSIT_TOKEN
 cd terraform
 cp terraform.tfvars.example terraform.tfvars  # Configure Proxmox settings
 cd ..
-task deploy  # Full automated deployment with FluxCD
 
-# Or manual stages:
+# Option 1: Full automated deployment
+task deploy-all  # Creates cluster, bootstraps Flux, waits for infrastructure
+
+# Option 2: Step by step deployment (recommended for production)
+task deploy          # Create cluster (VMs + Talos + CNI)
+task bootstrap-flux  # Bootstrap FluxCD (will prompt for GitHub token)
+task wait-infra      # Wait for all infrastructure components
+
+# Individual stages:
 task stage1  # Create VMs
 task stage2  # Configure Talos  
-task stage3  # Get kubeconfig and bootstrap FluxCD
-task stage4  # Wait for infrastructure
+task stage3  # Get kubeconfig
 ```
 
 ### Application Deployment

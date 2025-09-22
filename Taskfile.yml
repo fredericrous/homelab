@@ -39,14 +39,21 @@ tasks:
         fi
 
   deploy:
-    desc: Deploy complete Kubernetes cluster
+    desc: Deploy Kubernetes cluster (without GitOps)
     deps: [check-prereq]
     cmds:
       - task: prereq
       - task: stage1
       - task: stage2
       - task: stage3
-      - task: stage4
+  
+  deploy-all:
+    desc: Deploy complete cluster with GitOps
+    deps: [check-prereq]
+    cmds:
+      - task: deploy
+      - task: bootstrap-flux
+      - task: wait-infra
 
   prereq:
     desc: Pre-flight checks
@@ -85,18 +92,59 @@ tasks:
       - chmod 600 {{.KUBECONFIG}}
       - echo "Waiting for Kubernetes API..."
       - kubectl wait --for=condition=Ready nodes --all --timeout=300s
+      - echo ""
+      - echo "✅ Kubernetes cluster is ready!"
+      - echo ""
+      - echo "Next steps:"
+      - echo "  1. Export KUBECONFIG: export KUBECONFIG=$PWD/kubeconfig"
+      - echo "  2. Bootstrap FluxCD: task bootstrap-flux"
+      - echo "  3. Wait for infrastructure: task wait-infra"
 
-  stage4:
-    desc: "Stage 4: Wait for infrastructure"
+  bootstrap-flux:
+    desc: "Bootstrap FluxCD GitOps"
+    deps: [check-prereq]
+    preconditions:
+      - sh: test -f {{.KUBECONFIG}}
+        msg: "kubeconfig not found. Run 'task deploy' first"
+    cmds:
+      - |
+        if kubectl get ns flux-system >/dev/null 2>&1; then
+          echo "✅ FluxCD is already installed"
+          exit 0
+        fi
+      - |
+        if ! command -v flux &> /dev/null; then
+          echo "Installing flux CLI..."
+          curl -s https://fluxcd.io/install.sh | sudo bash
+        fi
+      - echo "🚀 Bootstrapping FluxCD..."
+      - echo "You will be prompted for your GitHub token"
+      - |
+        flux bootstrap github \
+          --owner=fredericrous \
+          --repository=homelab \
+          --branch=main \
+          --path=clusters/homelab/flux-system \
+          --personal \
+          --token-auth
+      - echo "⏳ Waiting for Flux to be ready..."
+      - kubectl wait --for=condition=ready --timeout=300s -n flux-system pod -l app.kubernetes.io/name=source-controller
+      - kubectl wait --for=condition=ready --timeout=300s -n flux-system pod -l app.kubernetes.io/name=kustomize-controller
+      - echo "🔐 Creating vault-transit-token secret..."
+      - ./scripts/bootstrap-vault-transit-secret.sh
+      - echo "✅ FluxCD bootstrapped successfully!"
+
+  wait-infra:
+    desc: "Wait for infrastructure components to be ready"
     deps: [check-prereq]
     cmds:
       - echo "Waiting for all infrastructure components..."
       - ./scripts/wait-for-infrastructure.sh
       - echo ""
-      - echo "✅ Cluster deployment complete!"
+      - echo "✅ All infrastructure ready!"
       - echo ""
       - echo "Infrastructure status:"
-      - kubectl get kustomization -n flux-system | grep -E 'NAME|vault|rook|cert-manager|haproxy|cloudnative-pg'
+      - kubectl get kustomization -n flux-system | grep -E 'NAME|vault|rook|cert-manager|haproxy|cloudnative-pg|external-secrets'
       - echo ""
       - echo "Application status:"
       - kubectl get kustomization -n flux-system | grep -E 'lldap|authelia' || echo "No applications deployed yet"
