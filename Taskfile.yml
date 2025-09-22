@@ -109,18 +109,22 @@ tasks:
         msg: "kubeconfig not found. Run 'task up' first"
     cmds:
       - |
+        # Skip if FluxCD is already installed
         if kubectl get ns flux-system >/dev/null 2>&1; then
           echo "✅ FluxCD is already installed"
+          echo "Run 'task verify' to check infrastructure status"
           exit 0
         fi
-      - |
+        
+        # Install flux CLI if needed
         if ! command -v flux &> /dev/null; then
           echo "Installing flux CLI..."
           curl -s https://fluxcd.io/install.sh | sudo bash
         fi
-      - echo "🚀 Bootstrapping FluxCD..."
-      - echo "You will be prompted for your GitHub token"
-      - |
+        
+        echo "🚀 Bootstrapping FluxCD..."
+        echo "You will be prompted for your GitHub token"
+        
         flux bootstrap github \
           --owner=fredericrous \
           --repository=homelab \
@@ -128,12 +132,15 @@ tasks:
           --path=clusters/homelab/flux-system \
           --personal \
           --token-auth
-      - echo "⏳ Waiting for Flux to be ready..."
-      - kubectl wait --for=condition=ready --timeout=300s -n flux-system pod -l app.kubernetes.io/name=source-controller
-      - kubectl wait --for=condition=ready --timeout=300s -n flux-system pod -l app.kubernetes.io/name=kustomize-controller
-      - echo "🔐 Creating vault-transit-token secret..."
-      - ./scripts/bootstrap-vault-transit-secret.sh
-      - echo "✅ FluxCD bootstrapped successfully!"
+        
+        echo "⏳ Waiting for Flux to be ready..."
+        kubectl wait --for=condition=ready --timeout=300s -n flux-system pod -l app.kubernetes.io/name=source-controller
+        kubectl wait --for=condition=ready --timeout=300s -n flux-system pod -l app.kubernetes.io/name=kustomize-controller
+        
+        echo "🔐 Creating vault-transit-token secret..."
+        ./scripts/bootstrap-vault-transit-secret.sh
+        
+        echo "✅ FluxCD bootstrapped successfully!"
 
   verify:
     desc: "Verify all infrastructure components are ready"
