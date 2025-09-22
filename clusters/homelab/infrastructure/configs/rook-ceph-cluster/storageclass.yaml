@@ -6,8 +6,11 @@ metadata:
 spec:
   failureDomain: host
   replicated:
-    size: 3
-    requireSafeReplicaSize: true
+    size: 2
+    requireSafeReplicaSize: false
+  parameters:
+    pg_num: "32"  # Reduced for small cluster
+    pgp_num: "32"
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
