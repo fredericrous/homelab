@@ -149,13 +149,27 @@ tasks:
       - echo "Application status:"
       - kubectl get kustomization -n flux-system | grep -E 'lldap|authelia' || echo "No applications deployed yet"
 
+  down:
+    desc: Tear down the cluster (keeps VMs)
+    deps: [check-prereq]
+    cmds:
+      - |
+        if kubectl get nodes >/dev/null 2>&1; then
+          echo "🔽 Shutting down cluster services..."
+          kubectl delete kustomization --all -n flux-system --timeout=60s || true
+        fi
+      - echo "✅ Cluster services stopped"
+
   uninstall:
-    desc: Uninstall the entire cluster
+    desc: Uninstall everything (cluster + VMs + configs)
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
-    prompt: This will destroy the entire cluster. Are you sure?
+    prompt: This will destroy the entire cluster and VMs. Are you sure?
     cmds:
+      - task: down
+      - echo "🗑️  Destroying VMs..."
       - terraform destroy -auto-approve
+      - echo "🧹 Cleaning up configs..."
       - rm -f {{.KUBECONFIG}} {{.TALOSCONFIG}}
       - ./scripts/cleanup-vms.sh
       - |
@@ -167,6 +181,7 @@ tasks:
         echo "Run: task reboot"
         echo
         echo "This will prevent the 'pci_irq_handler: Assertion' error."
+      - echo "✅ Uninstall complete"
 
   cleanup:
     desc: "Clean up existing VMs from Proxmox"

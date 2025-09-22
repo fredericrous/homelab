@@ -28,7 +28,8 @@ task verify      # Verify all infrastructure components
 task provision   # Create VMs
 task configure   # Configure Talos  
 task kubeconfig  # Get kubeconfig
-task uninstall   # Uninstall cluster
+task down        # Stop cluster (keeps VMs)
+task uninstall   # Remove everything
 ```
 
 ### Application Deployment
@@ -39,8 +40,8 @@ kubectl apply -k .
 # Check deployment status
 kubectl get pods,svc,ingress -n <namespace>
 
-# Force VSO to refresh secrets
-kubectl patch vaultstaticsecret <name> -n <namespace> --type merge -p '{"spec":{"refreshAfter":"1s"}}'
+# Force ESO to refresh secrets
+kubectl annotate externalsecret <name> -n <namespace> force-sync=$(date +%s) --overwrite
 ```
 
 ### Vault Operations
