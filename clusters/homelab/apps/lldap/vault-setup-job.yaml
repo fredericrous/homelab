@@ -1,0 +1,67 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lldap-vault-setup
+  namespace: lldap
+spec:
+  template:
+    spec:
+      serviceAccountName: lldap
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-vault
+        image: curlimages/curl:8.11.1
+        command: ['sh', '-c']
+        args:
+          - |
+            until curl -s http://vault-vault.vault.svc.cluster.local:8200/v1/sys/health | grep -q '"initialized":true'; do
+              echo "Waiting for Vault to be initialized..."
+              sleep 5
+            done
+      containers:
+      - name: setup-vault
+        image: hashicorp/vault:1.18.3
+        env:
+        - name: VAULT_ADDR
+          value: http://vault-vault.vault.svc.cluster.local:8200
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
+        command: ['sh', '-c']
+        args:
+          - |
+            set -e
+            
+            # Check if secrets already exist
+            if vault kv get -mount=secret lldap > /dev/null 2>&1; then
+              echo "LLDAP secrets already exist in Vault"
+            else
+              echo "Creating LLDAP secrets in Vault"
+              vault kv put -mount=secret lldap \
+                LLDAP_JWT_SECRET=$(head -c 32 /dev/urandom | base64) \
+                LLDAP_LDAP_USER_PASS=$(head -c 16 /dev/urandom | base64)
+            fi
+            
+            # Check if policy exists
+            if vault policy read lldap-policy > /dev/null 2>&1; then
+              echo "LLDAP policy already exists"
+            else
+              echo "Creating LLDAP policy"
+              echo 'path "secret/data/lldap" {
+                capabilities = ["read"]
+              }' | vault policy write lldap-policy -
+            fi
+            
+            # Check if role exists
+            if vault read auth/kubernetes/role/lldap > /dev/null 2>&1; then
+              echo "LLDAP role already exists"
+            else
+              echo "Creating LLDAP role"
+              vault write auth/kubernetes/role/lldap \
+                bound_service_account_names=lldap \
+                bound_service_account_namespaces=lldap \
+                policies=lldap-policy \
+                ttl=24h
+            fi
