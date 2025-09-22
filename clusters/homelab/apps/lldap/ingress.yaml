@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lldap
+  namespace: lldap
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
+    haproxy.org/ssl-redirect: "true"
+    haproxy.org/client-ca: "haproxy-ingress/client-ca-cert"
+    haproxy.org/client-crt-optional: "false"
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - lldap.daddyshome.fr
+    secretName: lldap-tls
+  rules:
+  - host: lldap.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lldap
+            port:
+              number: 17170

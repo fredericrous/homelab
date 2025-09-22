@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lldap
+  namespace: lldap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lldap
+  template:
+    metadata:
+      labels:
+        app: lldap
+    spec:
+      serviceAccountName: lldap
+      containers:
+      - name: lldap
+        image: lldap/lldap:latest
+        ports:
+        - containerPort: 3890
+          name: ldap
+        - containerPort: 17170
+          name: http
+        env:
+        - name: LLDAP_HTTP_PORT
+          value: "17170"
+        - name: LLDAP_LDAP_PORT
+          value: "3890"
+        - name: LLDAP_LDAP_BASE_DN
+          value: "dc=daddyshome,dc=fr"
+        - name: LLDAP_HTTP_URL
+          value: "https://lldap.daddyshome.fr"
+        - name: LLDAP_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: lldap-config
+              key: database_url
+        - name: LLDAP_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: lldap-jwt-secret
+              key: jwt_secret
+        - name: LLDAP_LDAP_USER_PASS
+          valueFrom:
+            secretKeyRef:
+              name: lldap-config
+              key: ldap_user_pass
+        - name: LLDAP_USER_EMAIL
+          value: "admin@daddyshome.fr"
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 10m
+          limits:
+            memory: 128Mi
+            cpu: 100m
+        volumeMounts:
+        - name: lldap-data
+          mountPath: /data
+      volumes:
+      - name: lldap-data
+        persistentVolumeClaim:
+          claimName: lldap-data
