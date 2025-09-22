@@ -11,3 +11,4 @@ resources:
   - cnpg.yaml
   - authelia.yaml
   - haproxy-ingress.yaml
+  - fredericrous.yaml

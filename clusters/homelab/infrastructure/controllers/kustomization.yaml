@@ -8,4 +8,5 @@ resources:
   - rook-ceph.yaml
   - rook-ceph-cluster.yaml
   - vault.yaml
-  - vault-init-kustomization.yaml
+  - vault-transit-unseal-operator.yaml
+  - vault-transit-config.yaml
