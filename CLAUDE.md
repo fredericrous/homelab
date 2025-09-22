@@ -28,7 +28,7 @@ task verify      # Verify all infrastructure components
 task provision   # Create VMs
 task configure   # Configure Talos  
 task kubeconfig  # Get kubeconfig
-task down        # Destroy cluster
+task uninstall   # Uninstall cluster
 ```
 
 ### Application Deployment

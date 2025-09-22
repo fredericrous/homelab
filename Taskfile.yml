@@ -97,15 +97,15 @@ tasks:
       - echo ""
       - echo "Next steps:"
       - echo "  1. Export KUBECONFIG: export KUBECONFIG=$PWD/kubeconfig"
-      - echo "  2. Bootstrap FluxCD: task bootstrap-flux"
-      - echo "  3. Wait for infrastructure: task wait-infra"
+      - echo "  2. Bootstrap FluxCD: task bootstrap"
+      - echo "  3. Verify infrastructure: task verify"
 
   bootstrap:
     desc: "Bootstrap FluxCD GitOps"
     deps: [check-prereq]
     preconditions:
       - sh: test -f {{.KUBECONFIG}}
-        msg: "kubeconfig not found. Run 'task deploy' first"
+        msg: "kubeconfig not found. Run 'task up' first"
     cmds:
       - |
         if kubectl get ns flux-system >/dev/null 2>&1; then
@@ -149,8 +149,8 @@ tasks:
       - echo "Application status:"
       - kubectl get kustomization -n flux-system | grep -E 'lldap|authelia' || echo "No applications deployed yet"
 
-  down:
-    desc: Tear down the cluster
+  uninstall:
+    desc: Uninstall the entire cluster
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
     prompt: This will destroy the entire cluster. Are you sure?
@@ -164,7 +164,7 @@ tasks:
         echo "If you have VMs with GPU passthrough, you MUST reboot the Proxmox host"
         echo "before creating new VMs with GPU, otherwise you'll get QEMU errors."
         echo
-        echo "Run: task reboot-proxmox"
+        echo "Run: task reboot"
         echo
         echo "This will prevent the 'pci_irq_handler: Assertion' error."
 
