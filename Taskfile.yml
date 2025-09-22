@@ -157,7 +157,21 @@ tasks:
       - |
         if kubectl get nodes >/dev/null 2>&1; then
           echo "🔽 Shutting down cluster services..."
-          kubectl delete kustomization --all -n flux-system --timeout=60s || true
+          # First suspend all kustomizations to stop reconciliation
+          kubectl patch kustomization --all -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+          
+          # Delete apps first (they depend on infrastructure)
+          kubectl delete kustomization -n flux-system -l kustomize.toolkit.fluxcd.io/name=apps --timeout=30s || true
+          
+          # Then delete infrastructure
+          kubectl delete kustomization -n flux-system -l kustomize.toolkit.fluxcd.io/name=infrastructure --timeout=30s || true
+          
+          # Finally delete remaining kustomizations
+          kubectl delete kustomization --all -n flux-system --timeout=30s || true
+          
+          echo "✅ FluxCD kustomizations removed"
+        else
+          echo "⚠️  Cluster not accessible, skipping graceful shutdown"
         fi
       - echo "✅ Cluster services stopped"
 
