@@ -30,9 +30,13 @@ Key findings:
 
 ### Core Services Migration
 - ✅ MetalLB deployed with L2 advertisement
+- ⏳ Rook-Ceph deploying (storage provider)
+- ⏳ Vault deploying (depends on Rook-Ceph)
 
 Next steps:
-1. Deploy Vault (critical for secrets)
-2. Deploy cert-manager
-3. Deploy HAProxy ingress
-4. Migrate remaining core services
+1. Wait for Rook-Ceph cluster to be ready
+2. Verify Vault initialization
+3. Deploy Vault Secrets Operator
+4. Deploy cert-manager
+5. Deploy HAProxy ingress
+6. Migrate remaining core services

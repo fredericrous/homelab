@@ -6,6 +6,9 @@ metadata:
 spec:
   targetNamespace: rook-ceph
   interval: 10m
+  dependsOn:
+    - name: rook-ceph-namespace
+      namespace: flux-system
   chart:
     spec:
       chart: rook-ceph
