@@ -55,7 +55,7 @@ spec:
       dataStorage:
         enabled: true
         size: 10Gi
-        storageClass: local-path
+        storageClass: rook-ceph-block
       
       resources:
         limits:

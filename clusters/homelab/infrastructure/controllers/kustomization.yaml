@@ -4,5 +4,7 @@ namespace: flux-system
 resources:
   - metallb.yaml
   - metallb-config.yaml
+  - rook-ceph.yaml
+  - rook-ceph-cluster.yaml
   - vault.yaml
   - vault-init-kustomization.yaml
