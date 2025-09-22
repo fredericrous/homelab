@@ -92,13 +92,14 @@ tasks:
       - chmod 600 {{.KUBECONFIG}}
       - echo "Waiting for Kubernetes API..."
       - kubectl wait --for=condition=Ready nodes --all --timeout=300s
-      - echo ""
-      - echo "✅ Kubernetes cluster is ready!"
-      - echo ""
-      - echo "Next steps:"
-      - echo "  1. Export KUBECONFIG: export KUBECONFIG=$PWD/kubeconfig"
-      - echo "  2. Bootstrap FluxCD: task bootstrap"
-      - echo "  3. Verify infrastructure: task verify"
+      - |
+        echo ""
+        echo "✅ Kubernetes cluster is ready!"
+        echo ""
+        echo "Next steps:"
+        echo "  1. Export KUBECONFIG: export KUBECONFIG=$PWD/kubeconfig"
+        echo "  2. Bootstrap FluxCD: task bootstrap"
+        echo "  3. Verify infrastructure: task verify"
 
   bootstrap:
     desc: "Bootstrap FluxCD GitOps"
