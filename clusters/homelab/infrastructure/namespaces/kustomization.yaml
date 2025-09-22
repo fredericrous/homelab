@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - vault.yaml
+  - cert-manager.yaml
+  - haproxy-ingress.yaml
+  - cnpg-system.yaml
+  - vault-secrets-operator-system.yaml
