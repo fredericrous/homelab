@@ -18,9 +18,9 @@ env:
 
 tasks:
   default:
-    desc: Run full deployment
+    desc: Show available tasks
     cmds:
-      - task: deploy
+      - task --list
 
   # Helper task to check prerequisites
   check-prereq:
@@ -38,25 +38,25 @@ tasks:
           exit 1
         fi
 
-  deploy:
-    desc: Deploy Kubernetes cluster (without GitOps)
+  up:
+    desc: Bring up Kubernetes cluster
     deps: [check-prereq]
     cmds:
-      - task: prereq
-      - task: stage1
-      - task: stage2
-      - task: stage3
+      - task: init
+      - task: provision
+      - task: configure
+      - task: kubeconfig
   
-  deploy-all:
-    desc: Deploy complete cluster with GitOps
+  install:
+    desc: Full installation (cluster + GitOps + apps)
     deps: [check-prereq]
     cmds:
-      - task: deploy
-      - task: bootstrap-flux
-      - task: wait-infra
+      - task: up
+      - task: bootstrap
+      - task: verify
 
-  prereq:
-    desc: Pre-flight checks
+  init:
+    desc: Initialize Terraform
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
     preconditions:
@@ -65,16 +65,16 @@ tasks:
     cmds:
       - terraform init -upgrade
 
-  stage1:
-    desc: "Stage 1: Create VMs with Terraform"
+  provision:
+    desc: "Provision VMs on Proxmox"
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
     cmds:
       - echo "Creating VMs..."
       - terraform apply -target=module.vms -auto-approve
 
-  stage2:
-    desc: "Stage 2: Wait for VMs and configure Talos"
+  configure:
+    desc: "Configure Talos on VMs"
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
     cmds:
@@ -82,8 +82,8 @@ tasks:
       - ./scripts/wait-vms-ready.sh {{.CONTROL_PLANE_IP}} {{.WORKER_1_IP}} {{.WORKER_2_IP}}
       - terraform apply -var="configure_talos=true" -auto-approve
 
-  stage3:
-    desc: "Stage 3: Get kubeconfig"
+  kubeconfig:
+    desc: "Get kubeconfig from Talos"
     deps: [check-prereq]
     env:
       TALOSCONFIG: '{{.TALOSCONFIG}}'
@@ -100,7 +100,7 @@ tasks:
       - echo "  2. Bootstrap FluxCD: task bootstrap-flux"
       - echo "  3. Wait for infrastructure: task wait-infra"
 
-  bootstrap-flux:
+  bootstrap:
     desc: "Bootstrap FluxCD GitOps"
     deps: [check-prereq]
     preconditions:
@@ -134,8 +134,8 @@ tasks:
       - ./scripts/bootstrap-vault-transit-secret.sh
       - echo "✅ FluxCD bootstrapped successfully!"
 
-  wait-infra:
-    desc: "Wait for infrastructure components to be ready"
+  verify:
+    desc: "Verify all infrastructure components are ready"
     deps: [check-prereq]
     cmds:
       - echo "Waiting for all infrastructure components..."
@@ -149,8 +149,8 @@ tasks:
       - echo "Application status:"
       - kubectl get kustomization -n flux-system | grep -E 'lldap|authelia' || echo "No applications deployed yet"
 
-  destroy:
-    desc: Destroy the cluster
+  down:
+    desc: Tear down the cluster
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
     prompt: This will destroy the entire cluster. Are you sure?
@@ -168,15 +168,15 @@ tasks:
         echo
         echo "This will prevent the 'pci_irq_handler: Assertion' error."
 
-  cleanup-vms:
-    desc: "Clean up existing VMs from Proxmox (use before fresh deploy)"
+  cleanup:
+    desc: "Clean up existing VMs from Proxmox"
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
     prompt: This will stop and remove all VMs defined in terraform.tfvars. Are you sure?
     cmds:
       - ./scripts/cleanup-vms.sh
 
-  reboot-proxmox:
+  reboot:
     desc: "Reboot Proxmox host (required after destroying VMs with GPU passthrough)"
     dir: '{{.TERRAFORM_DIR}}'
     prompt: This will reboot the Proxmox host. Are you sure?

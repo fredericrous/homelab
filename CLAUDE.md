@@ -16,18 +16,19 @@ cd terraform
 cp terraform.tfvars.example terraform.tfvars  # Configure Proxmox settings
 cd ..
 
-# Option 1: Full automated deployment
-task deploy-all  # Creates cluster, bootstraps Flux, waits for infrastructure
+# Option 1: Full installation
+task install     # Creates cluster, bootstraps Flux, verifies infrastructure
 
-# Option 2: Step by step deployment (recommended for production)
-task deploy          # Create cluster (VMs + Talos + CNI)
-task bootstrap-flux  # Bootstrap FluxCD (will prompt for GitHub token)
-task wait-infra      # Wait for all infrastructure components
+# Option 2: Step by step (recommended for production)
+task up          # Create cluster (VMs + Talos + CNI)
+task bootstrap   # Bootstrap FluxCD (will prompt for GitHub token)
+task verify      # Verify all infrastructure components
 
-# Individual stages:
-task stage1  # Create VMs
-task stage2  # Configure Talos  
-task stage3  # Get kubeconfig
+# Individual operations:
+task provision   # Create VMs
+task configure   # Configure Talos  
+task kubeconfig  # Get kubeconfig
+task down        # Destroy cluster
 ```
 
 ### Application Deployment
