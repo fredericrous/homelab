@@ -1,5 +1,7 @@
 version: '3'
 
+dotenv: ['.env']
+
 includes:
   nas:
     taskfile: ./nas/Taskfile.yml
@@ -9,14 +11,6 @@ vars:
   TERRAFORM_DIR: './terraform'
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/talosconfig'
-  CONTROL_PLANE_IP:
-    sh: '[ -f .global-config.yaml.tmp ] && yq ".controlPlaneIp" .global-config.yaml.tmp || echo ""'
-  WORKER_1_IP:
-    sh: '[ -f .global-config.yaml.tmp ] && yq ".worker1Ip" .global-config.yaml.tmp || echo ""'
-  WORKER_2_IP:
-    sh: '[ -f .global-config.yaml.tmp ] && yq ".worker2Ip" .global-config.yaml.tmp || echo ""'
-  EXTERNAL_DOMAIN:
-    sh: '[ -f .global-config.yaml.tmp ] && yq ".externalDomain" .global-config.yaml.tmp || echo ""'
 
 env:
   KUBECONFIG: '{{.KUBECONFIG}}'
@@ -46,36 +40,17 @@ tasks:
 
   deploy:
     desc: Deploy complete Kubernetes cluster
-    deps: [check-prereq, generate-config]
+    deps: [check-prereq]
     cmds:
       - task: prereq
       - task: stage1
       - task: stage2
       - task: stage3
-      - task: stage4
-      - task: stage5
-      - task: stage6
-      - task: stage7
-      - task: stage8a
-      - task: stage8b
-      - task: stage8c
-      - task: stage8-post
-      - task: stage9
-      - task: stage10
-      - task: stage11
-
-  generate-config:
-    desc: Generate temporary global config from .env
-    deps: [check-prereq]
-    cmds:
-      - ./scripts/generate-config-from-env.sh
-
 
   prereq:
     desc: Pre-flight checks
     dir: '{{.TERRAFORM_DIR}}'
-    deps: [check-prereq, generate-config]
-    # Environment variables loaded from .env file
+    deps: [check-prereq]
     preconditions:
       - sh: test -f terraform.tfvars
       - msg: "terraform.tfvars not found. Copy terraform.tfvars.example and update with your values"
@@ -86,34 +61,20 @@ tasks:
     desc: "Stage 1: Create VMs with Terraform"
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
-    # Environment variables loaded from .env file
     cmds:
       - echo "Creating VMs..."
-      - terraform apply -target=module.vms -auto-approve -parallelism=1
+      - terraform apply -target=module.vms -auto-approve
 
   stage2:
     desc: "Stage 2: Wait for VMs and configure Talos"
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
-    # Environment variables loaded from .env file
     cmds:
       - echo "Waiting for VMs to get IP addresses..."
       - ./scripts/wait-vms-ready.sh {{.CONTROL_PLANE_IP}} {{.WORKER_1_IP}} {{.WORKER_2_IP}}
       - terraform apply -var="configure_talos=true" -auto-approve
 
   stage3:
-    desc: "Stage 3: Bootstrap Talos cluster"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    env:
-      TALOSCONFIG: '{{.TALOSCONFIG}}'
-    cmds:
-      - echo "Bootstrapping Talos cluster..."
-      - talosctl bootstrap -n {{.CONTROL_PLANE_IP}}
-      - echo "Waiting for cluster to be ready..."
-      - sleep 60
-
-  stage4:
     desc: "Stage 4: Get kubeconfig"
     deps: [check-prereq]
     env:
@@ -124,118 +85,36 @@ tasks:
       - echo "Waiting for Kubernetes API..."
       - kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
-  stage5:
-    desc: "Stage 5: Apply initial Cilium and MetalLB configs"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - echo "Applying core networking..."
-      - kubectl kustomize manifests/core/cilium | kubectl apply -f -
-      - sleep 30
-      - kubectl wait --for=condition=Ready -n kube-system pods -l k8s-app=cilium --timeout=300s
-      - kubectl kustomize manifests/core/metallb | kubectl apply -f -
-
-  stage6:
-    desc: "Stage 6: Deploy storage (local-path and optional rook)"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - echo "Installing storage providers..."
-      - kubectl apply -k manifests/core/local-path-provisioner
-      - kubectl wait --for=condition=Ready -n local-path-storage pods --all --timeout=300s
-      # Optionally deploy rook-ceph if you have extra disks
-      # - kubectl apply -k manifests/core/rook-ceph
-
-  stage7:
-    desc: "Stage 7: Deploy Vault"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - echo "Installing Vault..."
-      - kubectl apply -k manifests/core/vault
-      - kubectl wait --for=condition=Ready -n vault pods -l app.kubernetes.io/name=vault --timeout=300s || true
-      - sleep 30
-      # Auto-unseal will handle initialization
-
-  stage8a:
-    desc: "Stage 8a: Deploy cert-manager"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - kubectl apply -k manifests/core/cert-manager
-      - kubectl wait --for=condition=Ready -n cert-manager pods --all --timeout=300s
-
-  stage8b:
-    desc: "Stage 8b: Deploy VSO (skipped - using ESO instead)"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - echo "Skipping VSO deployment - using External Secrets Operator instead"
-
-  stage8c:
-    desc: "Stage 8c: Deploy External Secrets Operator"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - kubectl apply -k manifests/core/external-secrets-operator
-      - kubectl wait --for=condition=Ready -n external-secrets-system deployment/external-secrets-operator --timeout=300s
-
-  stage8-post:
-    desc: "Post stage 8: Apply cluster secret stores"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - echo "Configuring cluster secret stores..."
-      - kubectl apply -f manifests/core/external-secrets-operator/cluster-secret-store.yaml
-      - kubectl wait --for=condition=Ready clustersecretstore vault-backend --timeout=60s || true
-
-  stage9:
-    desc: "Stage 9: Deploy ArgoCD"
-    dir: '{{.TERRAFORM_DIR}}'
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - echo "Installing ArgoCD..."
-      - ./deploy-argocd.sh
-
-  stage10:
-    desc: "Stage 10: Deploy remaining core services via ArgoCD"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - echo "Deploying remaining core services..."
-      - kubectl apply -k manifests/argocd/root
-      - sleep 30
-      - kubectl wait --for=condition=Ready -n argocd applications --all --timeout=600s || true
-
-  stage11:
-    desc: "Stage 11: Deploy applications"
-    deps: [check-prereq]
-    # Environment variables loaded from .env file
-    cmds:
-      - echo "Applications will be automatically deployed by ArgoCD ApplicationSets"
-      - kubectl get applications -n argocd
-
-  cleanup:
-    desc: Clean up temporary files
-    cmds:
-      - rm -f {{.TEMP_ENV}} 2>/dev/null || true
-
   destroy:
     desc: Destroy the cluster
     dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
-    # Environment variables loaded from .env file
     prompt: This will destroy the entire cluster. Are you sure?
     cmds:
       - terraform destroy -auto-approve
       - rm -f {{.KUBECONFIG}} {{.TALOSCONFIG}}
+      - ./scripts/cleanup-vms.sh
+      - |
+        echo
+        echo "=== IMPORTANT: GPU Passthrough Users ==="
+        echo "If you have VMs with GPU passthrough, you MUST reboot the Proxmox host"
+        echo "before creating new VMs with GPU, otherwise you'll get QEMU errors."
+        echo
+        echo "Run: task reboot-proxmox"
+        echo
+        echo "This will prevent the 'pci_irq_handler: Assertion' error."
 
-  show-env:
-    desc: Show environment variables from .env
+  cleanup-vms:
+    desc: "Clean up existing VMs from Proxmox (use before fresh deploy)"
+    dir: '{{.TERRAFORM_DIR}}'
     deps: [check-prereq]
+    prompt: This will stop and remove all VMs defined in terraform.tfvars. Are you sure?
     cmds:
-      - echo "CONTROL_PLANE_IP={{.CONTROL_PLANE_IP}}"
-      - echo "EXTERNAL_DOMAIN={{.EXTERNAL_DOMAIN}}"
-      - echo "WORKER_1_IP={{.WORKER_1_IP}}"
-      - echo "WORKER_2_IP={{.WORKER_2_IP}}"
+      - ./scripts/cleanup-vms.sh
+
+  reboot-proxmox:
+    desc: "Reboot Proxmox host (required after destroying VMs with GPU passthrough)"
+    dir: '{{.TERRAFORM_DIR}}'
+    prompt: This will reboot the Proxmox host. Are you sure?
+    cmds:
+      - ./scripts/reboot-proxmox.sh

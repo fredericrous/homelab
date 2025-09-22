@@ -35,8 +35,8 @@ locals {
   all_nodes = merge(
     {
       controlplane = merge(local.controlplane_config, {
-        vmid         = 100
-        hostname     = "talos-cp-1"
+        vmid         = local.controlplane_config.vmid,
+        hostname     = local.controlplane_config.name,
         machine_type = "controlplane"
         talos_image  = var.talos_install_image_base != "" ? var.talos_install_image_base : "factory.talos.dev/nocloud-installer/${local.base_schematic_id}:${local.talos_version}"
       })

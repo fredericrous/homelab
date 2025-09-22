@@ -63,7 +63,7 @@ resource "proxmox_virtual_environment_download_file" "talos_iso" {
   url                   = local.iso_url
   file_name             = local.iso_name
   overwrite             = false  # Don't overwrite if it exists
-  overwrite_unmanaged   = false  # Don't touch files not managed by terraform
+  overwrite_unmanaged   = true   # Take ownership of existing files
   
   # Ignore changes to the URL to prevent re-downloads
   lifecycle {

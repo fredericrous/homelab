@@ -3,50 +3,56 @@ set -e
 
 echo "🔍 Waiting for VMs to be ready..."
 
-# Load IPs from terraform vars
-CONTROL_PLANE_IP="${1:-192.168.1.67}"
-WORKER1_IP="${2:-192.168.1.68}"
-WORKER2_IP="${3:-192.168.1.69}"
+# Check if any arguments were provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <ip1> [ip2] [ip3] ..."
+    echo "Example: $0 192.168.1.67 192.168.1.68 192.168.1.69"
+    exit 1
+fi
+
+# Store all IPs in an array
+VM_IPS=("$@")
 
 # Function to check if host responds to ping
 check_host() {
     local ip=$1
-    local name=$2
     ping -c 1 -W 2 "$ip" >/dev/null 2>&1
+}
+
+# Function to determine VM type based on position
+get_vm_name() {
+    local index=$1
+    if [ $index -eq 0 ]; then
+        echo "CP"  # Control Plane
+    else
+        echo "W$index"  # Worker
+    fi
 }
 
 # Wait for all VMs to respond
 MAX_RETRIES=60
 RETRY_COUNT=0
 
+echo "Monitoring ${#VM_IPS[@]} VMs: ${VM_IPS[*]}"
+echo
+
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     ALL_READY=true
     
     echo -n "Checking VMs: "
     
-    # Check control plane
-    if check_host "$CONTROL_PLANE_IP" "control-plane"; then
-        echo -n "✓ CP($CONTROL_PLANE_IP) "
-    else
-        echo -n "✗ CP($CONTROL_PLANE_IP) "
-        ALL_READY=false
-    fi
-    
-    # Check worker 1
-    if check_host "$WORKER1_IP" "worker-1"; then
-        echo -n "✓ W1($WORKER1_IP) "
-    else
-        echo -n "✗ W1($WORKER1_IP) "
-        ALL_READY=false
-    fi
-    
-    # Check worker 2
-    if check_host "$WORKER2_IP" "worker-2"; then
-        echo -n "✓ W2($WORKER2_IP) "
-    else
-        echo -n "✗ W2($WORKER2_IP) "
-        ALL_READY=false
-    fi
+    # Check each VM
+    for i in "${!VM_IPS[@]}"; do
+        ip="${VM_IPS[$i]}"
+        vm_name=$(get_vm_name $i)
+        
+        if check_host "$ip"; then
+            echo -n "✓ $vm_name($ip) "
+        else
+            echo -n "✗ $vm_name($ip) "
+            ALL_READY=false
+        fi
+    done
     
     echo "" # newline
     
@@ -62,6 +68,14 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
         echo "❌ Timeout waiting for VMs to be ready"
+        echo "Failed VMs:"
+        for i in "${!VM_IPS[@]}"; do
+            ip="${VM_IPS[$i]}"
+            vm_name=$(get_vm_name $i)
+            if ! check_host "$ip"; then
+                echo "  - $vm_name: $ip"
+            fi
+        done
         exit 1
     fi
     

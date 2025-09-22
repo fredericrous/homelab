@@ -41,28 +41,23 @@ output "cluster_info" {
 output "talos_client_configuration" {
   description = "Talos client configuration"
   value = {
-    nodes = [for k, v in local.all_nodes : v.ip]
+    nodes     = [for k, v in local.all_nodes : v.ip]
     endpoints = [local.all_nodes.controlplane.ip]
   }
 }
 
 output "next_steps" {
   description = "Next steps after deployment"
-  value = <<-EOT
+  value       = <<-EOT
     Cluster deployed! Next steps:
-    
+
     1. Set up kubectl:
        export KUBECONFIG=${path.module}/../kubeconfig
        kubectl get nodes
-    
+
     2. Set up talosctl:
        export TALOSCONFIG=${path.module}/../talosconfig
        talosctl get members
-    
-    3. Install ArgoCD:
-       kubectl apply -k ${path.module}/../manifests/argocd/
-    
-    4. Wait for all nodes to be Ready:
-       kubectl wait --for=condition=Ready nodes --all --timeout=300s
+
   EOT
 }

@@ -14,6 +14,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
   cpu {
     cores = var.cores
     type  = "host"
+    # Additional CPU flags for better GPU passthrough compatibility
+    flags = var.gpu_passthrough != "" && var.gpu_passthrough != null ? ["+pcid"] : []
   }
 
   memory {
@@ -23,7 +25,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
   # BIOS and boot settings
   bios = "ovmf"
 
-  machine = "q35"
+  # Use pc-q35-8.1 for better GPU passthrough compatibility
+  machine = var.gpu_passthrough != "" && var.gpu_passthrough != null ? "pc-q35-8.1" : "q35"
 
   # EFI disk for UEFI boot
   efi_disk {
@@ -46,13 +49,14 @@ resource "proxmox_virtual_environment_vm" "vm" {
       device = "hostpci0"
       id     = var.gpu_passthrough
       pcie   = true
-      rombar = false # Disable ROM BAR to avoid reset issues
+      rombar = true # Enable ROM BAR for GPU
+      xvga   = true # Enable VGA passthrough for primary GPU
     }
   }
 
-  # Keep VGA enabled for all VMs (including GPU passthrough)
+  # VGA configuration - disable when using GPU passthrough
   vga {
-    type = "std"
+    type = var.gpu_passthrough != "" && var.gpu_passthrough != null ? "none" : "std"
   }
 
   # Boot/OS disk

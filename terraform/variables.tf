@@ -76,6 +76,8 @@ variable "nodes" {
   description = "Node configurations - values will be merged with defaults in locals.tf"
   type = object({
     controlplane = object({
+      name         = optional(string, "talos-cp-1")
+      vmid         = optional(number, 100)
       ip           = string
       mac_address  = optional(string, "")
       cores        = optional(number)
