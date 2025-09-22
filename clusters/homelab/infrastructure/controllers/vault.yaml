@@ -51,6 +51,7 @@ spec:
               key_name = "autounseal"
               mount_path = "transit"
               tls_skip_verify = "true"
+              token = "TRANSIT_TOKEN_PLACEHOLDER"
             }
             
             service_registration "kubernetes" {}
@@ -83,8 +84,35 @@ spec:
                   component: server
               topologyKey: kubernetes.io/hostname
       
+      extraInitContainers:
+        - name: config-templater
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              # Wait for the config to be available
+              while [ ! -f /vault/config/extraconfig-from-values.hcl ]; do
+                echo "Waiting for config file..."
+                sleep 1
+              done
+              
+              # Replace the placeholder with the actual token
+              TOKEN=$(printf '%s' "$VAULT_SEAL_TRANSIT_TOKEN" | sed 's/[[\.*^$()+?{|]/\\&/g')
+              sed -i "s@TRANSIT_TOKEN_PLACEHOLDER@${TOKEN}@g" /vault/config/extraconfig-from-values.hcl
+              echo "Config templating complete"
+          env:
+            - name: VAULT_SEAL_TRANSIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-transit-token
+                  key: token
+          volumeMounts:
+            - name: userconfig-vault-server-config
+              mountPath: /vault/config
+      
       extraSecretEnvironmentVars:
-        - envName: VAULT_TOKEN
+        - envName: VAULT_SEAL_TRANSIT_TOKEN
           secretName: vault-transit-token
           secretKey: token
     
