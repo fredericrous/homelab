@@ -4,20 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a homelab GitOps repository that manages a Kubernetes cluster running on Talos Linux, deployed on Proxmox VMs using Terraform. The cluster uses Kustomize for application deployment and Vault for secrets management.
+This is a homelab GitOps repository that manages a Kubernetes cluster running on Talos Linux, deployed on Proxmox VMs using Terraform. The cluster uses FluxCD for GitOps with Kustomize for application deployment and Vault for secrets management.
 
 ## Key Commands
 
-### Cluster Deployment (Terraform)
+### Cluster Deployment
 ```bash
-# Deploy fresh cluster from terraform/ directory
+# Complete deployment from root directory
+cp .env.example .env  # Configure with your settings including VAULT_TRANSIT_TOKEN
 cd terraform
-cp terraform.tfvars.example terraform.tfvars  # Configure with your settings
-./deploy-auto-discover-fast.sh  # Automated deployment with IP discovery
+cp terraform.tfvars.example terraform.tfvars  # Configure Proxmox settings
+cd ..
+task deploy  # Full automated deployment with FluxCD
 
-# Manual deployment stages
-terraform apply -target=module.vms  # Create VMs
-terraform apply  # Configure Talos after IPs are assigned
+# Or manual stages:
+task stage1  # Create VMs
+task stage2  # Configure Talos  
+task stage3  # Get kubeconfig and bootstrap FluxCD
+task stage4  # Wait for infrastructure
 ```
 
 ### Application Deployment

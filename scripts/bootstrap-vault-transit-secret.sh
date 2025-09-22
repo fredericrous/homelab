@@ -4,11 +4,21 @@
 
 set -euo pipefail
 
-TRANSIT_TOKEN="${1:-}"
+# Use provided token or load from environment
+TRANSIT_TOKEN="${1:-${VAULT_TRANSIT_TOKEN:-}}"
 
+# If not provided and not in environment, try .env file
+if [ -z "$TRANSIT_TOKEN" ] && [ -f .env ]; then
+  source .env
+  TRANSIT_TOKEN="${VAULT_TRANSIT_TOKEN:-}"
+fi
+
+# Token must be provided
 if [ -z "$TRANSIT_TOKEN" ]; then
-  echo "Usage: $0 <transit-token>"
-  echo "Get the transit token from: kubectl get secret vault-transit-token -n vault -o jsonpath='{.data.token}' | base64 -d"
+  echo "ERROR: Transit token not provided"
+  echo "Usage: $0 [transit-token]"
+  echo "Or set VAULT_TRANSIT_TOKEN environment variable"
+  echo "Or add VAULT_TRANSIT_TOKEN to .env file"
   exit 1
 fi
 

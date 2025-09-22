@@ -46,6 +46,7 @@ tasks:
       - task: stage1
       - task: stage2
       - task: stage3
+      - task: stage4
 
   prereq:
     desc: Pre-flight checks
@@ -75,7 +76,7 @@ tasks:
       - terraform apply -var="configure_talos=true" -auto-approve
 
   stage3:
-    desc: "Stage 4: Get kubeconfig"
+    desc: "Stage 3: Get kubeconfig"
     deps: [check-prereq]
     env:
       TALOSCONFIG: '{{.TALOSCONFIG}}'
@@ -84,6 +85,21 @@ tasks:
       - chmod 600 {{.KUBECONFIG}}
       - echo "Waiting for Kubernetes API..."
       - kubectl wait --for=condition=Ready nodes --all --timeout=300s
+
+  stage4:
+    desc: "Stage 4: Wait for infrastructure"
+    deps: [check-prereq]
+    cmds:
+      - echo "Waiting for all infrastructure components..."
+      - ./scripts/wait-for-infrastructure.sh
+      - echo ""
+      - echo "✅ Cluster deployment complete!"
+      - echo ""
+      - echo "Infrastructure status:"
+      - kubectl get kustomization -n flux-system | grep -E 'NAME|vault|rook|cert-manager|haproxy|cloudnative-pg'
+      - echo ""
+      - echo "Application status:"
+      - kubectl get kustomization -n flux-system | grep -E 'lldap|authelia' || echo "No applications deployed yet"
 
   destroy:
     desc: Destroy the cluster
