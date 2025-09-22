@@ -1,20 +1,26 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: authelia
+  name: authelia-setup
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./clusters/homelab/apps/authelia
+  path: ./clusters/homelab/apps/authelia-setup
   prune: true
   sourceRef:
     kind: GitRepository
     name: flux-system
   timeout: 5m
   wait: true
+  force: true  # Force recreation of jobs
   dependsOn:
     - name: vault
     - name: vault-secrets-operator
-    - name: cloudnative-pg
     - name: lldap
-    - name: authelia-setup
+  postBuild:
+    substitute:
+      vault_admin_token: "${vault_admin_token}"
+    substituteFrom:
+      - kind: Secret
+        name: vault-admin-token
+        namespace: vault

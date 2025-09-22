@@ -1,9 +1,11 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: authelia-vault-setup
+  generateName: authelia-vault-setup-
   namespace: authelia
 spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
   template:
     spec:
       serviceAccountName: authelia
@@ -25,10 +27,7 @@ spec:
         - name: VAULT_ADDR
           value: http://vault-vault.vault.svc.cluster.local:8200
         - name: VAULT_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: vault-admin-token-reflector
-              key: token
+          value: "${vault_admin_token}"
         command: ['sh', '-c']
         args:
           - |

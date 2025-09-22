@@ -6,8 +6,6 @@ namespace: authelia
 resources:
   - namespace.yaml
   - service-account.yaml
-  - vault-admin-token-reflector.yaml
-  - vault-setup-job.yaml
   - vault-auth.yaml
   - vault-secret.yaml
   - cnpg-cluster.yaml
