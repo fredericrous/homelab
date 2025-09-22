@@ -83,10 +83,7 @@ spec:
                   component: server
               topologyKey: kubernetes.io/hostname
       
-      extraSecretEnvironmentVars:
-        - envName: VAULT_TOKEN
-          secretName: vault-transit-token
-          secretKey: token
+      # Transit token is configured in the seal stanza, not as env var
     
     ui:
       enabled: true
