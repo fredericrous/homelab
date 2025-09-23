@@ -201,8 +201,18 @@ tasks:
       - |
         if kubectl get nodes >/dev/null 2>&1; then
           echo "▶️  Resuming Flux reconciliation..."
-          # Resume all kustomizations
-          kubectl get kustomization -n flux-system -o name | xargs -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+          
+          # Resume all GitRepositories
+          kubectl get gitrepository -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+          
+          # Resume all HelmRepositories
+          kubectl get helmrepository -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+          
+          # Resume all HelmReleases
+          kubectl get helmrelease -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+          
+          # Resume all Kustomizations
+          kubectl get kustomization -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
           
           echo "✅ Flux reconciliation resumed"
         else
