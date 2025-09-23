@@ -212,6 +212,33 @@ tasks:
         
         echo "🗑️  Removing FluxCD and all resources..."
         
+        # First suspend all kustomizations to prevent recreation
+        echo "⏸️  Suspending all kustomizations..."
+        kubectl get kustomization -n flux-system -o name | xargs -I {} kubectl patch {} -n flux-system --type='merge' -p '{"spec":{"suspend":true}}' || true
+        
+        # Delete application workloads in reverse dependency order
+        echo "🗑️  Removing application workloads..."
+        
+        # Remove apps first
+        kubectl delete kustomization apps -n flux-system --timeout=60s --ignore-not-found || true
+        
+        # Remove infrastructure
+        kubectl delete kustomization infrastructure -n flux-system --timeout=60s --ignore-not-found || true
+        
+        # Remove infrastructure-core
+        kubectl delete kustomization infrastructure-core -n flux-system --timeout=60s --ignore-not-found || true
+        
+        # Clean up Rook-Ceph if it exists
+        if kubectl get ns rook-ceph >/dev/null 2>&1; then
+          echo "🗑️  Cleaning up Rook-Ceph..."
+          kubectl delete cephcluster -n rook-ceph --all --timeout=60s || true
+          kubectl delete cephblockpool -n rook-ceph --all --timeout=60s || true
+          kubectl delete cephfilesystem -n rook-ceph --all --timeout=60s || true
+          kubectl delete cephobjectstore -n rook-ceph --all --timeout=60s || true
+          kubectl delete deploy,ds,sts -n rook-ceph --all --timeout=60s || true
+          kubectl delete pvc -n rook-ceph --all --timeout=60s || true
+        fi
+        
         # Check if flux CLI is available
         if command -v flux &> /dev/null; then
           flux uninstall --silent
@@ -231,6 +258,19 @@ tasks:
           # Delete Flux CRDs
           kubectl get crd -o name | grep fluxcd.io | xargs kubectl delete || true
         fi
+        
+        # Clean up remaining namespaces created by FluxCD
+        echo "🗑️  Cleaning up remaining namespaces..."
+        for ns in rook-ceph vault external-secrets cert-manager haproxy-ingress cloudnative-pg lldap authelia plex nextcloud stremio harbor; do
+          if kubectl get ns $ns >/dev/null 2>&1; then
+            echo "  Deleting namespace $ns..."
+            kubectl delete namespace $ns --timeout=120s || true
+          fi
+        done
+        
+        # Clean up any remaining CRDs
+        echo "🗑️  Cleaning up CRDs..."
+        kubectl get crd -o name | grep -E "(rook.io|vault|external-secrets|cert-manager|haproxy|postgresql|authelia|harbor)" | xargs kubectl delete || true
         
         echo "✅ FluxCD and all resources removed"
         echo "ℹ️  Run 'task bootstrap' to reinstall"
