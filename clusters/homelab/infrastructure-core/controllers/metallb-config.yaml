@@ -7,7 +7,7 @@ spec:
   interval: 10m
   timeout: 2m
   wait: true
-  path: ./clusters/homelab/infrastructure/configs/metallb
+  path: ./clusters/homelab/infrastructure-core/configs/metallb
   prune: true
   sourceRef:
     kind: GitRepository

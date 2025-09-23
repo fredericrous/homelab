@@ -7,7 +7,7 @@ spec:
   dependsOn:
     - name: flux-system
   interval: 10m
-  path: ./clusters/homelab/infrastructure/configs/rook-ceph-cluster
+  path: ./clusters/homelab/infrastructure-core/configs/rook-ceph-cluster
   prune: true
   sourceRef:
     kind: GitRepository
