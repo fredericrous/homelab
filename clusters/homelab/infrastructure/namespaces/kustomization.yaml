@@ -6,4 +6,3 @@ resources:
   - haproxy-ingress.yaml
   - cnpg-system.yaml
   - external-secrets.yaml
-  - rook-ceph.yaml
