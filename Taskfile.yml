@@ -231,20 +231,13 @@ tasks:
         # Also delete any other kustomizations (like metallb-config, rook-ceph-cluster)
         kubectl delete kustomization -n flux-system --all --wait=false || true
         
-        # Clean up Rook-Ceph if it exists
-        if kubectl get ns rook-ceph >/dev/null 2>&1; then
-          echo "🗑️  Cleaning up Rook-Ceph..."
-          # Don't wait for finalizers - just mark for deletion
-          kubectl delete cephcluster -n rook-ceph --all --wait=false || true
-          kubectl delete cephblockpool -n rook-ceph --all --wait=false || true
-          kubectl delete cephfilesystem -n rook-ceph --all --wait=false || true
-          kubectl delete cephobjectstore -n rook-ceph --all --wait=false || true
-          kubectl delete deploy,ds,sts -n rook-ceph --all --wait=false || true
-          kubectl delete pvc -n rook-ceph --all --wait=false || true
-          
-          # Force remove finalizers if needed
-          kubectl patch cephcluster -n rook-ceph rook-ceph -p '{"metadata":{"finalizers":[]}}' --type=merge || true
-        fi
+        # Delete all resources in all non-system namespaces
+        echo "🗑️  Cleaning up resources in all namespaces..."
+        for ns in $(kubectl get ns -o name | grep -v -E "(kube-system|kube-public|kube-node-lease|default)" | cut -d/ -f2); do
+          echo "  Cleaning namespace $ns..."
+          # Delete all resources in the namespace dynamically
+          kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 -I {} sh -c "kubectl delete {} -n $ns --all --wait=false 2>/dev/null || true"
+        done
         
         # Check if flux CLI is available
         if command -v flux &> /dev/null; then
