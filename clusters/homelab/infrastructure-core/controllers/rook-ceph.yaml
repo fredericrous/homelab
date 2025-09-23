@@ -28,6 +28,7 @@ spec:
     monitoring:
       enabled: false
     logLevel: INFO
+    enableDiscoveryDaemon: true
     discover:
       tolerations:
       - key: node-role.kubernetes.io/control-plane
