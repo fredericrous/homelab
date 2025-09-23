@@ -4,3 +4,7 @@ namespace: rook-ceph
 resources:
   - ceph-cluster.yaml
   - storageclass.yaml
+  - ceph-filesystem.yaml
+  - storageclass-cephfs.yaml
+  - ceph-objectstore.yaml
+  - storageclass-ceph-bucket.yaml

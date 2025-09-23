@@ -1,0 +1,30 @@
+apiVersion: ceph.rook.io/v1
+kind: CephFilesystem
+metadata:
+  name: myfs
+  namespace: rook-ceph
+spec:
+  metadataPool:
+    replicated:
+      size: 2
+      requireSafeReplicaSize: false
+    parameters:
+      pg_num: "16"  # Reduced for metadata pool
+  dataPools:
+  - name: replicated
+    failureDomain: host
+    replicated:
+      size: 2
+      requireSafeReplicaSize: false
+    parameters:
+      pg_num: "32"  # Reduced for data pool
+  metadataServer:
+    activeCount: 1
+    activeStandby: false  # Disable standby to save resources
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
