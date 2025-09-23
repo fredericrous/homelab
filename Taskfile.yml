@@ -234,12 +234,16 @@ tasks:
         # Clean up Rook-Ceph if it exists
         if kubectl get ns rook-ceph >/dev/null 2>&1; then
           echo "🗑️  Cleaning up Rook-Ceph..."
-          kubectl delete cephcluster -n rook-ceph --all --timeout=60s || true
-          kubectl delete cephblockpool -n rook-ceph --all --timeout=60s || true
-          kubectl delete cephfilesystem -n rook-ceph --all --timeout=60s || true
-          kubectl delete cephobjectstore -n rook-ceph --all --timeout=60s || true
-          kubectl delete deploy,ds,sts -n rook-ceph --all --timeout=60s || true
-          kubectl delete pvc -n rook-ceph --all --timeout=60s || true
+          # Don't wait for finalizers - just mark for deletion
+          kubectl delete cephcluster -n rook-ceph --all --wait=false || true
+          kubectl delete cephblockpool -n rook-ceph --all --wait=false || true
+          kubectl delete cephfilesystem -n rook-ceph --all --wait=false || true
+          kubectl delete cephobjectstore -n rook-ceph --all --wait=false || true
+          kubectl delete deploy,ds,sts -n rook-ceph --all --wait=false || true
+          kubectl delete pvc -n rook-ceph --all --wait=false || true
+          
+          # Force remove finalizers if needed
+          kubectl patch cephcluster -n rook-ceph rook-ceph -p '{"metadata":{"finalizers":[]}}' --type=merge || true
         fi
         
         # Check if flux CLI is available
@@ -267,7 +271,7 @@ tasks:
         # Get all namespaces except core k8s namespaces
         for ns in $(kubectl get ns -o name | grep -v -E "(kube-system|kube-public|kube-node-lease|default|flux-system)" | cut -d/ -f2); do
           echo "  Deleting namespace $ns..."
-          kubectl delete namespace $ns --timeout=120s || true
+          kubectl delete namespace $ns --wait=false || true
         done
         
         # Clean up any remaining CRDs (excluding core k8s ones)
