@@ -4,6 +4,9 @@ metadata:
   name: metallb-config
   namespace: flux-system
 spec:
+  dependsOn:
+    - name: metallb
+      namespace: flux-system
   interval: 10m
   timeout: 2m
   wait: true

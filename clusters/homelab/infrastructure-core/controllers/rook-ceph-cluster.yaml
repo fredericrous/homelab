@@ -5,7 +5,8 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: flux-system
+    - name: rook-ceph
+      namespace: flux-system
   interval: 10m
   path: ./clusters/homelab/infrastructure-core/configs/rook-ceph-cluster
   prune: true
