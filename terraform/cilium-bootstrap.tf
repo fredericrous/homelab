@@ -24,64 +24,22 @@ resource "null_resource" "cilium_bootstrap" {
         sleep 5
       done
 
-      echo "🔍 Checking if Cilium is already installed and healthy..."
-      if kubectl get daemonset -n kube-system cilium >/dev/null 2>&1; then
-        echo "Found Cilium DaemonSet, checking if it's healthy..."
+      echo "🔍 Checking if Cilium is already installed..."
+      if helm list -n kube-system | grep -q cilium; then
+        echo "Cilium is already installed via Helm, checking if it's healthy..."
         
         # Check if all Cilium pods are running
         TOTAL_NODES=$(kubectl get nodes -o json | jq '.items | length')
         RUNNING_CILIUM=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium-agent --field-selector=status.phase=Running -o json | jq '.items | length')
         
         if [ "$TOTAL_NODES" -eq "$RUNNING_CILIUM" ]; then
-          echo "✅ Cilium is installed and all $RUNNING_CILIUM/$TOTAL_NODES pods are running"
-          
-          # Additional check: verify no AVP placeholders in the config
-          if kubectl get ds cilium -n kube-system -o yaml | grep -q '<path:secret/data/bootstrap'; then
-            echo "❌ Found unsubstituted AVP placeholders in Cilium config!"
-            echo "Cilium needs to be patched with proper substitution"
-            
-            # Quick patch for KUBERNETES_SERVICE_HOST
-            echo "🔧 Attempting quick patch for AVP placeholders..."
-            PROJECT_ROOT="$(cd "${path.module}/.." && pwd)"
-            ENV_FILE="$${PROJECT_ROOT}/.env"
-            if [ -f "$${ENV_FILE}" ]; then
-              source "$${ENV_FILE}"
-              CONTROL_PLANE_IP="$${ARGO_CONTROL_PLANE_IP:-192.168.1.67}"
-              
-              # Patch the DaemonSet
-              kubectl set env ds/cilium -n kube-system KUBERNETES_SERVICE_HOST="$CONTROL_PLANE_IP" || true
-              
-              # Also patch config ConfigMap if it exists
-              if kubectl get cm cilium-config -n kube-system >/dev/null 2>&1; then
-                echo "Patching Cilium ConfigMap..."
-                kubectl get cm cilium-config -n kube-system -o yaml | \
-                  sed "s|<path:secret/data/bootstrap/config#controlPlaneIP>|$CONTROL_PLANE_IP|g" | \
-                  kubectl apply -f -
-              fi
-              
-              # Force pod restart
-              kubectl rollout restart ds/cilium -n kube-system
-              
-              echo "✅ Applied quick patch, waiting for pods to restart..."
-              sleep 10
-              exit 0
-            else
-              echo "⚠️  Could not apply quick patch - .env file not found"
-            fi
-          else
-            echo "✅ Cilium configuration looks good, skipping reinstall"
-            exit 0
-          fi
+          echo "✅ Cilium is healthy with all $RUNNING_CILIUM/$TOTAL_NODES pods running"
+          echo "Skipping reinstall to maintain idempotency"
+          exit 0
         else
           echo "⚠️  Cilium is installed but not healthy: $RUNNING_CILIUM/$TOTAL_NODES pods running"
-          echo "Checking for crashes..."
-          kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium-agent --no-headers | grep -E 'CrashLoopBackOff|Error|Init:' || true
+          echo "Will proceed with helm upgrade to fix it..."
         fi
-        
-        echo "Cilium needs to be fixed, proceeding with patching..."
-        
-        # Instead of uninstalling, let's upgrade with fixed values
-        echo "🔧 Patching Cilium with substituted values..."
       fi
 
       echo "🚀 Installing/Updating Cilium CNI with native routing (no VXLAN overlay)..."
@@ -126,37 +84,13 @@ resource "null_resource" "cilium_bootstrap" {
       sed -e "s|<path:secret/data/bootstrap/config#controlPlaneIP>|$CONTROL_PLANE_IP|g" \
           ${path.module}/../manifests/core/cilium/values-native.yaml > "$TEMP_VALUES"
       
-      # Check if Cilium was installed via Helm or kubectl/ArgoCD
-      if helm list -n kube-system | grep -q cilium; then
-        echo "Cilium was installed via Helm, using helm upgrade..."
-        helm upgrade cilium cilium/cilium \
-          --version 1.18.1 \
-          --namespace kube-system \
-          --values "$TEMP_VALUES" \
-          --wait
-      else
-        echo "Cilium was not installed via Helm (likely via ArgoCD), patching manually..."
-        
-        # Delete the broken deployment
-        kubectl delete ds cilium -n kube-system --wait=false || true
-        kubectl delete cm cilium-config -n kube-system --wait=false || true
-        kubectl delete deployment cilium-operator -n kube-system --wait=false || true
-        
-        # Remove ArgoCD app to prevent conflicts
-        kubectl delete app -n argocd cilium --wait=false || true
-        
-        # Wait for cleanup
-        echo "Waiting for cleanup..."
-        sleep 10
-        
-        # Install fresh with Helm
-        echo "Installing fresh Cilium with Helm..."
-        helm install cilium cilium/cilium \
-          --version 1.18.1 \
-          --namespace kube-system \
-          --values "$TEMP_VALUES" \
-          --wait
-      fi
+      # Install or upgrade Cilium with Helm
+      echo "Installing/upgrading Cilium with Helm..."
+      helm upgrade --install cilium cilium/cilium \
+        --version 1.18.1 \
+        --namespace kube-system \
+        --values "$TEMP_VALUES" \
+        --wait
       
       # Clean up temp file
       rm -f "$TEMP_VALUES"

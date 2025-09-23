@@ -13,36 +13,45 @@ if [ -z "$TRANSIT_TOKEN" ] && [ -f .env ]; then
   TRANSIT_TOKEN="${VAULT_TRANSIT_TOKEN:-}"
 fi
 
-# Token must be provided
+# If token is still not available, prompt for it
 if [ -z "$TRANSIT_TOKEN" ]; then
-  echo "ERROR: Transit token not provided"
-  echo "Usage: $0 [transit-token]"
-  echo "Or set VAULT_TRANSIT_TOKEN environment variable"
-  echo "Or add VAULT_TRANSIT_TOKEN to .env file"
-  exit 1
+  echo "Vault transit token not found in arguments, environment, or .env file."
+  echo ""
+  echo "Please enter your Vault transit token:"
+  read -s TRANSIT_TOKEN
+  echo ""
+  
+  # Verify token was entered
+  if [ -z "$TRANSIT_TOKEN" ]; then
+    echo "ERROR: No token provided"
+    exit 1
+  fi
 fi
 
+# Create vault namespace if it doesn't exist
+kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
+
 echo "Creating vault-transit-token secret in vault namespace..."
+
+# Create the secret
 kubectl create secret generic vault-transit-token \
   --namespace=vault \
   --from-literal=vault_transit_token="$TRANSIT_TOKEN" \
   --from-literal=token="$TRANSIT_TOKEN" \
-  --dry-run=client -o yaml | \
-kubectl annotate -f - \
+  --save-config=true 2>/dev/null || \
+kubectl create secret generic vault-transit-token \
+  --namespace=vault \
+  --from-literal=vault_transit_token="$TRANSIT_TOKEN" \
+  --from-literal=token="$TRANSIT_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Add annotations for Reflector
+kubectl annotate secret vault-transit-token -n vault \
   reflector.v1.k8s.emberstack.com/reflection-allowed="true" \
   reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces="flux-system" \
   reflector.v1.k8s.emberstack.com/reflection-auto-enabled="true" \
-  --dry-run=client -o yaml | \
-kubectl apply -f -
+  --overwrite
 
-echo "Waiting for Reflector to copy secret to flux-system namespace..."
-sleep 5
-
-if kubectl get secret vault-transit-token -n flux-system &>/dev/null; then
-  echo "✅ Secret successfully reflected to flux-system namespace"
-else
-  echo "❌ Secret not found in flux-system namespace. Check Reflector logs."
-  exit 1
-fi
-
-echo "✅ Bootstrap complete!"
+echo "✅ Secret created successfully!"
+echo ""
+echo "Note: Reflector will copy the secret to flux-system namespace once deployed."

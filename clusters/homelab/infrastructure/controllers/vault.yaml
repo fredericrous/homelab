@@ -6,6 +6,9 @@ metadata:
 spec:
   targetNamespace: vault
   interval: 10m
+  dependsOn:
+    - name: reflector
+      namespace: flux-system
   chart:
     spec:
       chart: vault

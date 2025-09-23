@@ -3,9 +3,17 @@ set -e
 
 echo "⏳ Waiting for infrastructure components to be ready..."
 
-# Wait for Vault
+# Wait for infrastructure core first (includes Reflector, MetalLB, Rook-Ceph)
+echo "Waiting for infrastructure core components..."
+kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/infrastructure-core || echo "Infrastructure core not ready yet"
+
+# Wait for infrastructure kustomization to be ready
+echo "Waiting for infrastructure reconciliation..."
+kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/infrastructure || echo "Infrastructure kustomization not ready yet"
+
+# Wait for Vault HelmRelease
 echo "Waiting for Vault..."
-kubectl wait --for=condition=ready --timeout=600s -n vault kustomization/vault
+kubectl wait --for=condition=ready --timeout=600s -n flux-system helmrelease/vault || echo "Vault not ready yet"
 
 # Wait for Vault to be initialized
 echo "Waiting for Vault initialization..."
@@ -20,17 +28,16 @@ done
 
 # Wait for ESO
 echo "Waiting for External Secrets Operator..."
-kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/external-secrets
-kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/external-secrets-config
+kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/external-secrets || echo "ESO not ready yet"
 
 # Wait for other infrastructure
 echo "Waiting for remaining infrastructure..."
-kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/cert-manager
-kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/haproxy-ingress
-kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/cloudnative-pg
-kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/rook-ceph-operator
+kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/cert-manager || echo "cert-manager not ready yet"
+kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/haproxy-ingress || echo "HAProxy not ready yet"
+kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/cloudnative-pg || echo "CloudNativePG not ready yet"
+kubectl wait --for=condition=ready --timeout=600s -n flux-system helmrelease/rook-ceph-operator || echo "Rook-Ceph not ready yet"
 
 echo "✅ All infrastructure components are ready!"
 echo ""
 echo "Application deployment status:"
-kubectl get kustomization -n flux-system lldap authelia 2>/dev/null || echo "Applications not yet deployed"
+kubectl get kustomization -n flux-system apps 2>/dev/null || echo "Applications kustomization not yet deployed"

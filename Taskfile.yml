@@ -123,7 +123,18 @@ tasks:
         fi
         
         echo "🚀 Bootstrapping FluxCD..."
-        echo "You will be prompted for your GitHub token"
+        
+        # Check for GitHub token in environment or .env file
+        if [ -z "$FLUXCD_GITHUB_TOKEN" ] && [ -f .env ]; then
+          source .env
+        fi
+        
+        if [ -n "$FLUXCD_GITHUB_TOKEN" ]; then
+          echo "Using GitHub token from environment"
+          export GITHUB_TOKEN="$FLUXCD_GITHUB_TOKEN"
+        else
+          echo "You will be prompted for your GitHub token"
+        fi
         
         flux bootstrap github \
           --owner=fredericrous \
@@ -132,10 +143,6 @@ tasks:
           --path=clusters/homelab/flux-system \
           --personal \
           --token-auth
-        
-        echo "⏳ Waiting for Flux to be ready..."
-        kubectl wait --for=condition=ready --timeout=300s -n flux-system pod -l app.kubernetes.io/name=source-controller
-        kubectl wait --for=condition=ready --timeout=300s -n flux-system pod -l app.kubernetes.io/name=kustomize-controller
         
         echo "🔐 Creating vault-transit-token secret..."
         ./scripts/bootstrap-vault-transit-secret.sh

@@ -11,6 +11,8 @@ spec:
   path: ./clusters/homelab/infrastructure
   prune: true
   wait: true
+  dependsOn:
+    - name: infrastructure-core
   postBuild:
     substituteFrom:
       - kind: Secret

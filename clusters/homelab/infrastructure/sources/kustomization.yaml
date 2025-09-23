@@ -5,8 +5,6 @@ resources:
   - cilium.yaml
   - bitnami.yaml
   - jetstack.yaml
-  - metallb.yaml
-  - rook-release.yaml
   - hashicorp.yaml
   - cnpg.yaml
   - authelia.yaml
