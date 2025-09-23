@@ -1,0 +1,94 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stremio-web-build
+  namespace: stremio
+spec:
+  template:
+    metadata:
+      name: stremio-web-build
+    spec:
+      serviceAccountName: stremio-build
+      containers:
+      - name: build
+        image: moby/buildkit:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          # Wait for buildkitd to be ready
+          echo "Waiting for buildkitd..."
+          until nc -z buildkitd.stremio 1234; do
+            echo "buildkitd not ready yet..."
+            sleep 5
+          done
+          
+          # Clone the repository
+          echo "Cloning stremio-web repository..."
+          apk add --no-cache git
+          cd /workspace
+          git clone https://github.com/Stremio/stremio-web.git .
+          git checkout development
+          
+          # Setup Harbor credentials
+          echo "Setting up Harbor credentials..."
+          mkdir -p ~/.docker
+          cat > ~/.docker/config.json <<EOF
+          {
+            "auths": {
+              "harbor-registry.harbor.svc.cluster.local:5000": {
+                "username": "${HARBOR_USER}",
+                "password": "${HARBOR_PASS}",
+                "auth": "$(echo -n "${HARBOR_USER}:${HARBOR_PASS}" | base64)"
+              },
+              "192.168.1.220:5000": {
+                "username": "${HARBOR_USER}",
+                "password": "${HARBOR_PASS}",
+                "auth": "$(echo -n "${HARBOR_USER}:${HARBOR_PASS}" | base64)"
+              }
+            }
+          }
+          EOF
+          
+          # Check if image already exists
+          echo "Checking if image already exists..."
+          IMAGE_EXISTS=$(curl -s -u "${HARBOR_USER}:${HARBOR_PASS}" \
+            -o /dev/null -w "%{http_code}" \
+            "http://192.168.1.220:5000/v2/library/stremio-web/manifests/latest" || true)
+          
+          if [ "$IMAGE_EXISTS" = "200" ]; then
+            echo "Image already exists in Harbor, skipping build."
+            exit 0
+          fi
+          
+          # Build and push the image
+          echo "Building and pushing stremio-web image..."
+          buildctl --addr tcp://buildkitd.stremio:1234 build \
+            --frontend dockerfile.v0 \
+            --local context=/workspace \
+            --local dockerfile=/workspace \
+            --output type=image,name=192.168.1.220:5000/library/stremio-web:latest,push=true,registry.insecure=true
+          
+          echo "Build completed successfully!"
+        env:
+        - name: HARBOR_USER
+          valueFrom:
+            secretKeyRef:
+              name: harbor-registry-user
+              key: username
+        - name: HARBOR_PASS
+          valueFrom:
+            secretKeyRef:
+              name: harbor-registry-user
+              key: password
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+      volumes:
+      - name: workspace
+        emptyDir:
+          sizeLimit: 2Gi
+      restartPolicy: OnFailure
+  backoffLimit: 3

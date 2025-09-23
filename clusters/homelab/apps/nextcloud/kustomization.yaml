@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: nextcloud
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - rbac-setup-jobs.yaml
+  - external-secrets.yaml
+  - certificate.yaml
+  - pvc.yaml
+  - pvc-nfs.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - ingress-mobile.yaml
+  - init-job.yaml
+
+patches:
+  # Add backup annotations
+  - target:
+      kind: Deployment
+      name: nextcloud
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: nextcloud
+      spec:
+        template:
+          metadata:
+            annotations:
+              backup.velero.io/backup-volumes: nextcloud-data
+  
+  # Security context patch
+  - path: patch-security-context.yaml
+    target:
+      kind: Deployment
+      name: nextcloud
+  
+  # NFS volumes patch
+  - path: patch-nfs-volumes.yaml
+    target:
+      kind: Deployment
+      name: nextcloud

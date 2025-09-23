@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stremio-ffmpeg-mtls-config
+  namespace: stremio
+data:
+  ffmpeg-mtls.sh: |
+    #!/bin/sh
+    # Script to configure ffmpeg with mTLS certificates
+    # This script can be sourced by Stremio or used as a reference
+    
+    # mTLS certificate paths
+    export MTLS_CERT="/etc/ssl/mtls/client1.crt"
+    export MTLS_KEY="/etc/ssl/mtls/client1.key"
+    export MTLS_CA="/etc/ssl/mtls/ca.crt"
+    
+    # Function to add mTLS options to ffmpeg command
+    add_mtls_to_ffmpeg() {
+      local url="$1"
+      if echo "$url" | grep -q "^https://"; then
+        echo "-cert_file $MTLS_CERT -key_file $MTLS_KEY"
+      fi
+    }
+    
+    # Example usage:
+    # ffmpeg $(add_mtls_to_ffmpeg "$URL") -i "$URL" ...

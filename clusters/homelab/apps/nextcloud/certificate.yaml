@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nextcloud-tls-certificate
+  namespace: nextcloud
+spec:
+  secretName: nextcloud-tls-certificate
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - nextcloud.daddyshome.fr
+  - drive.daddyshome.fr
+  - drive-mobile.daddyshome.fr

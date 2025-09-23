@@ -1,0 +1,25 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: stremio-setup
+  namespace: flux-system
+spec:
+  interval: 10m
+  timeout: 10m
+  path: ./clusters/homelab/apps/stremio-setup
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: harbor
+    - name: external-secrets-config
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: buildkitd
+      namespace: stremio
+    - apiVersion: batch/v1
+      kind: Job
+      name: stremio-web-build
+      namespace: stremio

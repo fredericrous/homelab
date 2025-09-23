@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-init
+  namespace: nextcloud
+  annotations:
+    # This job runs after the deployment is ready
+    fluxcd.io/depends-on: "deployment/nextcloud"
+spec:
+  template:
+    metadata:
+      name: nextcloud-init
+    spec:
+      serviceAccountName: nextcloud-jobs
+      containers:
+      - name: init
+        image: alpine/kubectl:1.28.3
+        env:
+        - name: ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-admin
+              key: username
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-admin
+              key: password
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: password
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "Waiting for Nextcloud pod to be ready..."
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=nextcloud -n nextcloud --timeout=300s
+          
+          POD=$(kubectl get pods -n nextcloud -l app.kubernetes.io/name=nextcloud -o jsonpath='{.items[0].metadata.name}')
+          
+          echo "Checking if Nextcloud is already installed..."
+          if kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ status" | grep -q "installed: true"; then
+            echo "Nextcloud is already installed"
+          else
+            echo "Installing Nextcloud..."
+            kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ maintenance:install \
+              --database=pgsql \
+              --database-host=postgres-apps-rw.postgres.svc.cluster.local \
+              --database-name=nextcloud \
+              --database-user=nextcloud \
+              --database-pass=$DB_PASSWORD \
+              --admin-user=$ADMIN_USER \
+              --admin-pass=$ADMIN_PASSWORD \
+              --data-dir=/var/www/html/data"
+          fi
+          
+          echo "Configuring trusted domains..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set trusted_domains 0 --value=nextcloud.daddyshome.fr"
+          kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set trusted_domains 1 --value=drive.daddyshome.fr"
+          kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set trusted_domains 2 --value=drive-mobile.daddyshome.fr"
+          
+          echo "Configuring UTF8 support..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set mysql.utf8mb4 --type=boolean --value=true"
+          
+          echo "Enabling external storage app..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ app:enable files_external" || true
+          
+          echo "Configuring external storage..."
+          kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ files_external:create \
+            -c datadir=/media \
+            'Media' local null::null" || echo 'Storage might already exist'
+          
+          echo "Fixing file permissions..."
+          kubectl exec -n nextcloud $POD -- chown -R www-data:www-data /var/www/html
+          
+          echo "Nextcloud initialization completed!"
+      restartPolicy: OnFailure
+  backoffLimit: 3

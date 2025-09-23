@@ -5,3 +5,11 @@ resources:
   - lldap.yaml
   - authelia-setup.yaml
   - authelia.yaml
+  - harbor-setup.yaml
+  - harbor.yaml
+  - stremio-setup.yaml
+  - stremio.yaml
+  - plex-setup.yaml
+  - plex.yaml
+  - nextcloud-setup.yaml
+  - nextcloud.yaml

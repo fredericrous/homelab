@@ -1,0 +1,26 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: harbor-setup
+  namespace: flux-system
+spec:
+  interval: 10m
+  timeout: 5m
+  path: ./clusters/homelab/apps/harbor-setup
+  prune: false  # Don't prune setup jobs
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: vault-transit-config
+    - name: cloudnative-pg
+    - name: external-secrets-config
+  healthChecks:
+    - apiVersion: batch/v1
+      kind: Job
+      name: harbor-vault-setup
+      namespace: vault
+    - apiVersion: batch/v1
+      kind: Job
+      name: harbor-database-setup
+      namespace: postgres

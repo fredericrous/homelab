@@ -10,3 +10,4 @@ resources:
   - haproxy-ingress.yaml
   - fredericrous.yaml
   - external-secrets.yaml
+  - harbor.yaml

@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: plex-vault-setup
+  namespace: vault
+spec:
+  template:
+    metadata:
+      name: plex-vault-setup
+    spec:
+      serviceAccountName: vault-admin
+      containers:
+      - name: vault-setup
+        image: vault:1.14.0
+        env:
+        - name: VAULT_ADDR
+          value: http://vault.vault.svc.cluster.local:8200
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          # Function to check if secret exists
+          check_secret_exists() {
+            vault kv get -mount=secret "$1" >/dev/null 2>&1
+          }
+          
+          # Create Plex config if it doesn't exist
+          if ! check_secret_exists "plex/config"; then
+            echo "Creating Plex config secret..."
+            vault kv put -mount=secret plex/config \
+              claim="claim-ABC123REPLACEME" \
+              timezone="Europe/Paris"
+          else
+            echo "Plex config secret already exists"
+          fi
+          
+          echo "Plex vault setup completed!"
+      restartPolicy: OnFailure
+  backoffLimit: 3

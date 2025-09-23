@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: harbor
+  namespace: harbor
+  annotations:
+    haproxy-ingress.github.io/secure-backends: "true"
+    haproxy-ingress.github.io/secure-verify-ca-secret: client-ca-secret/ca
+    haproxy-ingress.github.io/ssl-redirect: "true"
+    haproxy-ingress.github.io/proxy-body-size: "1g"
+spec:
+  ingressClassName: haproxy
+  tls:
+  - hosts:
+    - harbor.daddyshome.fr
+    secretName: harbor-tls-certificate
+  rules:
+  - host: harbor.daddyshome.fr
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80

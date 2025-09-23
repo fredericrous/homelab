@@ -1,0 +1,25 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: nextcloud-setup
+  namespace: flux-system
+spec:
+  interval: 10m
+  timeout: 5m
+  path: ./clusters/homelab/apps/nextcloud-setup
+  prune: false  # Don't prune setup jobs
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  dependsOn:
+    - name: vault-transit-config
+    - name: cloudnative-pg
+  healthChecks:
+    - apiVersion: batch/v1
+      kind: Job
+      name: nextcloud-vault-setup
+      namespace: vault
+    - apiVersion: batch/v1
+      kind: Job
+      name: nextcloud-database-setup
+      namespace: postgres

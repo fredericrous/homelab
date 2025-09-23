@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-database-setup
+  namespace: postgres
+spec:
+  template:
+    metadata:
+      name: nextcloud-database-setup
+    spec:
+      serviceAccountName: postgres-admin
+      containers:
+      - name: postgres-setup
+        image: postgres:15
+        env:
+        - name: PGHOST
+          value: postgres-apps-rw.postgres.svc.cluster.local
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-apps-superuser
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-apps-superuser
+              key: password
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          # Wait for PostgreSQL to be ready
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready; do
+            echo "PostgreSQL is not ready yet. Waiting..."
+            sleep 5
+          done
+          
+          # Function to check if database exists
+          check_database_exists() {
+            psql -tAc "SELECT 1 FROM pg_database WHERE datname='$1'" | grep -q 1
+          }
+          
+          # Get the database password from vault secret (synced by ESO)
+          DB_PASSWORD=$(cat /vault-secrets/password)
+          
+          # Create database and user if they don't exist
+          if ! check_database_exists "nextcloud"; then
+            echo "Creating Nextcloud database and user..."
+            psql <<-EOF
+              CREATE USER nextcloud WITH ENCRYPTED PASSWORD '$DB_PASSWORD';
+              CREATE DATABASE nextcloud OWNER nextcloud;
+              GRANT ALL PRIVILEGES ON DATABASE nextcloud TO nextcloud;
+              \c nextcloud
+              GRANT ALL ON SCHEMA public TO nextcloud;
+          EOF
+          else
+            echo "Nextcloud database already exists"
+          fi
+          
+          echo "Database setup completed!"
+        volumeMounts:
+        - name: db-secrets
+          mountPath: /vault-secrets
+          readOnly: true
+      volumes:
+      - name: db-secrets
+        secret:
+          secretName: nextcloud-db
+      restartPolicy: OnFailure
+  backoffLimit: 3
