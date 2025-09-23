@@ -235,8 +235,8 @@ tasks:
         echo "🗑️  Cleaning up resources in all namespaces..."
         for ns in $(kubectl get ns -o name | grep -v -E "(kube-system|kube-public|kube-node-lease|default)" | cut -d/ -f2); do
           echo "  Cleaning namespace $ns..."
-          # Delete all resources in the namespace dynamically
-          kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 -I {} sh -c "kubectl delete {} -n $ns --all --wait=false 2>/dev/null || true"
+          # Delete all resources in the namespace dynamically (suppress "No resources found" messages)
+          kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 -I {} sh -c "kubectl delete {} -n $ns --all --wait=false 2>&1 | grep -v 'No resources found' || true"
         done
         
         # Check if flux CLI is available
