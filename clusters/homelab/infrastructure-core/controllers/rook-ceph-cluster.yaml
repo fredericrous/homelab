@@ -4,11 +4,8 @@ metadata:
   name: rook-ceph-cluster
   namespace: flux-system
 spec:
-  dependsOn:
-    - name: rook-ceph
-      namespace: flux-system
-      kind: HelmRelease
   interval: 10m
+  retryInterval: 2m
   path: ./clusters/homelab/infrastructure-core/configs/rook-ceph-cluster
   prune: true
   sourceRef:

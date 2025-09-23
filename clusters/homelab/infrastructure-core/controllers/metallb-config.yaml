@@ -4,11 +4,8 @@ metadata:
   name: metallb-config
   namespace: flux-system
 spec:
-  dependsOn:
-    - name: metallb
-      namespace: flux-system
-      kind: HelmRelease
   interval: 10m
+  retryInterval: 2m
   timeout: 2m
   wait: true
   path: ./clusters/homelab/infrastructure-core/configs/metallb
@@ -16,3 +13,8 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: DaemonSet
+      name: metallb-system-metallb-speaker
+      namespace: metallb-system
