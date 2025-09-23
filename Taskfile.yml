@@ -40,7 +40,6 @@ tasks:
 
   up:
     desc: Create cluster infrastructure (VMs + Talos)
-    internal: true  # Hide from main task list - use bootstrap instead
     deps: [check-prereq]
     cmds:
       - task: init
@@ -224,79 +223,15 @@ tasks:
     deps: [check-prereq]
     prompt: This will remove FluxCD and all deployed resources. Are you sure?
     cmds:
+      - ./scripts/destroy-flux.sh
       - |
-        if ! kubectl get ns flux-system >/dev/null 2>&1; then
-          echo "✅ FluxCD is not installed"
-          exit 0
-        fi
-        
-        echo "🗑️  Removing FluxCD and all resources..."
-        
-        # First suspend all Flux reconciliations
-        task suspend
-        
-        # Wait a moment for reconciliations to stop
-        echo "⏸️  Waiting for reconciliations to stop..."
-        sleep 5
-        
-        # Delete application workloads in reverse dependency order
-        echo "🗑️  Removing application workloads..."
-        
-        # Remove apps first (don't wait for finalization)
-        kubectl delete kustomization apps -n flux-system --wait=false --ignore-not-found || true
-        
-        # Remove infrastructure (don't wait for finalization)
-        kubectl delete kustomization infrastructure -n flux-system --wait=false --ignore-not-found || true
-        
-        # Remove infrastructure-core (don't wait for finalization)
-        kubectl delete kustomization infrastructure-core -n flux-system --wait=false --ignore-not-found || true
-        
-        # Also delete any other kustomizations (like metallb-config, rook-ceph-cluster)
-        kubectl delete kustomization -n flux-system --all --wait=false || true
-        
-        # Delete all resources in all non-system namespaces
-        echo "🗑️  Cleaning up resources in all namespaces..."
-        for ns in $(kubectl get ns -o name | grep -v -E "(kube-system|kube-public|kube-node-lease|default)" | cut -d/ -f2); do
-          echo "  Cleaning namespace $ns..."
-          # Delete all resources in the namespace dynamically (suppress "No resources found" messages)
-          kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 -I {} sh -c "kubectl delete {} -n $ns --all --wait=false 2>&1 | grep -v 'No resources found' || true"
-        done
-        
-        # Check if flux CLI is available
-        if command -v flux &> /dev/null; then
-          flux uninstall --silent
+        echo ""
+        echo "🔍 Wiping all data disks..."
+        if kubectl get nodes >/dev/null 2>&1; then
+          ./scripts/wipe-ceph-disks.sh
         else
-          # Manual cleanup if flux CLI is not available
-          echo "Flux CLI not found, performing manual cleanup..."
-          
-          # Delete all kustomizations first
-          kubectl delete kustomization --all -n flux-system --timeout=60s || true
-          
-          # Delete all helm releases
-          kubectl delete helmrelease --all -n flux-system --timeout=60s || true
-          
-          # Delete flux-system namespace (this will delete all resources in it)
-          kubectl delete namespace flux-system --timeout=60s || true
-          
-          # Delete Flux CRDs
-          kubectl get crd -o name | grep fluxcd.io | xargs kubectl delete || true
+          echo "⚠️  Cluster not accessible, skipping disk wipe"
         fi
-        
-        # Clean up remaining namespaces created by FluxCD
-        echo "🗑️  Cleaning up remaining namespaces..."
-        # Get all namespaces except core k8s namespaces
-        for ns in $(kubectl get ns -o name | grep -v -E "(kube-system|kube-public|kube-node-lease|default|flux-system)" | cut -d/ -f2); do
-          echo "  Deleting namespace $ns..."
-          kubectl delete namespace $ns --wait=false || true
-        done
-        
-        # Clean up any remaining CRDs (excluding core k8s ones)
-        echo "🗑️  Cleaning up CRDs..."
-        # Get all CRDs that are NOT core Kubernetes CRDs
-        kubectl get crd -o name | grep -v -E "(k8s.io|kubernetes.io|metrics.k8s.io|apiregistration.k8s.io|admissionregistration.k8s.io)" | xargs -r kubectl delete || true
-        
-        echo "✅ FluxCD and all resources removed"
-        echo "ℹ️  Run 'task bootstrap' to reinstall"
 
   uninstall:
     desc: Uninstall everything (cluster + VMs + configs)
@@ -327,6 +262,13 @@ tasks:
     prompt: This will stop and remove all VMs defined in terraform.tfvars. Are you sure?
     cmds:
       - ./scripts/cleanup-vms.sh
+
+  wipe-ceph:
+    desc: "Wipe Ceph data from all disks (use when Rook-Ceph won't start due to old data)"
+    deps: [check-prereq]
+    prompt: This will permanently delete ALL Ceph data from cluster disks. Are you sure?
+    cmds:
+      - ./scripts/wipe-ceph-disks.sh
 
   reboot:
     desc: "Reboot Proxmox host (required after destroying VMs with GPU passthrough)"
