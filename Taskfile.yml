@@ -261,16 +261,16 @@ tasks:
         
         # Clean up remaining namespaces created by FluxCD
         echo "🗑️  Cleaning up remaining namespaces..."
-        for ns in rook-ceph vault external-secrets cert-manager haproxy-ingress cloudnative-pg lldap authelia plex nextcloud stremio harbor; do
-          if kubectl get ns $ns >/dev/null 2>&1; then
-            echo "  Deleting namespace $ns..."
-            kubectl delete namespace $ns --timeout=120s || true
-          fi
+        # Get all namespaces except core k8s namespaces
+        for ns in $(kubectl get ns -o name | grep -v -E "(kube-system|kube-public|kube-node-lease|default|flux-system)" | cut -d/ -f2); do
+          echo "  Deleting namespace $ns..."
+          kubectl delete namespace $ns --timeout=120s || true
         done
         
-        # Clean up any remaining CRDs
+        # Clean up any remaining CRDs (excluding core k8s ones)
         echo "🗑️  Cleaning up CRDs..."
-        kubectl get crd -o name | grep -E "(rook.io|vault|external-secrets|cert-manager|haproxy|postgresql|authelia|harbor)" | xargs kubectl delete || true
+        # Get all CRDs that are NOT core Kubernetes CRDs
+        kubectl get crd -o name | grep -v -E "(k8s.io|kubernetes.io|metrics.k8s.io|apiregistration.k8s.io|admissionregistration.k8s.io)" | xargs -r kubectl delete || true
         
         echo "✅ FluxCD and all resources removed"
         echo "ℹ️  Run 'task bootstrap' to reinstall"
