@@ -39,7 +39,8 @@ tasks:
         fi
 
   up:
-    desc: Bring up Kubernetes cluster
+    desc: Create cluster infrastructure (VMs + Talos)
+    internal: true  # Hide from main task list - use bootstrap instead
     deps: [check-prereq]
     cmds:
       - task: init
@@ -51,7 +52,6 @@ tasks:
     desc: Full installation (cluster + GitOps + apps)
     deps: [check-prereq]
     cmds:
-      - task: up
       - task: bootstrap
       - task: verify
 
@@ -96,19 +96,21 @@ tasks:
         echo ""
         echo "✅ Kubernetes cluster is ready!"
         echo ""
-        echo "Next steps:"
-        echo "  1. Export KUBECONFIG: export KUBECONFIG=$PWD/kubeconfig"
-        echo "  2. Bootstrap FluxCD: task bootstrap"
-        echo "  3. Verify infrastructure: task verify"
+        echo "Cluster created successfully. FluxCD bootstrap will continue..."
 
   bootstrap:
-    desc: "Bootstrap FluxCD GitOps"
+    desc: "Create cluster and bootstrap FluxCD"
     deps: [check-prereq]
-    preconditions:
-      - sh: test -f {{.KUBECONFIG}}
-        msg: "kubeconfig not found. Run 'task up' first"
     cmds:
       - |
+        # Create cluster if kubeconfig doesn't exist
+        if [ ! -f "{{.KUBECONFIG}}" ]; then
+          echo "🚀 Creating Kubernetes cluster..."
+          task up
+        else
+          echo "✅ Cluster already exists"
+        fi
+        
         # Skip if FluxCD is already installed
         if kubectl get ns flux-system >/dev/null 2>&1; then
           echo "✅ FluxCD is already installed"
@@ -147,7 +149,8 @@ tasks:
         echo "🔐 Creating vault-transit-token secret..."
         ./scripts/bootstrap-vault-transit-secret.sh
         
-        echo "✅ FluxCD bootstrapped successfully!"
+        echo "✅ Cluster created and FluxCD bootstrapped successfully!"
+
 
   verify:
     desc: "Verify all infrastructure components are ready"
@@ -164,30 +167,73 @@ tasks:
       - echo "Application status:"
       - kubectl get kustomization -n flux-system | grep -E 'lldap|authelia' || echo "No applications deployed yet"
 
-  down:
-    desc: Tear down the cluster (keeps VMs)
+  suspend:
+    desc: "Suspend Flux reconciliation (services keep running)"
     deps: [check-prereq]
     cmds:
       - |
         if kubectl get nodes >/dev/null 2>&1; then
-          echo "🔽 Shutting down cluster services..."
-          # First suspend all kustomizations to stop reconciliation
-          kubectl patch kustomization --all -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+          echo "⏸️  Suspending Flux reconciliation..."
+          # Suspend all kustomizations to stop reconciliation
+          kubectl get kustomization -n flux-system -o name | xargs -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
           
-          # Delete apps first (they depend on infrastructure)
-          kubectl delete kustomization -n flux-system -l kustomize.toolkit.fluxcd.io/name=apps --timeout=30s || true
-          
-          # Then delete infrastructure
-          kubectl delete kustomization -n flux-system -l kustomize.toolkit.fluxcd.io/name=infrastructure --timeout=30s || true
-          
-          # Finally delete remaining kustomizations
-          kubectl delete kustomization --all -n flux-system --timeout=30s || true
-          
-          echo "✅ FluxCD kustomizations removed"
+          echo "✅ Flux reconciliation suspended"
+          echo "ℹ️  Services continue running but won't be updated"
+          echo "ℹ️  Run 'task resume' to re-enable reconciliation"
         else
-          echo "⚠️  Cluster not accessible, skipping graceful shutdown"
+          echo "⚠️  Cluster not accessible"
         fi
-      - echo "✅ Cluster services stopped"
+        
+  resume:
+    desc: "Resume Flux reconciliation"
+    deps: [check-prereq]
+    cmds:
+      - |
+        if kubectl get nodes >/dev/null 2>&1; then
+          echo "▶️  Resuming Flux reconciliation..."
+          # Resume all kustomizations
+          kubectl get kustomization -n flux-system -o name | xargs -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+          
+          echo "✅ Flux reconciliation resumed"
+        else
+          echo "⚠️  Cluster not accessible"
+        fi
+  
+  destroy:
+    desc: "Destroy FluxCD and all deployed resources (inverse of bootstrap)"
+    deps: [check-prereq]
+    prompt: This will remove FluxCD and all deployed resources. Are you sure?
+    cmds:
+      - |
+        if ! kubectl get ns flux-system >/dev/null 2>&1; then
+          echo "✅ FluxCD is not installed"
+          exit 0
+        fi
+        
+        echo "🗑️  Removing FluxCD and all resources..."
+        
+        # Check if flux CLI is available
+        if command -v flux &> /dev/null; then
+          flux uninstall --silent
+        else
+          # Manual cleanup if flux CLI is not available
+          echo "Flux CLI not found, performing manual cleanup..."
+          
+          # Delete all kustomizations first
+          kubectl delete kustomization --all -n flux-system --timeout=60s || true
+          
+          # Delete all helm releases
+          kubectl delete helmrelease --all -n flux-system --timeout=60s || true
+          
+          # Delete flux-system namespace (this will delete all resources in it)
+          kubectl delete namespace flux-system --timeout=60s || true
+          
+          # Delete Flux CRDs
+          kubectl get crd -o name | grep fluxcd.io | xargs kubectl delete || true
+        fi
+        
+        echo "✅ FluxCD and all resources removed"
+        echo "ℹ️  Run 'task bootstrap' to reinstall"
 
   uninstall:
     desc: Uninstall everything (cluster + VMs + configs)

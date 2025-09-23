@@ -29,7 +29,12 @@ if [ -z "$TRANSIT_TOKEN" ]; then
 fi
 
 # Create vault namespace if it doesn't exist
-kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
+if ! kubectl get namespace vault >/dev/null 2>&1; then
+  echo "Creating vault namespace..."
+  kubectl create namespace vault
+else
+  echo "Vault namespace already exists"
+fi
 
 echo "Creating vault-transit-token secret in vault namespace..."
 
