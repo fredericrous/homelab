@@ -10,8 +10,8 @@ spec:
   skipUpgradeChecks: false
   continueUpgradeAfterChecksEvenIfNotHealthy: false
   mon:
-    count: 3
-    allowMultiplePerNode: true  # Allow multiple monitors per node for small clusters
+    count: 2
+    allowMultiplePerNode: false  # One monitor per node for stability
   mgr:
     count: 2
     allowMultiplePerNode: true
@@ -68,11 +68,6 @@ spec:
         config:
           deviceClass: hdd
     - name: "talos-wk-2"
-      devices:
-      - name: "sdb"
-        config:
-          deviceClass: hdd
-    - name: "talos-cp-1"
       devices:
       - name: "sdb"
         config:
