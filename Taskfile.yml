@@ -174,8 +174,18 @@ tasks:
       - |
         if kubectl get nodes >/dev/null 2>&1; then
           echo "⏸️  Suspending Flux reconciliation..."
-          # Suspend all kustomizations to stop reconciliation
-          kubectl get kustomization -n flux-system -o name | xargs -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+          
+          # Suspend all GitRepositories
+          kubectl get gitrepository -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+          
+          # Suspend all HelmRepositories
+          kubectl get helmrepository -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+          
+          # Suspend all HelmReleases
+          kubectl get helmrelease -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+          
+          # Suspend all Kustomizations
+          kubectl get kustomization -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
           
           echo "✅ Flux reconciliation suspended"
           echo "ℹ️  Services continue running but won't be updated"
@@ -212,9 +222,12 @@ tasks:
         
         echo "🗑️  Removing FluxCD and all resources..."
         
-        # First suspend all kustomizations to prevent recreation
-        echo "⏸️  Suspending all kustomizations..."
-        kubectl get kustomization -n flux-system -o name | xargs -I {} kubectl patch {} -n flux-system --type='merge' -p '{"spec":{"suspend":true}}' || true
+        # First suspend all Flux reconciliations
+        task suspend
+        
+        # Wait a moment for reconciliations to stop
+        echo "⏸️  Waiting for reconciliations to stop..."
+        sleep 5
         
         # Delete application workloads in reverse dependency order
         echo "🗑️  Removing application workloads..."
