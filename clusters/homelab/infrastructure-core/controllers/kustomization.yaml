@@ -5,5 +5,6 @@ resources:
   - reflector.yaml
   - metallb.yaml
   - metallb-config.yaml
-  - rook-ceph.yaml
-  - rook-ceph-cluster.yaml
+  # Temporarily disabled due to stuck namespace
+  # - rook-ceph.yaml
+  # - rook-ceph-cluster.yaml
