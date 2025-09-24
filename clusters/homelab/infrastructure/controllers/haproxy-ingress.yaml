@@ -30,8 +30,11 @@ spec:
         default: true
         controllerValue: haproxy.github.io/ingress-controller
       service:
-        type: LoadBalancer
+        type: NodePort
         externalTrafficPolicy: Local
+        nodePorts:
+          http: 30080
+          https: 30443
       config:
         ssl-redirect: "true"
         ssl-ciphers: "ECDHE+AESGCM:ECDHE+AES256:ECDHE+AES128:!DHE:!RSA:!AES128:!AESCCM"

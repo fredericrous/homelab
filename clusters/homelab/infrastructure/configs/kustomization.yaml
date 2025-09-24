@@ -3,5 +3,6 @@ kind: Kustomization
 namespace: flux-system
 resources:
   - cluster-config.yaml
+  - ovh-credentials-secret.yaml
   - kyverno
   - cert-manager
