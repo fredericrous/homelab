@@ -1,0 +1,75 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cert-manager-setup
+  namespace: cert-manager
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      containers:
+      - name: cert-manager-setup
+        image: hashicorp/vault:1.17
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "🔐 Setting up cert-manager secrets in Vault..."
+          
+          # Configure vault client
+          export VAULT_ADDR=http://vault.vault.svc.cluster.local:8200
+          export VAULT_TOKEN=${token}
+          
+          # Wait for Vault to be available
+          until vault status > /dev/null 2>&1; do
+            echo "⏳ Waiting for Vault to be available..."
+            sleep 5
+          done
+          
+          # Check if OVH DNS secrets already exist
+          if vault kv get secret/ovh-dns > /dev/null 2>&1; then
+            echo "✅ OVH DNS credentials already exist in Vault"
+            exit 0
+          fi
+          
+          # Store OVH DNS credentials for cert-manager
+          echo "📤 Storing OVH DNS credentials in Vault..."
+          vault kv put secret/ovh-dns \
+            applicationKey="${CERT_MANAGER_OVH_APPLICATION_KEY}" \
+            applicationSecret="${CERT_MANAGER_OVH_APPLICATION_SECRET}" \
+            consumerKey="${CERT_MANAGER_OVH_CONSUMER_KEY}"
+          
+          echo "✅ cert-manager OVH DNS credentials stored successfully"
+        env:
+        - name: CERT_MANAGER_OVH_APPLICATION_KEY
+          value: "a4598a81b100e759"
+        - name: CERT_MANAGER_OVH_APPLICATION_SECRET  
+          value: "2066396e3b624e34d4f1a3d009ca0139"
+        - name: CERT_MANAGER_OVH_CONSUMER_KEY
+          value: "cb8d03d3d3a2de55f9df196190022425"
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+      restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault

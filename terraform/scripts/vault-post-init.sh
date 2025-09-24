@@ -104,33 +104,6 @@ vault write auth/kubernetes/role/haproxy-ingress \
 
 echo "✅ Configured haproxy-ingress role"
 
-# Store OVH credentials if provided
-# For cert-manager
-if [ -n "$CERT_MANAGER_OVH_APPLICATION_KEY" ] && [ -n "$CERT_MANAGER_OVH_APPLICATION_SECRET" ] && [ -n "$CERT_MANAGER_OVH_CONSUMER_KEY" ]; then
-  echo "📤 Storing cert-manager OVH credentials in Vault..."
-  vault kv put secret/ovh-dns \
-    applicationKey="$CERT_MANAGER_OVH_APPLICATION_KEY" \
-    applicationSecret="$CERT_MANAGER_OVH_APPLICATION_SECRET" \
-    consumerKey="$CERT_MANAGER_OVH_CONSUMER_KEY" || {
-    echo "⚠️  Failed to store cert-manager OVH credentials in Vault"
-  }
-  echo "✅ Cert-manager OVH credentials stored in Vault"
-else
-  echo "ℹ️  Cert-manager OVH credentials not provided. Set CERT_MANAGER_OVH_APPLICATION_KEY, CERT_MANAGER_OVH_APPLICATION_SECRET, and CERT_MANAGER_OVH_CONSUMER_KEY to store them."
-fi
-
-# For external-dns
-if [ -n "$EXTERNAL_DNS_OVH_APPLICATION_KEY" ] && [ -n "$EXTERNAL_DNS_OVH_APPLICATION_SECRET" ] && [ -n "$EXTERNAL_DNS_OVH_CONSUMER_KEY" ]; then
-  echo "📤 Storing external-dns OVH credentials in Vault..."
-  vault kv put secret/external-dns/ovh \
-    applicationKey="$EXTERNAL_DNS_OVH_APPLICATION_KEY" \
-    applicationSecret="$EXTERNAL_DNS_OVH_APPLICATION_SECRET" \
-    consumerKey="$EXTERNAL_DNS_OVH_CONSUMER_KEY" || {
-    echo "⚠️  Failed to store external-dns OVH credentials in Vault"
-  }
-  echo "✅ External-dns OVH credentials stored in Vault"
-else
-  echo "ℹ️  External-dns OVH credentials not provided. Set EXTERNAL_DNS_OVH_APPLICATION_KEY, EXTERNAL_DNS_OVH_APPLICATION_SECRET, and EXTERNAL_DNS_OVH_CONSUMER_KEY to store them."
-fi
+# OVH credentials are now managed by FluxCD setup jobs for better separation of concerns
 
 echo "✅ Vault post-initialization tasks completed successfully"
