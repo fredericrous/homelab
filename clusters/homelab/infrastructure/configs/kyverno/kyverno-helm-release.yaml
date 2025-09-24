@@ -2,8 +2,9 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: kyverno
-  namespace: kyverno
+  namespace: flux-system
 spec:
+  targetNamespace: kyverno
   interval: 30m
   chart:
     spec:
