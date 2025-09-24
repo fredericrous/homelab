@@ -48,5 +48,7 @@ spec:
             namespace: external-secrets
           - name: external-secrets-operator
             namespace: external-secrets
+          - name: external-secrets-external-secrets
+            namespace: external-secrets
         ttl: "24h"
         maxTTL: "24h"
