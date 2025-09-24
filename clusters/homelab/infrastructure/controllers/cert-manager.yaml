@@ -27,8 +27,6 @@ spec:
       keep: true
     webhook:
       timeoutSeconds: 30
-    extraArgs:
-      - --enable-gateway-api
     prometheus:
       servicemonitor:
         enabled: false

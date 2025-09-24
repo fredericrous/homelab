@@ -21,6 +21,93 @@ kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/i
   kubectl get kustomization infrastructure-core -n flux-system 2>/dev/null || echo "Infrastructure-core kustomization not found"
 }
 
+# Wait for Rook-Ceph to be fully healthy before proceeding
+echo "🗄️  Verifying Rook-Ceph cluster health..."
+echo "Waiting for Rook operator to be ready..."
+kubectl wait --for=condition=available --timeout=300s deployment/rook-ceph-operator -n rook-ceph 2>/dev/null || {
+  echo "⚠️  Rook operator not ready yet"
+  kubectl get pods -n rook-ceph -l app=rook-ceph-operator 2>/dev/null || echo "Rook operator not found"
+}
+
+echo "Waiting for CephCluster resource to be created..."
+for i in {1..60}; do
+  if kubectl get cephcluster rook-ceph -n rook-ceph >/dev/null 2>&1; then
+    echo "✓ CephCluster resource found"
+    break
+  fi
+  echo "Waiting for CephCluster... ($i/60)"
+  sleep 5
+done
+
+echo "Waiting for all 3 Ceph monitors to be running..."
+for i in {1..120}; do
+  # Count running monitors
+  running_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | grep -c "Running" || echo "0")
+  total_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+  
+  if [ "$running_mons" -eq 3 ]; then
+    echo "✅ All 3 Ceph monitors are running"
+    break
+  elif [ "$total_mons" -gt 0 ]; then
+    echo "Waiting for monitors: $running_mons/3 running ($i/120)"
+    
+    # Show monitor status every 30 iterations (2.5 minutes)
+    if [ $((i % 30)) -eq 0 ]; then
+      echo "Monitor status:"
+      kubectl get pods -n rook-ceph -l app=rook-ceph-mon -o wide 2>/dev/null || echo "  No monitors found"
+      echo "Node resource usage:"
+      kubectl top nodes 2>/dev/null || echo "  Metrics not available"
+    fi
+  else
+    echo "Waiting for monitor pods to be created... ($i/120)"
+  fi
+  
+  sleep 5
+done
+
+echo "Waiting for Ceph OSDs to be ready..."
+for i in {1..60}; do
+  running_osds=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c "Running" || echo "0")
+  
+  if [ "$running_osds" -gt 0 ]; then
+    echo "✅ Found $running_osds running OSD(s)"
+    break
+  fi
+  echo "Waiting for OSDs... ($i/60)"
+  sleep 5
+done
+
+echo "Testing Ceph storage provisioning..."
+# Create a test PVC to ensure storage is working
+kubectl apply -f - <<EOF >/dev/null 2>&1
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-rook-health
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: rook-ceph-block
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+
+# Wait for test PVC to be bound
+for i in {1..36}; do  # 3 minutes total
+  pvc_status=$(kubectl get pvc test-rook-health -n default -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+  if [ "$pvc_status" = "Bound" ]; then
+    echo "✅ Ceph storage provisioning is working"
+    kubectl delete pvc test-rook-health -n default --wait=false >/dev/null 2>&1
+    break
+  fi
+  echo "Testing storage provisioning: $pvc_status ($i/36)"
+  sleep 5
+done
+
+echo "✅ Rook-Ceph cluster is healthy and ready"
+
 # Wait for infrastructure kustomization to be ready
 echo "Waiting for infrastructure reconciliation..."
 kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/infrastructure 2>/dev/null || {
