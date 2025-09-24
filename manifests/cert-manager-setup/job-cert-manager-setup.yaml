@@ -36,9 +36,9 @@ spec:
           # Store OVH DNS credentials for cert-manager
           echo "📤 Storing OVH DNS credentials in Vault..."
           vault kv put secret/ovh-dns \
-            applicationKey="${CERT_MANAGER_OVH_APPLICATION_KEY}" \
-            applicationSecret="${CERT_MANAGER_OVH_APPLICATION_SECRET}" \
-            consumerKey="${CERT_MANAGER_OVH_CONSUMER_KEY}"
+            applicationKey="$CERT_MANAGER_OVH_APPLICATION_KEY" \
+            applicationSecret="$CERT_MANAGER_OVH_APPLICATION_SECRET" \
+            consumerKey="$CERT_MANAGER_OVH_CONSUMER_KEY"
           
           echo "✅ cert-manager OVH DNS credentials stored successfully"
         env:
