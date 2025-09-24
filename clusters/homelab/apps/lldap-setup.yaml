@@ -18,7 +18,7 @@ spec:
     - name: external-secrets-config
   postBuild:
     substitute:
-      vault_admin_token: "${vault_admin_token}"
+      vault_admin_token: "${token}"
     substituteFrom:
       - kind: Secret
         name: vault-admin-token
