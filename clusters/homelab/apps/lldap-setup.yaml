@@ -22,4 +22,3 @@ spec:
     substituteFrom:
       - kind: Secret
         name: vault-admin-token
-        namespace: vault

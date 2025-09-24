@@ -26,7 +26,7 @@ spec:
       storeRecoveryKeys: true
       adminTokenAnnotations:
         reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
-        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio,argocd,plex"
+        reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "flux-system,external-secrets,postgres,haproxy-controller,authelia,lldap,harbor,nextcloud,stremio,argocd,plex"
         reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
   monitoring:
     checkInterval: 30s
