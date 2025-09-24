@@ -69,14 +69,21 @@ kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
 # Get transit token
 get_transit_token
 
-# Create/update transit token secret
-echo "🔑 Creating/updating transit token secret..."
-# Use kubectl apply to create or update the secret
+# Create/update transit token secret in flux-system namespace for FluxCD substitution
+echo "🔑 Creating/updating transit token secret in flux-system..."
+kubectl create secret generic vault-transit-token \
+    --namespace=flux-system \
+    --from-literal=vault_transit_token="$K8S_VAULT_TRANSIT_TOKEN" \
+    --dry-run=client -o yaml | kubectl apply -f -
+echo -e "${GREEN}✅ Transit token secret created/updated in flux-system${NC}"
+
+# Also create in vault namespace for backward compatibility
+echo "🔑 Creating/updating transit token secret in vault namespace..."
 kubectl create secret generic vault-transit-token \
     --namespace=vault \
     --from-literal=token="$K8S_VAULT_TRANSIT_TOKEN" \
     --dry-run=client -o yaml | kubectl apply -f -
-echo -e "${GREEN}✅ Transit token secret created/updated${NC}"
+echo -e "${GREEN}✅ Transit token secret created/updated in vault namespace${NC}"
 
 # Note: Vault will be deployed via ArgoCD ApplicationSet
 echo -e "${YELLOW}📋 Vault deployment note:${NC}"
