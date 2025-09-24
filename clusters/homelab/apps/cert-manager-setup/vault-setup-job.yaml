@@ -1,0 +1,91 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cert-manager-vault-setup
+  namespace: cert-manager-setup
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: cert-manager-setup
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: wait-for-vault
+        image: curlimages/curl:8.11.1
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        command: ['sh', '-c']
+        args:
+          - |
+            until curl -s http://vault-vault.vault.svc.cluster.local:8200/v1/sys/health | grep -q '"initialized":true'; do
+              echo "Waiting for Vault to be initialized..."
+              sleep 5
+            done
+      containers:
+      - name: setup-vault
+        image: hashicorp/vault:1.18.3
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        env:
+        - name: VAULT_ADDR
+          value: http://vault-vault.vault.svc.cluster.local:8200
+        - name: VAULT_TOKEN
+          value: "${token}"
+        command: ['sh', '-c']
+        args:
+          - |
+            set -e
+            
+            # Check if secrets already exist
+            if vault kv get -mount=secret ovh > /dev/null 2>&1; then
+              echo "OVH credentials already exist in Vault"
+            else
+              echo "Creating OVH credentials in Vault"
+              vault kv put -mount=secret ovh \
+                application_key=a4598a81b100e759 \
+                application_secret=2066396e3b624e34d4f1a3d009ca0139 \
+                consumer_key=cb8d03d3d3a2de55f9df196190022425
+            fi
+            
+            # Check if policy exists
+            if vault policy read cert-manager-policy > /dev/null 2>&1; then
+              echo "cert-manager policy already exists"
+            else
+              echo "Creating cert-manager policy"
+              echo 'path "secret/data/ovh" {
+                capabilities = ["read"]
+              }' | vault policy write cert-manager-policy -
+            fi
+            
+            # Check if role exists
+            if vault read auth/kubernetes/role/cert-manager > /dev/null 2>&1; then
+              echo "cert-manager role already exists"
+            else
+              echo "Creating cert-manager role"
+              vault write auth/kubernetes/role/cert-manager \
+                bound_service_account_names=external-secrets-external-secrets \
+                bound_service_account_namespaces=cert-manager \
+                policies=cert-manager-policy \
+                ttl=24h
+            fi
