@@ -20,6 +20,26 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+      - name: fix-permissions
+        image: lldap/lldap:latest
+        securityContext:
+          runAsUser: 0
+          allowPrivilegeEscalation: true
+          capabilities:
+            add:
+            - CHOWN
+            - FOWNER
+        command: ['sh', '-c']
+        args:
+        - |
+          # Fix permissions for the data directory
+          chown -R 1000:1000 /data
+          chmod -R u+rwx /data
+          echo "Permissions fixed"
+        volumeMounts:
+        - name: lldap-data
+          mountPath: /data
       containers:
       - name: lldap
         image: lldap/lldap:latest
