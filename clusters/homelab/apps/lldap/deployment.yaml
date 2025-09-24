@@ -36,6 +36,10 @@ spec:
           # Fix permissions for the data directory
           chown -R 1000:1000 /data
           chmod -R u+rwx /data
+          # Ensure database can be created
+          touch /data/users.db
+          chown 1000:1000 /data/users.db
+          chmod 664 /data/users.db
           echo "Permissions fixed"
         volumeMounts:
         - name: lldap-data
