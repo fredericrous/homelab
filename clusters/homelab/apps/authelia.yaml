@@ -15,6 +15,5 @@ spec:
   dependsOn:
     - name: vault-transit-config
     - name: external-secrets-config
-    - name: cloudnative-pg
     - name: lldap
     - name: authelia-setup

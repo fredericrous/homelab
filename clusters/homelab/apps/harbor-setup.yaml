@@ -13,7 +13,6 @@ spec:
     name: flux-system
   dependsOn:
     - name: vault-transit-config
-    - name: cloudnative-pg
     - name: external-secrets-config
   healthChecks:
     - apiVersion: batch/v1
