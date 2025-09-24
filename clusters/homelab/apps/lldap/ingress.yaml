@@ -4,7 +4,7 @@ metadata:
   name: lldap
   namespace: lldap
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
+    cert-manager.io/cluster-issuer: "letsencrypt-http01"
     haproxy.org/ssl-redirect: "true"
     haproxy.org/client-ca: "haproxy-ingress/client-ca-cert"
     haproxy.org/client-crt-optional: "false"
