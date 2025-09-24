@@ -13,7 +13,7 @@ spec:
   timeout: 5m
   wait: true
   dependsOn:
-    - name: vault
+    - name: vault-transit-config
     - name: external-secrets-config
     - name: cloudnative-pg
     - name: lldap

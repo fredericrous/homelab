@@ -14,7 +14,7 @@ spec:
   wait: true
   force: true  # Force recreation of jobs
   dependsOn:
-    - name: vault
+    - name: vault-transit-config
     - name: external-secrets-config
     - name: lldap
   postBuild:
