@@ -85,6 +85,8 @@ spec:
           value: "admin@daddyshome.fr"
         - name: LLDAP_VERBOSE
           value: "true"
+        - name: LLDAP_KEY_FILE
+          value: "/data/server_key"
         resources:
           requests:
             memory: 64Mi
