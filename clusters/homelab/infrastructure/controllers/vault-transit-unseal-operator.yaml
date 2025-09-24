@@ -25,11 +25,11 @@ spec:
     crds: CreateReplace
   values:
     image:
-      tag: "1.0.9"
-    
+      tag: "1.0.10"
+
     watchNamespace: ""
     enableLeaderElection: false
     maxConcurrentReconciles: 3
-    
+
     webhook:
       enabled: false
