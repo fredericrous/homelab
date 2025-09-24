@@ -77,13 +77,23 @@ kubectl create secret generic vault-transit-token \
     --dry-run=client -o yaml | kubectl apply -f -
 echo -e "${GREEN}✅ Transit token secret created/updated in flux-system${NC}"
 
-# Also create in vault namespace for backward compatibility
+# Also create in vault namespace with reflector annotations for cross-namespace sync
 echo "🔑 Creating/updating transit token secret in vault namespace..."
-kubectl create secret generic vault-transit-token \
-    --namespace=vault \
-    --from-literal=token="$K8S_VAULT_TRANSIT_TOKEN" \
-    --dry-run=client -o yaml | kubectl apply -f -
-echo -e "${GREEN}✅ Transit token secret created/updated in vault namespace${NC}"
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vault-transit-token
+  namespace: vault
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+    reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "flux-system"
+    reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+type: Opaque
+data:
+  token: $(echo -n "$K8S_VAULT_TRANSIT_TOKEN" | base64)
+EOF
+echo -e "${GREEN}✅ Transit token secret created/updated in vault namespace with reflector annotations${NC}"
 
 # Note: Vault will be deployed via ArgoCD ApplicationSet
 echo -e "${YELLOW}📋 Vault deployment note:${NC}"

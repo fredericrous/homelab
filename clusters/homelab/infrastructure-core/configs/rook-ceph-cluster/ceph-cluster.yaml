@@ -51,9 +51,10 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
+      # Use soft anti-affinity to prevent scheduling issues
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
+        - weight: 50  # Reduced weight to allow flexibility
           podAffinityTerm:
             labelSelector:
               matchExpressions:
