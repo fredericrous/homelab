@@ -12,7 +12,6 @@ spec:
     kind: GitRepository
     name: flux-system
   dependsOn:
-    - name: nextcloud-setup
     - name: external-secrets-config
     - name: haproxy-ingress
     - name: cert-manager

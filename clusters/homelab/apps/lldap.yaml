@@ -15,4 +15,3 @@ spec:
   dependsOn:
     - name: vault-transit-config
     - name: external-secrets-config
-    - name: lldap-setup
