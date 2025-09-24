@@ -13,7 +13,7 @@ spec:
     name: flux-system
   dependsOn:
     - name: vault-transit-config
-    - name: nextcloud
+    - name: external-secrets-config
   healthChecks:
     - apiVersion: batch/v1
       kind: Job

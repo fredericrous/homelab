@@ -12,7 +12,8 @@ spec:
     kind: GitRepository
     name: flux-system
   dependsOn:
-    - name: plex
+    - name: vault-transit-config
+    - name: external-secrets-config
   healthChecks:
     - apiVersion: batch/v1
       kind: Job

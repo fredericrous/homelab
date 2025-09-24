@@ -16,7 +16,7 @@ spec:
   dependsOn:
     - name: vault-transit-config
     - name: external-secrets-config
-    - name: lldap
+    - name: lldap-setup
   postBuild:
     substitute:
       vault_admin_token: "${vault_admin_token}"
