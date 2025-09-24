@@ -26,6 +26,7 @@ spec:
       retries: 3
   values:
     groupName: ovh.acme.cert-manager.io
+    configVersion: v1
     
     # Resource limits for homelab environment
     resources:
