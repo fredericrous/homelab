@@ -27,11 +27,6 @@ spec:
     remediation:
       retries: 3
   values:
-    # Revision should match istiod revision
-    revision: default
-    # Exclude from ambient mesh interception
-    podAnnotations:
-      ambient.istio.io/redirection: disabled
     service:
       type: NodePort
       ports:
@@ -45,5 +40,3 @@ spec:
         protocol: TCP
         targetPort: 443
         nodePort: 30443
-    labels:
-      istio: gateway
