@@ -16,3 +16,4 @@ resources:
   - ingress-simple.yaml
   - destinationrule.yaml
   - virtualservice-patch.yaml
+  - peerauthentication.yaml

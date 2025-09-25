@@ -1,0 +1,11 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+spec:
+  selector:
+    matchLabels:
+      app: nextcloud
+  mtls:
+    mode: PERMISSIVE  # Allow both mTLS and plain text for health checks

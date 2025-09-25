@@ -35,6 +35,27 @@ spec:
         # Enable ambient mode
         proxyMetadata:
           ISTIO_META_ENABLE_HBONE: "true"
+      # Extension providers for external authorization
+      extensionProviders:
+      - name: authelia
+        envoyExtAuthzHttp:
+          service: authelia.authelia.svc.cluster.local
+          port: 9091
+          pathPrefix: /api/authz/ext-authz/
+          includeRequestHeadersInCheck:
+          - accept
+          - cookie
+          - authorization
+          - proxy-authorization
+          headersToUpstreamOnAllow:
+          - remote-*
+          - authelia-*
+          includeAdditionalHeadersInCheck:
+            X-Forwarded-Proto: '%REQ(:SCHEME)%'
+          headersToDownstreamOnDeny:
+          - set-cookie
+          headersToDownstreamOnAllow:
+          - set-cookie
     # External traffic policy
     global:
       meshID: cluster.local

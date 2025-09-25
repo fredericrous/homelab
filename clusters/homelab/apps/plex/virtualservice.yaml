@@ -1,0 +1,35 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: plex-https
+  namespace: plex
+spec:
+  hosts:
+  - plex.daddyshome.fr
+  gateways:
+  - plex-gateway
+  http:
+  - match:
+    - port: 443
+    route:
+    - destination:
+        host: plex
+        port:
+          number: 32400
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: plex-redirect
+  namespace: plex
+spec:
+  hosts:
+  - plex.daddyshome.fr
+  gateways:
+  - plex-gateway
+  http:
+  - match:
+    - port: 80
+    redirect:
+      uri: https://plex.daddyshome.fr
+      redirectCode: 301

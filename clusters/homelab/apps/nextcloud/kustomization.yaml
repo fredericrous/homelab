@@ -14,8 +14,11 @@ resources:
   - configmap.yaml
   - deployment.yaml
   - service.yaml
-  - ingress.yaml
-  - ingress-mobile.yaml
+  # - ingress.yaml  # Replaced with Istio resources
+  # - ingress-mobile.yaml  # Replaced with Istio resources
+  - gateway.yaml
+  - virtualservice.yaml
+  - peerauthentication.yaml
   - init-job.yaml
 
 patches:

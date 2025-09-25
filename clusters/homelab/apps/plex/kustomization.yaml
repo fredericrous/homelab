@@ -12,7 +12,10 @@ resources:
   - pvc-nfs-media.yaml
   - deployment.yaml
   - service.yaml
-  - ingress.yaml
+  # - ingress.yaml  # Replaced with Istio resources
+  - gateway.yaml
+  - virtualservice.yaml
+  - peerauthentication.yaml
 
 patches:
   # Add backup annotations
