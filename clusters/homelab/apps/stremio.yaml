@@ -14,7 +14,7 @@ spec:
   dependsOn:
     - name: stremio-setup
     - name: external-secrets-config
-    - name: haproxy-ingress
+    - name: istio-gateway
     - name: cert-manager
   healthChecks:
     - apiVersion: apps/v1
