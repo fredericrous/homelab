@@ -12,5 +12,4 @@ resources:
   - ca-certificates-secret.yaml
   - deployment.yaml
   - service.yaml
-  - ingress.yaml
   - ingress-simple.yaml
