@@ -9,4 +9,5 @@ resources:
   - external-secrets-config.yaml
   - cert-manager.yaml
   - haproxy-ingress.yaml
+  - haproxy-service.yaml
   - cloudnative-pg.yaml
