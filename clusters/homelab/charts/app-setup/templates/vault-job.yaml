@@ -21,7 +21,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: vault-setup
-        image: {{ .Values.jobs.image }}
+        image: {{ .Values.jobs.vaultImage }}
         env:
         - name: VAULT_ADDR
           value: {{ .Values.vault.address }}

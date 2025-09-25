@@ -33,7 +33,8 @@ vault:
 
 # Job configuration
 jobs:
-  image: hashicorp/vault:1.17.3
+  postgresImage: postgres:16-alpine
+  vaultImage: hashicorp/vault:1.17.3
   ttlSecondsAfterFinished: 300
   backoffLimit: 3
   activeDeadlineSeconds: 600

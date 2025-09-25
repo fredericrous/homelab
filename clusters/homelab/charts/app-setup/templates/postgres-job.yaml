@@ -19,9 +19,24 @@ spec:
     spec:
       serviceAccountName: {{ .Values.serviceAccount }}
       restartPolicy: OnFailure
+      initContainers:
+      - name: vault-fetch-creds
+        image: {{ .Values.jobs.vaultImage }}
+        env:
+        - name: VAULT_ADDR
+          value: {{ .Values.vault.address }}
+        command: ['/bin/sh', '/scripts/fetch-creds.sh']
+        volumeMounts:
+        - name: vault-init-script
+          mountPath: /scripts
+        - name: vault-token
+          mountPath: /vault-token
+          readOnly: true
+        - name: vault-data
+          mountPath: /vault-data
       containers:
       - name: postgres-setup
-        image: {{ .Values.jobs.image }}
+        image: {{ .Values.jobs.postgresImage }}
         env:
         - name: PGHOST
           value: {{ .Values.postgres.host }}
@@ -32,19 +47,21 @@ spec:
             secretKeyRef:
               name: postgres-superuser
               key: password
-        - name: VAULT_ADDR
-          value: {{ .Values.vault.address }}
         command: ['/bin/sh', '/scripts/create-db.sh']
         volumeMounts:
         - name: script
           mountPath: /scripts
-        - name: vault-token
-          mountPath: /vault-token
+        - name: vault-data
+          mountPath: /vault-data
           readOnly: true
       volumes:
       - name: script
         configMap:
           name: {{ include "app-setup.fullname" . }}-postgres-script
+          defaultMode: 0755
+      - name: vault-init-script
+        configMap:
+          name: {{ include "app-setup.fullname" . }}-postgres-vault-init
           defaultMode: 0755
       - name: vault-token
         secret:
@@ -52,4 +69,6 @@ spec:
           items:
           - key: token
             path: token
+      - name: vault-data
+        emptyDir: {}
 {{- end }}
