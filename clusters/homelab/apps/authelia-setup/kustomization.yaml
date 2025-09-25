@@ -1,12 +1,53 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: authelia
+
 resources:
   - service-account.yaml
-  - vault-setup-configmap.yaml
-  - vault-setup-job.yaml
   - vault-token-reflector.yaml
-  - postgres-externalsecret.yaml
-  - postgres-db-configmap.yaml
-  - postgres-db-job.yaml
-  - rbac.yaml
+  - authelia-vault-configmap.yaml  # App-specific vault setup
+  - lldap-rbac.yaml
+
+components:
+  - ../../../../manifests/base/components/postgres-setup
+  - ../../../../manifests/base/components/vault-setup
+
+# Patch the components with authelia-specific values
+patches:
+  - target:
+      kind: Job
+      name: postgres-db-create
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/serviceAccountName
+        value: authelia
+      - op: replace
+        path: /spec/template/spec/containers/0/env/4/value
+        value: authelia
+  
+  - target:
+      kind: Job  
+      name: vault-setup
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/serviceAccountName
+        value: authelia
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/value
+        value: authelia
+      - op: add
+        path: /spec/template/spec/containers/0/env/3
+        value:
+          name: SERVICE_ACCOUNT
+          value: authelia
+
+  - target:
+      kind: RoleBinding
+      name: postgres-superuser-reader
+    patch: |-
+      - op: replace
+        path: /subjects/0/name
+        value: authelia
+      - op: replace
+        path: /subjects/0/namespace
+        value: authelia

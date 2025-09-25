@@ -1,13 +1,12 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: authelia-postgres-db-create
-  namespace: authelia
+  name: postgres-db-create
 spec:
   ttlSecondsAfterFinished: 300
   template:
     spec:
-      serviceAccountName: authelia
+      serviceAccountName: default  # Will be patched by the app
       restartPolicy: OnFailure
       containers:
       - name: create-database
@@ -24,6 +23,8 @@ spec:
               key: password
         - name: VAULT_ADDR
           value: http://vault-vault.vault.svc.cluster.local:8200
+        - name: APP_NAME
+          value: PLACEHOLDER  # Will be replaced by component
         command: ['/bin/sh', '/scripts/create-db.sh']
         volumeMounts:
         - name: script
@@ -34,7 +35,7 @@ spec:
       volumes:
       - name: script
         configMap:
-          name: authelia-postgres-db-script
+          name: postgres-db-script
           defaultMode: 0755
       - name: vault-token
         secret:
