@@ -15,7 +15,6 @@ resources:
   - job-vault-pki-sync.yaml
   - nas-vault-eso-token-secret.yaml
   - istio-repository.yaml
-  - istio-namespace.yaml
   - istio-base.yaml
   - istio-cni.yaml
   - istio-istiod.yaml
