@@ -80,14 +80,15 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
-        # Re-enable readiness probe for service discovery
+        # Readiness probe with very long timeout for ambient mode
         readinessProbe:
           httpGet:
             path: /api/health
             port: 9091
           initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 30
+          failureThreshold: 10
       volumes:
       - name: config
         configMap:
