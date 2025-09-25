@@ -5,4 +5,5 @@ namespace: authelia
 resources:
   - service-account.yaml
   - vault-token-reflector.yaml
+  - postgres-superuser-reflector.yaml
   - helm-release.yaml
