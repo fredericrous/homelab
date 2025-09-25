@@ -21,4 +21,3 @@ resources:
   - istio-istiod.yaml
   - istio-ztunnel.yaml
   - istio-gateway.yaml
-  - job-istio-tls-setup.yaml
