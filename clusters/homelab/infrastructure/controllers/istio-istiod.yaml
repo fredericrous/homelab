@@ -1,0 +1,41 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istiod
+  namespace: istio-system
+spec:
+  interval: 30m
+  dependsOn:
+  - name: istio-base
+  - name: istio-cni
+  chart:
+    spec:
+      chart: istiod
+      version: "1.23.2"
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # Enable ambient mode
+    pilot:
+      env:
+        PILOT_ENABLE_AMBIENT: true
+        PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: true
+    # Security configuration
+    meshConfig:
+      defaultConfig:
+        # Enable ambient mode
+        proxyMetadata:
+          ISTIO_META_ENABLE_HBONE: "true"
+    # External traffic policy
+    global:
+      meshID: cluster.local
+      network: cluster.local

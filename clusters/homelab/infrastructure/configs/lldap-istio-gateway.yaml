@@ -1,0 +1,48 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: lldap-gateway
+  namespace: lldap
+spec:
+  selector:
+    istio: gateway
+  servers:
+  # HTTP redirect to HTTPS
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - lldap.daddyshome.fr
+    httpsRedirect: true
+  # HTTPS with mTLS client certificate authentication
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: MUTUAL
+      credentialName: lldap-tls-secret
+      caCertificates: /etc/ssl/certs/client-ca.crt
+    hosts:
+    - lldap.daddyshome.fr
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: lldap
+  namespace: lldap
+spec:
+  hosts:
+  - lldap.daddyshome.fr
+  gateways:
+  - lldap-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: lldap
+        port:
+          number: 17170

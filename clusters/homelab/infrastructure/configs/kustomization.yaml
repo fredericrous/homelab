@@ -8,3 +8,4 @@ resources:
   - cert-manager-env-config.yaml
   - cert-manager
   - client-ca-externalsecret.yaml
+  - lldap-istio-gateway.yaml
