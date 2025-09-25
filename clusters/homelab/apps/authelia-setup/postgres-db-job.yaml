@@ -11,7 +11,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: create-database
-        image: postgres:17-alpine
+        image: ghcr.io/cloudnative-pg/postgresql:17
         env:
         - name: PGHOST
           value: postgres-apps-rw.postgres.svc.cluster.local

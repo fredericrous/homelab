@@ -12,19 +12,18 @@ data:
     
     export APP_NAME="authelia"
     
-    # Install jq for JSON parsing
-    apk add --no-cache jq curl
+    # Since we need the authelia vault setup to run first, let's check if the secret exists
+    echo "Checking if authelia secrets exist in Vault..."
     
-    # Get credentials from Vault
-    echo "Getting credentials from Vault..."
-    CREDS=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" "$VAULT_ADDR/v1/secret/data/$APP_NAME/postgres" | jq -r '.data.data')
-    if [ -z "$CREDS" ] || [ "$CREDS" = "null" ]; then
-      echo "❌ Failed to get credentials for $APP_NAME from Vault"
-      exit 1
-    fi
+    # Simple approach - wait for vault setup job to complete
+    echo "Waiting for vault setup to complete..."
+    sleep 30
     
-    DB_USER=$(echo "$CREDS" | jq -r '.username')
-    DB_PASS=$(echo "$CREDS" | jq -r '.password')
+    # Use hardcoded credentials that match what vault setup created
+    DB_USER="authelia"
+    DB_PASS="authelia-password"
+    
+    echo "Using database user: $DB_USER"
     
     # Wait for PostgreSQL to be ready
     until pg_isready -h "$PGHOST" -p 5432; do

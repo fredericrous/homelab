@@ -20,3 +20,4 @@ resources:
   - istio-istiod.yaml
   - istio-ztunnel.yaml
   - istio-gateway.yaml
+  - redis-operator.yaml
