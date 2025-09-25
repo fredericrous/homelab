@@ -6,8 +6,9 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-ovh-webhook"
     haproxy.org/ssl-redirect: "true"
-    haproxy.org/client-ca: "haproxy-ingress/client-ca-cert"
-    haproxy.org/client-crt-optional: "false"
+    # Temporarily disable mTLS client certificate requirement
+    # haproxy.org/client-ca: "haproxy-ingress/client-ca-cert"
+    # haproxy.org/client-crt-optional: "false"
 spec:
   ingressClassName: haproxy
   tls:
