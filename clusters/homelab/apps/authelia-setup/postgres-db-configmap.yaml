@@ -20,6 +20,9 @@ data:
     echo "Getting database credentials from Vault..."
     
     # Use vault CLI to get credentials
+    echo "Checking vault status..."
+    vault status || { echo "Failed to connect to vault"; exit 1; }
+    
     DB_CREDS=$(vault kv get -format=json secret/authelia/postgres 2>/dev/null || echo "{}")
     
     if [ "$DB_CREDS" = "{}" ] || [ -z "$DB_CREDS" ]; then
