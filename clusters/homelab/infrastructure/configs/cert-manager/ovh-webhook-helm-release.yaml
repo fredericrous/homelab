@@ -25,6 +25,9 @@ spec:
     remediation:
       retries: 3
   values:
+    configVersion: '0.0.2'
+    groupName: ovh.acme.cert-manager.io
+    
     # Create ClusterIssuer directly via Helm values
     issuers:
       - name: letsencrypt-ovh-webhook
