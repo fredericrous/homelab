@@ -5,7 +5,6 @@ namespace: authelia
 
 resources:
   - namespace.yaml
-  - service-account.yaml
   - external-secret.yaml
   - cnpg-cluster.yaml
   - configmap.yaml
