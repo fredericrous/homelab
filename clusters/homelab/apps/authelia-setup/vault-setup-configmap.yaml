@@ -11,11 +11,13 @@ data:
     
     echo "🔐 Setting up Vault secrets for Authelia..."
     
-    # Wait for Vault
-    until vault status >/dev/null 2>&1; do
-      echo "Waiting for Vault to be initialized..."
+    # Wait for Vault to be ready
+    echo "Setting up Vault connection..."
+    until vault status | grep -q "Sealed.*false"; do
+      echo "Waiting for Vault to be unsealed..."
       sleep 5
     done
+    echo "✅ Vault is ready"
     
     export VAULT_ADDR=http://vault-vault.vault.svc.cluster.local:8200
     
