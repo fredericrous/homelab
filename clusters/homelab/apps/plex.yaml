@@ -13,7 +13,7 @@ spec:
     name: flux-system
   dependsOn:
     - name: external-secrets-config
-    - name: haproxy-ingress
+    - name: istio-gateway
     - name: cert-manager
     - name: plex-setup
   healthChecks:
