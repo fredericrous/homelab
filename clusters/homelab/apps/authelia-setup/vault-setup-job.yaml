@@ -23,6 +23,15 @@ spec:
         volumeMounts:
         - name: setup-script
           mountPath: /scripts
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 100
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
       volumes:
       - name: setup-script
         configMap:
