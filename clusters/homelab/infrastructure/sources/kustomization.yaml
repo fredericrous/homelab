@@ -7,7 +7,6 @@ resources:
   - hashicorp.yaml
   - cnpg.yaml
   - authelia.yaml
-  - haproxy-ingress.yaml
   - fredericrous.yaml
   - external-secrets.yaml
   - harbor.yaml
