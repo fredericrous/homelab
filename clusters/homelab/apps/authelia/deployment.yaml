@@ -101,19 +101,20 @@ spec:
           sources:
           - secret:
               name: authelia-secrets
+              items:
+              - key: AUTHELIA_JWT_SECRET
+                path: JWT_SECRET
+              - key: AUTHELIA_SESSION_SECRET
+                path: SESSION_SECRET
+              - key: AUTHELIA_STORAGE_ENCRYPTION_KEY
+                path: STORAGE_ENCRYPTION_KEY
+              - key: AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD
+                path: AUTHENTICATION_BACKEND_LDAP_PASSWORD
           - secret:
               name: authelia-db-app
-          items:
-          - key: AUTHELIA_JWT_SECRET
-            path: JWT_SECRET
-          - key: AUTHELIA_SESSION_SECRET
-            path: SESSION_SECRET
-          - key: password
-            path: POSTGRES_PASSWORD
-          - key: AUTHELIA_STORAGE_ENCRYPTION_KEY
-            path: STORAGE_ENCRYPTION_KEY
-          - key: AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD
-            path: AUTHENTICATION_BACKEND_LDAP_PASSWORD
+              items:
+              - key: password
+                path: POSTGRES_PASSWORD
       - name: ca-certificates
         secret:
           secretName: ca-certificates
