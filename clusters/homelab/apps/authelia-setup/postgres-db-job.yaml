@@ -16,10 +16,7 @@ spec:
         - name: PGHOST
           value: postgres-apps-rw.postgres.svc.cluster.local
         - name: PGUSER
-          valueFrom:
-            secretKeyRef:
-              name: postgres-superuser
-              key: username
+          value: postgres
         - name: PGPASSWORD
           valueFrom:
             secretKeyRef:

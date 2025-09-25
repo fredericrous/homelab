@@ -12,16 +12,25 @@ data:
     
     export APP_NAME="authelia"
     
-    # Since we need the authelia vault setup to run first, let's check if the secret exists
-    echo "Checking if authelia secrets exist in Vault..."
+    # Get credentials from Vault (vault setup job should have created these)
+    echo "Getting database credentials from Vault..."
     
-    # Simple approach - wait for vault setup job to complete
-    echo "Waiting for vault setup to complete..."
-    sleep 30
+    # Use vault CLI to get credentials
+    DB_CREDS=$(vault kv get -format=json secret/authelia/postgres 2>/dev/null || echo "{}")
     
-    # Use hardcoded credentials that match what vault setup created
-    DB_USER="authelia"
-    DB_PASS="authelia-password"
+    if [ "$DB_CREDS" = "{}" ] || [ -z "$DB_CREDS" ]; then
+      echo "No existing credentials in Vault, creating new ones..."
+      DB_USER="authelia"
+      DB_PASS=$(head -c 16 /dev/urandom | base64 | tr -d "=+/")
+      
+      # Store in Vault for future use
+      vault kv put secret/authelia/postgres \
+        username="$DB_USER" \
+        password="$DB_PASS"
+    else
+      DB_USER=$(echo "$DB_CREDS" | grep -o '"username":"[^"]*' | grep -o '[^"]*$')
+      DB_PASS=$(echo "$DB_CREDS" | grep -o '"password":"[^"]*' | grep -o '[^"]*$')
+    fi
     
     echo "Using database user: $DB_USER"
     
