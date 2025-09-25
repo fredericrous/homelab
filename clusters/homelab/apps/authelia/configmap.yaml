@@ -78,7 +78,7 @@ data:
       
     storage:
       postgres:
-        host: authelia-postgres-rw.authelia.svc.cluster.local
+        host: postgres-apps-rw.postgres.svc.cluster.local
         port: 5432
         database: authelia
         username: authelia

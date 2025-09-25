@@ -6,7 +6,7 @@ namespace: authelia
 resources:
   - namespace.yaml
   - external-secret.yaml
-  - cnpg-cluster.yaml
+  # - cnpg-cluster.yaml  # Using shared postgres-apps cluster instead
   - configmap.yaml
   - ca-configmap.yaml
   - ca-certificates-secret.yaml

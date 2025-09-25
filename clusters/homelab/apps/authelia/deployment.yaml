@@ -25,7 +25,7 @@ spec:
         command: ['sh', '-c']
         args:
           - |
-            until pg_isready -h authelia-postgres-rw -p 5432 -U authelia; do
+            until pg_isready -h postgres-apps-rw.postgres.svc.cluster.local -p 5432 -U authelia; do
               echo "Waiting for PostgreSQL to be ready..."
               sleep 2
             done
@@ -50,7 +50,7 @@ spec:
         - name: AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE
           value: /secrets/POSTGRES_PASSWORD
         - name: AUTHELIA_STORAGE_POSTGRES_HOST
-          value: authelia-postgres-rw
+          value: postgres-apps-rw.postgres.svc.cluster.local
         - name: AUTHELIA_STORAGE_POSTGRES_PORT
           value: "5432"
         - name: AUTHELIA_STORAGE_POSTGRES_DATABASE
