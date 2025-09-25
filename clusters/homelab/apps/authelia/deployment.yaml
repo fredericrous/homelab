@@ -80,15 +80,12 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
-        # Readiness probe with very long timeout for ambient mode
-        readinessProbe:
-          httpGet:
-            path: /api/health
-            port: 9091
-          initialDelaySeconds: 10
-          periodSeconds: 30
-          timeoutSeconds: 30
-          failureThreshold: 10
+        # Disabled due to Istio ambient mode health check issues
+        # Health checks timeout in ambient mode preventing pods from being ready
+        # readinessProbe:
+        #   httpGet:
+        #     path: /api/health
+        #     port: 9091
       volumes:
       - name: config
         configMap:
