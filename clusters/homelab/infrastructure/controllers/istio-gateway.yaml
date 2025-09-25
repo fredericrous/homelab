@@ -27,6 +27,8 @@ spec:
     remediation:
       retries: 3
   values:
+    # Revision should match istiod revision
+    revision: default
     # Exclude from ambient mesh interception
     podAnnotations:
       ambient.istio.io/redirection: disabled
