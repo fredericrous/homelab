@@ -7,5 +7,4 @@ resources:
   - cert-manager-setup.yaml
   - cert-manager-env-config.yaml
   - cert-manager
-  - pki-setup.yaml
   - client-ca-externalsecret.yaml
