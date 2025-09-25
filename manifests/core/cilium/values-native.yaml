@@ -104,3 +104,8 @@ prometheus:
   enabled: true
   serviceMonitor:
     enabled: false
+
+# Socket-based load balancing configuration for Istio compatibility
+socketLB:
+  # Only enable socket LB in host namespace to avoid interfering with Istio
+  hostNamespaceOnly: true

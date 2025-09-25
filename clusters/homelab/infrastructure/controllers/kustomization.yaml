@@ -8,8 +8,9 @@ resources:
   - external-secrets-operator.yaml
   - external-secrets-config.yaml
   - cert-manager.yaml
-  - haproxy-ingress.yaml
-  - haproxy-service.yaml
+  # Temporarily disabled during Istio migration
+  # - haproxy-ingress.yaml
+  # - haproxy-service.yaml
   - cloudnative-pg.yaml
   - job-vault-pki-sync.yaml
   - nas-vault-eso-token-secret.yaml

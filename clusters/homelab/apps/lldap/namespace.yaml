@@ -6,3 +6,5 @@ metadata:
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: baseline
     pod-security.kubernetes.io/warn: baseline
+    # Enable Istio Ambient mode for this namespace
+    istio.io/dataplane-mode: ambient
