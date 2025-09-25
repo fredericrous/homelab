@@ -1,27 +1,30 @@
 ---
-apiVersion: gateway.networking.k8s.io/v1
+apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: authelia-gateway
-  namespace: istio-ingress
-  annotations:
-    gateway.istio.io/tls-terminate-mode: MUTUAL
+  namespace: authelia
 spec:
-  gatewayClassName: istio
-  listeners:
-  - name: http
-    hostname: "auth.daddyshome.fr"
-    port: 80
-    protocol: HTTP
-  - name: https
-    hostname: "auth.daddyshome.fr" 
-    port: 443
-    protocol: HTTPS
+  selector:
+    istio: gateway
+  servers:
+  # HTTP redirect to HTTPS
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - auth.daddyshome.fr
+  # HTTPS with mTLS client certificate authentication
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
     tls:
-      mode: Terminate
-      certificateRefs:
-      - name: authelia-tls
-        namespace: authelia
+      mode: MUTUAL
+      credentialName: authelia-tls
+    hosts:
+    - auth.daddyshome.fr
 ---
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
