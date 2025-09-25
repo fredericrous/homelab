@@ -1,0 +1,96 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-init-databases
+  namespace: postgres
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:17-alpine
+        command: ['sh', '-c']
+        args:
+        - |
+          until pg_isready -h postgres-apps-rw -p 5432; do
+            echo "Waiting for PostgreSQL cluster to be ready..."
+            sleep 5
+          done
+          echo "PostgreSQL is ready!"
+        env:
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser
+              key: username
+      containers:
+      - name: init-databases
+        image: postgres:17-alpine
+        env:
+        - name: PGHOST
+          value: postgres-apps-rw
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser
+              key: password
+        - name: VAULT_ADDR
+          value: http://vault-vault.vault.svc.cluster.local:8200
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
+        command: ['/bin/sh']
+        args:
+        - -c
+        - |
+          set -e
+          echo "🗄️  Initializing application databases..."
+          
+          # Install jq for JSON parsing
+          apk add --no-cache jq curl
+          
+          # Function to create database and user
+          create_db() {
+            APP=$1
+            echo "Setting up database for $APP..."
+            
+            # Get credentials from Vault
+            CREDS=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" "$VAULT_ADDR/v1/secret/data/$APP/postgres" | jq -r '.data.data')
+            if [ -z "$CREDS" ] || [ "$CREDS" = "null" ]; then
+              echo "❌ Failed to get credentials for $APP from Vault"
+              return 1
+            fi
+            
+            DB_USER=$(echo "$CREDS" | jq -r '.username')
+            DB_PASS=$(echo "$CREDS" | jq -r '.password')
+            
+            # Check if database exists
+            if psql -lqt | cut -d \| -f 1 | grep -qw "$APP"; then
+              echo "✅ Database $APP already exists"
+            else
+              echo "Creating database $APP..."
+              psql <<EOF
+          CREATE USER "$DB_USER" WITH PASSWORD '$DB_PASS';
+          CREATE DATABASE "$APP" OWNER "$DB_USER";
+          GRANT ALL PRIVILEGES ON DATABASE "$APP" TO "$DB_USER";
+          EOF
+              echo "✅ Database $APP created"
+            fi
+          }
+          
+          # Create databases for each application
+          for APP in authelia nextcloud harbor lldap; do
+            create_db "$APP"
+          done
+          
+          echo "✅ All databases initialized!"

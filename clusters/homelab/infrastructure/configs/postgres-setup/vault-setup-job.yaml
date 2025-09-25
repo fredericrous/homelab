@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-vault-setup
+  namespace: postgres
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: postgres-vault-setup
+      restartPolicy: OnFailure
+      containers:
+      - name: setup-vault
+        image: hashicorp/vault:1.18.3
+        env:
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
+        command: ['/bin/sh', '/scripts/setup.sh']
+        volumeMounts:
+        - name: setup-script
+          mountPath: /scripts
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 100
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+      volumes:
+      - name: setup-script
+        configMap:
+          name: postgres-vault-setup-script
+          defaultMode: 0755

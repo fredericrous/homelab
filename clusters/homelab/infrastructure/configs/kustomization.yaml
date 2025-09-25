@@ -10,3 +10,9 @@ resources:
   - client-ca-externalsecret.yaml
   - lldap-istio-gateway.yaml
   - authelia-istio-gateway.yaml
+  - postgres-namespace.yaml
+  - postgres-vault-token-secret.yaml
+  - postgres-superuser-secret.yaml
+  - postgres-apps-cluster.yaml
+  - postgres-setup.yaml
+  - postgres-init-databases.yaml
