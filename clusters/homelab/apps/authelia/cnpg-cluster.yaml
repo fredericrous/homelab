@@ -21,9 +21,6 @@ spec:
     size: 1Gi
     storageClass: rook-ceph-block
   
-  monitoring:
-    enabled: false
-  
   resources:
     requests:
       memory: "256Mi"
