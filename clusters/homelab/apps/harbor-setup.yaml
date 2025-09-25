@@ -1,25 +1,54 @@
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
 metadata:
   name: harbor-setup
   namespace: flux-system
 spec:
   interval: 10m
   timeout: 5m
-  path: ./clusters/homelab/apps/harbor-setup
-  prune: false  # Don't prune setup jobs
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
+  chart:
+    spec:
+      chart: ./charts/app-setup
+      reconcileStrategy: ChartVersion
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
   dependsOn:
     - name: vault-transit-config
+      namespace: flux-system
     - name: external-secrets-config
-  healthChecks:
-    - apiVersion: batch/v1
-      kind: Job
-      name: harbor-vault-setup
-      namespace: vault
-    - apiVersion: batch/v1
-      kind: Job
-      name: harbor-database-setup
-      namespace: postgres
+      namespace: flux-system
+    - name: postgres-apps
+      namespace: flux-system
+  values:
+    appName: harbor
+    vault:
+      secrets:
+        - path: harbor/admin
+          data:
+            username: "admin"
+            password: "__GENERATE_PASSWORD__"
+        - path: harbor/database
+          data:
+            password: "__GENERATE_PASSWORD__"
+        - path: harbor/registry
+          data:
+            username: "_registry_user"
+            password: "__GENERATE_PASSWORD__"
+        - path: harbor/registry-user
+          data:
+            username: "stremio"
+            password: "__GENERATE_PASSWORD__"
+        - path: harbor/registry-htpasswd
+          data:
+            htpasswd: ""
+        - path: ovh/harbor
+          data:
+            endpoint: "ovh-eu"
+            applicationKey: "REPLACE_WITH_KEY"
+            applicationSecret: "REPLACE_WITH_SECRET"
+            consumerKey: "REPLACE_WITH_CONSUMER_KEY"
+    postgres:
+      enabled: true
+      database: harbor
+      username: harbor

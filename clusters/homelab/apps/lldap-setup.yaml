@@ -1,22 +1,28 @@
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
 metadata:
   name: lldap-setup
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./clusters/homelab/apps/lldap-setup
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
   timeout: 5m
-  wait: true
-  force: true  # Force recreation of jobs
+  chart:
+    spec:
+      chart: ./charts/app-setup
+      reconcileStrategy: ChartVersion
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
   dependsOn:
     - name: vault-transit-config
+      namespace: flux-system
     - name: external-secrets-config
-  postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: vault-admin-token
+      namespace: flux-system
+  values:
+    appName: lldap
+    vault:
+      secrets:
+        - path: lldap
+          data:
+            LLDAP_JWT_SECRET: "__GENERATE_BASE64__"
+            LLDAP_LDAP_USER_PASS: "__GENERATE_BASE64__"

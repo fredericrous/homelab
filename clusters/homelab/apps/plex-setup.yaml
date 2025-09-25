@@ -1,21 +1,28 @@
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
 metadata:
   name: plex-setup
   namespace: flux-system
 spec:
   interval: 10m
   timeout: 5m
-  path: ./clusters/homelab/apps/plex-setup
-  prune: false  # Don't prune setup jobs
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
+  chart:
+    spec:
+      chart: ./charts/app-setup
+      reconcileStrategy: ChartVersion
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
   dependsOn:
     - name: vault-transit-config
+      namespace: flux-system
     - name: external-secrets-config
-  healthChecks:
-    - apiVersion: batch/v1
-      kind: Job
-      name: plex-vault-setup
-      namespace: vault
+      namespace: flux-system
+  values:
+    appName: plex
+    vault:
+      secrets:
+        - path: plex/config
+          data:
+            claim: "claim-ABC123REPLACEME"
+            timezone: "Europe/Paris"
