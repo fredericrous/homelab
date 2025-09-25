@@ -58,10 +58,10 @@ spec:
           echo "🔒 GitOps: Adding client CA to cert-manager TLS secrets..."
           
           # Get client CA certificate
-          CA_CRT=$(kubectl get secret client-ca-cert -n istio-ingress -o jsonpath='{.data.ca\.crt}')
+          CA_CRT=$(kubectl get secret client-ca-cert -n flux-system -o jsonpath='{.data.ca\.crt}')
           
           if [ -z "$CA_CRT" ]; then
-            echo "❌ Client CA certificate not found in istio-ingress/client-ca-cert"
+            echo "❌ Client CA certificate not found in flux-system/client-ca-cert"
             exit 1
           fi
           
