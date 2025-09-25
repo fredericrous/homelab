@@ -37,6 +37,10 @@ spec:
           STORAGE_ENCRYPTION_KEY="$(vault kv get -field=AUTHELIA_STORAGE_ENCRYPTION_KEY secret/authelia)" \
           LDAP_PASSWORD="$(vault kv get -field=AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD secret/authelia)"
     
+    jobs:
+      backoffLimit: 6  # Increase from default 3
+      activeDeadlineSeconds: 1200  # Increase from default 600
+    
     rbac:
       create: true
       additionalNamespaces:
