@@ -5,4 +5,5 @@ resources:
   - cluster-config.yaml
   - kyverno
   - cert-manager-setup.yaml
+  - cert-manager-env-config.yaml
   - cert-manager

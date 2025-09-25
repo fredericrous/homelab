@@ -15,13 +15,8 @@ spec:
           solverName: ovh
           config:
             endpoint: ovh-eu
-            authenticationMethod: application
-            applicationKeySecretRef:
-              name: ovh-credentials
-              key: applicationKey
-            applicationSecretSecretRef:
+            applicationKey: ${CERT_MANAGER_OVH_APPLICATION_KEY}
+            applicationSecretRef:
               name: ovh-credentials
               key: applicationSecret
-            consumerKeySecretRef:
-              name: ovh-credentials
-              key: consumerKey
+            consumerKey: ${CERT_MANAGER_OVH_CONSUMER_KEY}
