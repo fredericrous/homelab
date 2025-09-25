@@ -80,19 +80,14 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
-        # Disabled due to Istio ambient mode health check issues
-        # livenessProbe:
-        #   httpGet:
-        #     path: /api/health
-        #     port: 9091
-        #   initialDelaySeconds: 30
-        #   periodSeconds: 30
-        # readinessProbe:
-        #   httpGet:
-        #     path: /api/health
-        #     port: 9091
-        #   initialDelaySeconds: 10
-        #   periodSeconds: 5
+        # Re-enable readiness probe for service discovery
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 9091
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 10
       volumes:
       - name: config
         configMap:
