@@ -28,6 +28,9 @@ spec:
         AUTHELIA_STORAGE_ENCRYPTION_KEY: "generate"
       additionalSecrets:
         AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD: "INmsLY0M9Un2p58/f/l30Q=="
+        # Postgres credentials
+        postgres_username: "authelia"
+        postgres_password: "authelia-password"
       # Custom script for Authelia-specific setup
       customScript: |
         # Map the secrets to the format Authelia ExternalSecret expects

@@ -16,27 +16,9 @@ data:
     
     export VAULT_TOKEN=$(cat /vault-token/token)
     
-    # Check Vault connection
-    vault status || { echo "Failed to connect to vault"; exit 1; }
-    
-    # Try to get existing credentials
-    echo "Attempting to read secret/{{ .Values.appName }}/postgres from Vault..."
-    DB_CREDS=$(vault kv get -format=json secret/{{ .Values.appName }}/postgres 2>&1 || echo "{}")
-    
-    if echo "$DB_CREDS" | grep -q '"data"'; then
-      DB_USER=$(echo "$DB_CREDS" | grep -o '"username":"[^"]*' | grep -o '[^"]*$')
-      DB_PASS=$(echo "$DB_CREDS" | grep -o '"password":"[^"]*' | grep -o '[^"]*$')
-      echo "Found existing credentials for user: $DB_USER"
-    else
-      echo "No existing credentials in Vault, creating new ones..."
-      DB_USER="{{ include "app-setup.databaseUsername" . }}"
-      DB_PASS=$(head -c 16 /dev/urandom | base64 | tr -d "=+/")
-      
-      # Store in Vault for future use
-      vault kv put secret/{{ .Values.appName }}/postgres \
-        username="$DB_USER" \
-        password="$DB_PASS"
-    fi
+    # Get credentials from vault (should be created by vault setup job)
+    DB_USER=$(vault kv get -field=postgres_username secret/{{ .Values.appName }} || echo "{{ include "app-setup.databaseUsername" . }}")
+    DB_PASS=$(vault kv get -field=postgres_password secret/{{ .Values.appName }} || echo "generated-password")
     
     # Write credentials to shared volume
     cat > /vault-data/db-creds.env <<EOF
