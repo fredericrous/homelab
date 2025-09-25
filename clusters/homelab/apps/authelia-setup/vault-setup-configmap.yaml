@@ -1,0 +1,63 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authelia-vault-setup-script
+  namespace: authelia
+data:
+  setup.sh: |
+    #!/bin/sh
+    set -e
+    
+    echo "🔐 Setting up Vault secrets for Authelia..."
+    
+    # Wait for Vault
+    until curl -s http://vault-vault.vault.svc.cluster.local:8200/v1/sys/health | grep -q '"initialized":true'; do
+      echo "Waiting for Vault to be initialized..."
+      sleep 5
+    done
+    
+    export VAULT_ADDR=http://vault-vault.vault.svc.cluster.local:8200
+    
+    # Check if Authelia secrets already exist
+    if vault kv get -mount=secret authelia > /dev/null 2>&1; then
+      echo "✅ Authelia secrets already exist in Vault"
+    else
+      echo "📝 Creating Authelia secrets in Vault"
+      vault kv put -mount=secret authelia \
+        JWT_SECRET=$(head -c 32 /dev/urandom | base64) \
+        SESSION_SECRET=$(head -c 32 /dev/urandom | base64) \
+        STORAGE_ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64) \
+        LDAP_PASSWORD=$(head -c 16 /dev/urandom | base64)
+    fi
+    
+    # Check if PostgreSQL credentials exist
+    if vault kv get -mount=secret authelia/postgres > /dev/null 2>&1; then
+      echo "✅ Authelia PostgreSQL credentials already exist"
+    else
+      echo "📝 Creating Authelia PostgreSQL credentials"
+      vault kv put -mount=secret authelia/postgres \
+        username=authelia \
+        password=$(head -c 16 /dev/urandom | base64 | tr -d "=+/")
+    fi
+    
+    # Create Vault policy
+    echo "📝 Creating Authelia Vault policy"
+    vault policy write authelia-policy - <<EOF
+    path "secret/data/authelia" {
+      capabilities = ["read"]
+    }
+    path "secret/data/authelia/postgres" {
+      capabilities = ["read"]
+    }
+    EOF
+    
+    # Create Kubernetes auth role
+    echo "📝 Creating Authelia Kubernetes auth role"
+    vault write auth/kubernetes/role/authelia \
+      bound_service_account_names=authelia \
+      bound_service_account_namespaces=authelia \
+      policies=authelia-policy \
+      ttl=24h
+    
+    echo "✅ Authelia Vault setup complete!"

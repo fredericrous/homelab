@@ -17,9 +17,3 @@ spec:
     - name: vault-transit-config
     - name: external-secrets-config
     - name: lldap-setup
-  postBuild:
-    substitute:
-      vault_admin_token: "${vault_admin_token}"
-    substituteFrom:
-      - kind: Secret
-        name: vault-admin-token
