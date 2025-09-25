@@ -25,8 +25,25 @@ spec:
     remediation:
       retries: 3
   values:
-    groupName: ovh.acme.cert-manager.io
-    configVersion: '0.0.2'
+    # Create ClusterIssuer directly via Helm values
+    issuers:
+      - name: letsencrypt-ovh-webhook
+        create: true
+        kind: ClusterIssuer
+        acmeServerUrl: https://acme-v02.api.letsencrypt.org/directory
+        email: admin@daddyshome.fr
+        ovhEndpointName: ovh-eu
+        ovhAuthenticationMethod: application
+        ovhAuthenticationRef:
+          applicationKeyRef:
+            name: ovh-credentials
+            key: applicationKey
+          applicationSecretRef:
+            name: ovh-credentials
+            key: applicationSecret
+          consumerKeyRef:
+            name: ovh-credentials
+            key: consumerKey
     
     # Resource limits for homelab environment
     resources:

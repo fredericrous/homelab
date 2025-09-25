@@ -5,4 +5,3 @@ resources:
   - ovh-webhook-helm-repository.yaml
   - ovh-webhook-helm-release.yaml
   - ovh-webhook-rbac.yaml
-  - letsencrypt-ovh-webhook-clusterissuer.yaml
