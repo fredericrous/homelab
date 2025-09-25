@@ -1,0 +1,90 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: client-ca-patcher
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: client-ca-patcher
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: client-ca-patcher
+subjects:
+- kind: ServiceAccount
+  name: client-ca-patcher
+  namespace: flux-system
+roleRef:
+  kind: ClusterRole
+  name: client-ca-patcher
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: add-client-ca-to-tls-secrets
+  namespace: flux-system
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: client-ca-patcher
+      containers:
+      - name: ca-patcher
+        image: bitnami/kubectl:1.28
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "🔒 GitOps: Adding client CA to cert-manager TLS secrets..."
+          
+          # Get client CA certificate
+          CA_CRT=$(kubectl get secret client-ca-cert -n istio-ingress -o jsonpath='{.data.ca\.crt}')
+          
+          if [ -z "$CA_CRT" ]; then
+            echo "❌ Client CA certificate not found in istio-ingress/client-ca-cert"
+            exit 1
+          fi
+          
+          # List of secrets to patch: namespace:secret-name
+          SECRETS="authelia:authelia-tls plex:plex-tls nextcloud:nextcloud-tls nextcloud:nextcloud-mobile-tls"
+          
+          for SECRET_INFO in $SECRETS; do
+            NAMESPACE=$(echo $SECRET_INFO | cut -d: -f1)
+            SECRET=$(echo $SECRET_INFO | cut -d: -f2)
+            
+            echo "🔧 Adding client CA to $SECRET in $NAMESPACE namespace..."
+            
+            # Check if secret exists
+            if ! kubectl get secret $SECRET -n $NAMESPACE >/dev/null 2>&1; then
+              echo "⏳ Secret $SECRET not found in $NAMESPACE, skipping..."
+              continue
+            fi
+            
+            # Add client CA to the secret
+            kubectl patch secret $SECRET -n $NAMESPACE \
+              --patch="{\"data\":{\"ca.crt\":\"$CA_CRT\"}}"
+              
+            echo "✅ Added client CA to $SECRET in $NAMESPACE"
+          done
+          
+          echo "🎉 GitOps: Client CA added to all available TLS secrets!"
