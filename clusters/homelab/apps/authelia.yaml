@@ -17,4 +17,3 @@ spec:
     - name: external-secrets-config
     - name: istio-gateway
     - name: lldap
-    - name: authelia-setup
