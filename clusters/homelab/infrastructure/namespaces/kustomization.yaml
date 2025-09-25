@@ -3,6 +3,5 @@ kind: Kustomization
 resources:
   - vault.yaml
   - cert-manager.yaml
-  - haproxy-ingress.yaml
   - cnpg-system.yaml
   - external-secrets.yaml
