@@ -18,11 +18,6 @@ spec:
       labels:
         app: authelia
         version: v1
-      annotations:
-        # Ensure pods are included in Istio mesh
-        sidecar.istio.io/inject: "false"
-        # Ambient mode annotations
-        ambient.istio.io/redirection: "enabled"
     spec:
       serviceAccountName: authelia
       initContainers:
