@@ -21,9 +21,11 @@ patches:
       - op: replace
         path: /spec/template/spec/serviceAccountName
         value: authelia
-      - op: replace
-        path: /spec/template/spec/containers/0/env/4/value
-        value: authelia
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: APP_NAME
+          value: authelia
   
   - target:
       kind: Job  
@@ -32,11 +34,13 @@ patches:
       - op: replace
         path: /spec/template/spec/serviceAccountName
         value: authelia
-      - op: replace
-        path: /spec/template/spec/containers/0/env/2/value
-        value: authelia
       - op: add
-        path: /spec/template/spec/containers/0/env/3
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: APP_NAME
+          value: authelia
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
         value:
           name: SERVICE_ACCOUNT
           value: authelia

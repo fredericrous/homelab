@@ -20,8 +20,7 @@ spec:
             secretKeyRef:
               name: vault-admin-token
               key: token
-        - name: APP_NAME
-          value: PLACEHOLDER  # Will be replaced
+# APP_NAME will be added by patches
         volumeMounts:
         - name: script
           mountPath: /scripts

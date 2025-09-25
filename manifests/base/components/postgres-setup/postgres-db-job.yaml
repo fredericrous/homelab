@@ -23,8 +23,7 @@ spec:
               key: password
         - name: VAULT_ADDR
           value: http://vault-vault.vault.svc.cluster.local:8200
-        - name: APP_NAME
-          value: PLACEHOLDER  # Will be replaced by component
+# APP_NAME will be added by patches
         command: ['/bin/sh', '/scripts/create-db.sh']
         volumeMounts:
         - name: script
