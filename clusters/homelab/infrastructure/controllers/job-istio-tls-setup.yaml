@@ -57,4 +57,4 @@ spec:
           kubectl label secret lldap-tls-secret -n lldap istio/tls-secret=true
           
           echo "✅ Istio TLS setup complete!"
-      serviceAccountName: default
+      serviceAccountName: istio-tls-setup
