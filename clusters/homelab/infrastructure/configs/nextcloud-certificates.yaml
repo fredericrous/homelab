@@ -1,0 +1,29 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nextcloud-tls
+  namespace: nextcloud
+spec:
+  secretName: nextcloud-tls
+  dnsNames:
+    - drive.daddyshome.fr
+    - nextcloud.daddyshome.fr
+  issuerRef:
+    name: letsencrypt-ovh-webhook
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nextcloud-mobile-tls
+  namespace: nextcloud
+spec:
+  secretName: nextcloud-mobile-tls
+  dnsNames:
+    - drive-mobile.daddyshome.fr
+  issuerRef:
+    name: letsencrypt-ovh-webhook
+    kind: ClusterIssuer
+    group: cert-manager.io

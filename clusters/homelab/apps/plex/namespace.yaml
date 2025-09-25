@@ -5,3 +5,5 @@ metadata:
   labels:
     name: plex
     backup: velero
+    # Enable Istio Ambient mode for this namespace
+    istio.io/dataplane-mode: ambient

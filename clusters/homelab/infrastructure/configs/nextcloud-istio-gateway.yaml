@@ -1,0 +1,134 @@
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: nextcloud-gateway
+  namespace: nextcloud
+spec:
+  selector:
+    istio: gateway
+  servers:
+  # HTTP redirect to HTTPS
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - drive.daddyshome.fr
+    - nextcloud.daddyshome.fr
+  # HTTPS with mTLS client certificate authentication
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: MUTUAL
+      credentialName: nextcloud-tls-secret
+    hosts:
+    - drive.daddyshome.fr
+    - nextcloud.daddyshome.fr
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: nextcloud-mobile-gateway
+  namespace: nextcloud
+spec:
+  selector:
+    istio: gateway
+  servers:
+  # HTTP redirect to HTTPS
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - drive-mobile.daddyshome.fr
+  # HTTPS without client certificate (for mobile)
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: nextcloud-mobile-tls-secret
+    hosts:
+    - drive-mobile.daddyshome.fr
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nextcloud-redirect
+  namespace: nextcloud
+spec:
+  hosts:
+  - drive.daddyshome.fr
+  - nextcloud.daddyshome.fr
+  gateways:
+  - nextcloud-gateway
+  http:
+  # HTTP to HTTPS redirect for port 80
+  - match:
+    - port: 80
+    redirect:
+      scheme: https
+      redirectCode: 301
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nextcloud-mobile-redirect
+  namespace: nextcloud
+spec:
+  hosts:
+  - drive-mobile.daddyshome.fr
+  gateways:
+  - nextcloud-mobile-gateway
+  http:
+  # HTTP to HTTPS redirect for port 80
+  - match:
+    - port: 80
+    redirect:
+      scheme: https
+      redirectCode: 301
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nextcloud-https
+  namespace: nextcloud
+spec:
+  hosts:
+  - drive.daddyshome.fr
+  - nextcloud.daddyshome.fr
+  gateways:
+  - nextcloud-gateway
+  http:
+  # HTTPS traffic to service (port 443)
+  - match:
+    - port: 443
+    route:
+    - destination:
+        host: nextcloud
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nextcloud-mobile-https
+  namespace: nextcloud
+spec:
+  hosts:
+  - drive-mobile.daddyshome.fr
+  gateways:
+  - nextcloud-mobile-gateway
+  http:
+  # HTTPS traffic to service (port 443) - mobile access without client cert
+  - match:
+    - port: 443
+    route:
+    - destination:
+        host: nextcloud
+        port:
+          number: 80
