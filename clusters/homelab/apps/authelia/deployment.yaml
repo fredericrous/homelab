@@ -17,6 +17,12 @@ spec:
     metadata:
       labels:
         app: authelia
+        version: v1
+      annotations:
+        # Ensure pods are included in Istio mesh
+        sidecar.istio.io/inject: "false"
+        # Ambient mode annotations
+        ambient.istio.io/redirection: "enabled"
     spec:
       serviceAccountName: authelia
       initContainers:
@@ -80,12 +86,13 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
-        # Disabled due to Istio ambient mode health check issues
-        # Health checks timeout in ambient mode preventing pods from being ready
-        # readinessProbe:
-        #   httpGet:
-        #     path: /api/health
-        #     port: 9091
+        # Use TCP probe for ambient mode compatibility
+        readinessProbe:
+          tcpSocket:
+            port: 9091
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
       volumes:
       - name: config
         configMap:
