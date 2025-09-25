@@ -11,7 +11,6 @@ serviceAccount: default
 postgres:
   enabled: true
   host: postgres-apps-rw.postgres.svc.cluster.local
-  superuserSecret: postgres-superuser
   # Database name (defaults to appName)
   database: ""
   # Username (defaults to appName)
