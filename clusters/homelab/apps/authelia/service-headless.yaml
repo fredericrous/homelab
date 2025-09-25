@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: authelia-headless
+  namespace: authelia
+  labels:
+    app: authelia
+spec:
+  # Headless service for direct pod access
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: authelia
+  ports:
+  - port: 9091
+    targetPort: 9091
+    protocol: TCP
+    name: http

@@ -12,5 +12,7 @@ resources:
   - ca-certificates-secret.yaml
   - deployment.yaml
   - service.yaml
+  - service-headless.yaml
   - ingress-simple.yaml
   - destinationrule.yaml
+  - virtualservice-patch.yaml
