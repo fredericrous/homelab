@@ -14,7 +14,7 @@ kind: Namespace
 metadata:
   name: istio-ingress
   labels:
-    istio-injection: enabled
+    istio-injection: disabled
     # Standard security for gateway pods
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: baseline
