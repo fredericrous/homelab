@@ -11,7 +11,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: create-database
-        image: ghcr.io/cloudnative-pg/postgresql:17
+        image: hashicorp/vault:1.17.3
         env:
         - name: PGHOST
           value: postgres-apps-rw.postgres.svc.cluster.local
@@ -33,15 +33,6 @@ spec:
         volumeMounts:
         - name: script
           mountPath: /scripts
-        securityContext:
-          allowPrivilegeEscalation: false
-          runAsNonRoot: true
-          runAsUser: 70  # postgres user
-          capabilities:
-            drop:
-            - ALL
-          seccompProfile:
-            type: RuntimeDefault
       volumes:
       - name: script
         configMap:

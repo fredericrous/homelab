@@ -10,6 +10,9 @@ data:
     
     echo "🗄️  Setting up PostgreSQL database for Authelia..."
     
+    # Install PostgreSQL client
+    apk add --no-cache postgresql-client
+    
     export APP_NAME="authelia"
     
     # Get credentials from Vault (vault setup job should have created these)
