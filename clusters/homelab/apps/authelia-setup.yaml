@@ -17,3 +17,5 @@ spec:
     - name: vault-transit-config
     - name: external-secrets-config
     - name: lldap-setup
+    - name: postgres-setup
+    - name: istio-config  # For postgres cluster to be ready

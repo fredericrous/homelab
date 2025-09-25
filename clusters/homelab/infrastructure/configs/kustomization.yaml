@@ -13,6 +13,6 @@ resources:
   - postgres-namespace.yaml
   - postgres-vault-token-secret.yaml
   - postgres-superuser-secret.yaml
+  - postgres-db-creator-role.yaml
   - postgres-apps-cluster.yaml
   - postgres-setup.yaml
-  - postgres-init-databases.yaml

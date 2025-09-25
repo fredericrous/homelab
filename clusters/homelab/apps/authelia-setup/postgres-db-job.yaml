@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authelia-postgres-db-create
+  namespace: authelia
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: authelia
+      restartPolicy: OnFailure
+      containers:
+      - name: create-database
+        image: postgres:17-alpine
+        env:
+        - name: PGHOST
+          value: postgres-apps-rw.postgres.svc.cluster.local
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-superuser
+              key: password
+        - name: VAULT_ADDR
+          value: http://vault-vault.vault.svc.cluster.local:8200
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
+        command: ['/bin/sh', '/scripts/create-db.sh']
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 70  # postgres user
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+      volumes:
+      - name: script
+        configMap:
+          name: authelia-postgres-db-script
+          defaultMode: 0755

@@ -5,3 +5,7 @@ resources:
   - service-account.yaml
   - vault-setup-configmap.yaml
   - vault-setup-job.yaml
+  - postgres-externalsecret.yaml
+  - postgres-db-configmap.yaml
+  - postgres-db-job.yaml
+  - rbac.yaml

@@ -1,0 +1,12 @@
+---
+# Role in postgres namespace to read superuser secret
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: postgres-superuser-reader
+  namespace: postgres
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["postgres-superuser"]
+  verbs: ["get"]

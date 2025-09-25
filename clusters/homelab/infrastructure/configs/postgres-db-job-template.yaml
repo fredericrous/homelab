@@ -1,0 +1,67 @@
+---
+# Base template for app database creation jobs
+# This file should NOT be included directly, but used as a template
+# Each app should create their own job based on this template
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-db-create-script-template
+  namespace: flux-system
+data:
+  create-db.sh: |
+    #!/bin/sh
+    set -e
+    
+    echo "🗄️  Setting up database for ${APP_NAME}..."
+    
+    # Required environment variables:
+    # - APP_NAME: Name of the application (used for database and user name)
+    # - PGHOST: PostgreSQL host
+    # - PGUSER: PostgreSQL superuser
+    # - PGPASSWORD: PostgreSQL superuser password
+    # - VAULT_ADDR: Vault address
+    # - VAULT_TOKEN: Vault token
+    
+    # Install jq for JSON parsing
+    apk add --no-cache jq curl
+    
+    # Get credentials from Vault
+    echo "Getting credentials from Vault..."
+    CREDS=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" "$VAULT_ADDR/v1/secret/data/$APP_NAME/postgres" | jq -r '.data.data')
+    if [ -z "$CREDS" ] || [ "$CREDS" = "null" ]; then
+      echo "❌ Failed to get credentials for $APP_NAME from Vault"
+      exit 1
+    fi
+    
+    DB_USER=$(echo "$CREDS" | jq -r '.username')
+    DB_PASS=$(echo "$CREDS" | jq -r '.password')
+    
+    # Wait for PostgreSQL to be ready
+    until pg_isready -h "$PGHOST" -p 5432; do
+      echo "Waiting for PostgreSQL to be ready..."
+      sleep 5
+    done
+    
+    # Check if database exists
+    if psql -lqt | cut -d \| -f 1 | grep -qw "$APP_NAME"; then
+      echo "✅ Database $APP_NAME already exists"
+    else
+      echo "Creating database $APP_NAME..."
+      psql <<EOF
+    CREATE USER "$DB_USER" WITH PASSWORD '$DB_PASS';
+    CREATE DATABASE "$APP_NAME" OWNER "$DB_USER";
+    GRANT ALL PRIVILEGES ON DATABASE "$APP_NAME" TO "$DB_USER";
+    EOF
+      echo "✅ Database $APP_NAME created"
+    fi
+---
+# Template RBAC for apps to access postgres superuser secret
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: postgres-db-creator
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["postgres-superuser", "vault-admin-token"]
+  verbs: ["get"]
