@@ -29,6 +29,3 @@ spec:
         enabled: true
       # Allow Cilium and Istio CNI to coexist
       exclusive: false
-      # Enable for ambient mode
-      ambient:
-        enabled: true
