@@ -12,8 +12,10 @@ export VAULT_TOKEN=$(cat /vault-token/token)
 echo "Getting database credentials from Vault..."
 vault status || { echo "Failed to connect to vault"; exit 1; }
 
-DB_CREDS=$(vault kv get -format=json secret/$APP_NAME/postgres 2>/dev/null || echo "{}")
+echo "Attempting to read secret/$APP_NAME/postgres from Vault..."
+DB_CREDS=$(vault kv get -format=json secret/$APP_NAME/postgres 2>&1 || echo "{}")
 
+echo "DB_CREDS response: $DB_CREDS"
 if [ "$DB_CREDS" = "{}" ] || [ -z "$DB_CREDS" ]; then
   echo "No existing credentials in Vault, creating new ones..."
   DB_USER="$APP_NAME"
