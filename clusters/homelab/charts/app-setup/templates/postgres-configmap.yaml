@@ -1,0 +1,63 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "app-setup.fullname" . }}-postgres-script
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "app-setup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-setup
+data:
+  create-db.sh: |
+    #!/bin/sh
+    set -e
+    
+    echo "🗄️  Setting up PostgreSQL database for {{ .Values.appName }}..."
+    
+    # Install PostgreSQL client
+    apk add --no-cache postgresql-client
+    
+    export VAULT_TOKEN=$(cat /vault-token/token)
+    
+    # Get credentials from Vault
+    echo "Getting database credentials from Vault..."
+    vault status || { echo "Failed to connect to vault"; exit 1; }
+    
+    echo "Attempting to read secret/{{ .Values.appName }}/postgres from Vault..."
+    DB_CREDS=$(vault kv get -format=json secret/{{ .Values.appName }}/postgres 2>&1 || echo "{}")
+    
+    echo "DB_CREDS response: $DB_CREDS"
+    if echo "$DB_CREDS" | grep -q '"data"'; then
+      DB_USER=$(echo "$DB_CREDS" | grep -o '"username":"[^"]*' | grep -o '[^"]*$')
+      DB_PASS=$(echo "$DB_CREDS" | grep -o '"password":"[^"]*' | grep -o '[^"]*$')
+      echo "Using existing credentials for user: $DB_USER"
+    else
+      echo "No existing credentials in Vault, creating new ones..."
+      DB_USER="{{ include "app-setup.databaseUsername" . }}"
+      DB_PASS=$(head -c 16 /dev/urandom | base64 | tr -d "=+/")
+      
+      # Store in Vault for future use
+      vault kv put secret/{{ .Values.appName }}/postgres \
+        username="$DB_USER" \
+        password="$DB_PASS"
+    fi
+    
+    # Wait for PostgreSQL to be ready
+    until pg_isready -h "$PGHOST" -p 5432; do
+      echo "Waiting for PostgreSQL to be ready..."
+      sleep 5
+    done
+    
+    # Check if database exists
+    if psql -lqt | cut -d \| -f 1 | grep -qw "{{ include "app-setup.databaseName" . }}"; then
+      echo "✅ Database {{ include "app-setup.databaseName" . }} already exists"
+    else
+      echo "Creating database {{ include "app-setup.databaseName" . }}..."
+      psql <<EOF
+    CREATE USER "$DB_USER" WITH PASSWORD '$DB_PASS';
+    CREATE DATABASE "{{ include "app-setup.databaseName" . }}" OWNER "$DB_USER";
+    GRANT ALL PRIVILEGES ON DATABASE "{{ include "app-setup.databaseName" . }}" TO "$DB_USER";
+    EOF
+      echo "✅ Database {{ include "app-setup.databaseName" . }} created"
+    fi
+{{- end }}

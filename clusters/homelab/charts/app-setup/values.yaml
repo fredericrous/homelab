@@ -1,0 +1,47 @@
+# Required: The name of the application
+appName: ""
+
+# Namespace where the setup jobs will run
+namespace: ""
+
+# Service account to use for the jobs
+serviceAccount: default
+
+# PostgreSQL database setup
+postgres:
+  enabled: true
+  host: postgres-apps-rw.postgres.svc.cluster.local
+  superuserSecret: postgres-superuser
+  # Database name (defaults to appName)
+  database: ""
+  # Username (defaults to appName)
+  username: ""
+
+# Vault setup  
+vault:
+  enabled: true
+  address: http://vault-vault.vault.svc.cluster.local:8200
+  tokenSecret: vault-admin-token
+  # Default secrets to create
+  defaultSecrets:
+    JWT_SECRET: "generate"
+    SESSION_SECRET: "generate"
+    ENCRYPTION_KEY: "generate"
+  # Additional app-specific secrets (key: value or key: generate)
+  additionalSecrets: {}
+  # Custom script to run after default setup
+  customScript: ""
+
+# Job configuration
+jobs:
+  image: hashicorp/vault:1.17.3
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+
+# RBAC configuration
+rbac:
+  # Create RBAC resources
+  create: true
+  # Additional namespaces to grant access to
+  additionalNamespaces: []

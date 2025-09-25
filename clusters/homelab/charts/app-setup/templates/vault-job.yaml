@@ -1,0 +1,43 @@
+{{- if .Values.vault.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "app-setup.fullname" . }}-vault
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "app-setup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vault-setup
+spec:
+  ttlSecondsAfterFinished: {{ .Values.jobs.ttlSecondsAfterFinished }}
+  backoffLimit: {{ .Values.jobs.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.jobs.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "app-setup.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: vault-setup
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount }}
+      restartPolicy: OnFailure
+      containers:
+      - name: vault-setup
+        image: {{ .Values.jobs.image }}
+        env:
+        - name: VAULT_ADDR
+          value: {{ .Values.vault.address }}
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.vault.tokenSecret }}
+              key: token
+        command: ['/bin/sh', '/scripts/setup.sh']
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: script
+        configMap:
+          name: {{ include "app-setup.fullname" . }}-vault-script
+          defaultMode: 0755
+{{- end }}

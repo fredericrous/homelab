@@ -1,0 +1,92 @@
+{{- if .Values.vault.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "app-setup.fullname" . }}-vault-script
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "app-setup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vault-setup
+data:
+  setup.sh: |
+    #!/bin/sh
+    set -e
+    
+    echo "🔐 Setting up Vault secrets for {{ .Values.appName }}..."
+    
+    # Wait for Vault to be ready
+    until vault status | grep -q "Sealed.*false"; do
+      echo "Waiting for Vault to be unsealed..."
+      sleep 5
+    done
+    echo "✅ Vault is ready"
+    
+    # Function to generate secure random string
+    generate_secret() {
+      head -c 32 /dev/urandom | base64 | tr -d '\n'
+    }
+    
+    # Check if secrets already exist
+    if vault kv get -mount=secret {{ .Values.appName }} > /dev/null 2>&1; then
+      echo "✅ {{ .Values.appName }} secrets already exist in Vault"
+      # Patch with any new secrets
+      {{- range $key, $value := .Values.vault.defaultSecrets }}
+      {{- if eq $value "generate" }}
+      vault kv patch -mount=secret {{ $.Values.appName }} {{ $key }}=$(generate_secret) || true
+      {{- else }}
+      vault kv patch -mount=secret {{ $.Values.appName }} {{ $key }}="{{ $value }}" || true
+      {{- end }}
+      {{- end }}
+      {{- range $key, $value := .Values.vault.additionalSecrets }}
+      {{- if eq $value "generate" }}
+      vault kv patch -mount=secret {{ $.Values.appName }} {{ $key }}=$(generate_secret) || true
+      {{- else }}
+      vault kv patch -mount=secret {{ $.Values.appName }} {{ $key }}="{{ $value }}" || true
+      {{- end }}
+      {{- end }}
+    else
+      echo "📝 Creating {{ .Values.appName }} secrets in Vault"
+      vault kv put -mount=secret {{ .Values.appName }} \
+        {{- range $key, $value := .Values.vault.defaultSecrets }}
+        {{- if eq $value "generate" }}
+        {{ $key }}=$(generate_secret) \
+        {{- else }}
+        {{ $key }}="{{ $value }}" \
+        {{- end }}
+        {{- end }}
+        {{- range $key, $value := .Values.vault.additionalSecrets }}
+        {{- if eq $value "generate" }}
+        {{ $key }}=$(generate_secret) \
+        {{- else }}
+        {{ $key }}="{{ $value }}" \
+        {{- end }}
+        {{- end }}
+        placeholder="end"
+    fi
+    
+    # Create Vault policy for the app
+    echo "📝 Creating {{ .Values.appName }} Vault policy"
+    vault policy write {{ .Values.appName }}-policy - <<EOF
+    path "secret/data/{{ .Values.appName }}" {
+      capabilities = ["read"]
+    }
+    path "secret/data/{{ .Values.appName }}/*" {
+      capabilities = ["read"]
+    }
+    EOF
+    
+    # Create Kubernetes auth role
+    echo "📝 Creating {{ .Values.appName }} Kubernetes auth role"
+    vault write auth/kubernetes/role/{{ .Values.appName }} \
+      bound_service_account_names={{ .Values.serviceAccount }} \
+      bound_service_account_namespaces={{ .Values.namespace }} \
+      policies={{ .Values.appName }}-policy \
+      ttl=24h
+    
+    {{- if .Values.vault.customScript }}
+    echo "🔧 Running custom vault setup script..."
+    {{ .Values.vault.customScript | nindent 4 }}
+    {{- end }}
+    
+    echo "✅ {{ .Values.appName }} Vault setup complete!"
+{{- end }}

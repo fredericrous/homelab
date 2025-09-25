@@ -1,0 +1,43 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authelia-setup
+  namespace: authelia
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: ./clusters/homelab/charts/app-setup
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+    appName: authelia
+    namespace: authelia
+    serviceAccount: authelia
+    
+    postgres:
+      enabled: true
+      
+    vault:
+      enabled: true
+      defaultSecrets:
+        AUTHELIA_JWT_SECRET: "generate"
+        AUTHELIA_SESSION_SECRET: "generate"
+        AUTHELIA_STORAGE_ENCRYPTION_KEY: "generate"
+      additionalSecrets:
+        AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD: "INmsLY0M9Un2p58/f/l30Q=="
+      # Custom script for Authelia-specific setup
+      customScript: |
+        # Map the secrets to the format Authelia ExternalSecret expects
+        vault kv patch -mount=secret authelia \
+          JWT_SECRET="$(vault kv get -field=AUTHELIA_JWT_SECRET secret/authelia)" \
+          SESSION_SECRET="$(vault kv get -field=AUTHELIA_SESSION_SECRET secret/authelia)" \
+          STORAGE_ENCRYPTION_KEY="$(vault kv get -field=AUTHELIA_STORAGE_ENCRYPTION_KEY secret/authelia)" \
+          LDAP_PASSWORD="$(vault kv get -field=AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD secret/authelia)"
+    
+    rbac:
+      create: true
+      additionalNamespaces:
+        - lldap  # For reading LDAP secrets if needed
