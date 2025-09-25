@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-token-copy
+  namespace: authelia
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: authelia
+      restartPolicy: OnFailure
+      containers:
+      - name: copy-token
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Copying vault-admin-token from vault namespace..."
+          
+          # Get the token from vault namespace
+          TOKEN=$(kubectl get secret vault-admin-token -n vault -o jsonpath='{.data.token}')
+          
+          # Create the secret in authelia namespace
+          kubectl create secret generic vault-admin-token-copy \
+            --from-literal=token="$TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "✅ Token copied successfully"

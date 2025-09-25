@@ -14,6 +14,7 @@ data:
     apk add --no-cache postgresql-client
     
     export APP_NAME="authelia"
+    export VAULT_TOKEN=$(cat /vault-token/token)
     
     # Get credentials from Vault (vault setup job should have created these)
     echo "Getting database credentials from Vault..."
