@@ -11,3 +11,5 @@ resources:
   - haproxy-ingress.yaml
   - haproxy-service.yaml
   - cloudnative-pg.yaml
+  - job-vault-pki-sync.yaml
+  - nas-vault-eso-token-secret.yaml

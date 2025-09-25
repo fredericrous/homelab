@@ -101,8 +101,7 @@ tasks:
     desc: Post-deployment configuration
     cmds:
       - task: create-aws-secret
-      - cmd: task vault-pki
-        ignore_error: true
+      - task: vault-pki
       - task: show-info
 
   create-aws-secret:
