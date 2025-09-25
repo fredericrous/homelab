@@ -19,5 +19,5 @@ resources:
   - istio-cni.yaml
   - istio-istiod.yaml
   - istio-ztunnel.yaml
-  - istio-gateway.yaml
+  # - istio-gateway.yaml  # Already deployed to istio-ingress namespace
   - redis-operator.yaml
