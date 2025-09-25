@@ -11,7 +11,7 @@ spec:
       serviceAccountName: vault-admin
       containers:
       - name: vault-setup
-        image: vault:1.14.0
+        image: hashicorp/vault:1.14.0
         env:
         - name: VAULT_ADDR
           value: http://vault.vault.svc.cluster.local:8200
