@@ -27,6 +27,9 @@ spec:
     remediation:
       retries: 3
   values:
+    # Exclude from ambient mesh interception
+    podAnnotations:
+      ambient.istio.io/redirection: disabled
     service:
       type: NodePort
       ports:
