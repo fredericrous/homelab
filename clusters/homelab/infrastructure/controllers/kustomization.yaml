@@ -15,7 +15,7 @@ resources:
   - job-vault-pki-sync.yaml
   - nas-vault-eso-token-secret.yaml
   # Istio HelmReleases are already deployed to istio-system namespace
-  # - istio-repository.yaml
+  - istio-repository.yaml
   # - istio-base.yaml
   # - istio-cni.yaml
   # - istio-istiod.yaml
