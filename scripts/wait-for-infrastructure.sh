@@ -1,5 +1,13 @@
 #!/bin/bash
 # Don't use set -e because we want to continue even if some components aren't ready yet
+#
+# Bootstrap flow:
+# 1. infrastructure-core deploys (Rook-Ceph, Vault, ESO)
+# 2. Vault initializes and unseals
+# 3. External Secrets Operator becomes ready
+# 4. infrastructure deploys (may fail initially due to missing secrets)
+# 5. VaultStaticSecret creates cert-manager-env-config from Vault
+# 6. infrastructure reconciles successfully with secrets available
 
 echo "⏳ Waiting for infrastructure components to be ready..."
 
@@ -14,9 +22,9 @@ for i in {1..30}; do
   sleep 2
 done
 
-# Wait for infrastructure core first (includes Reflector, MetalLB, Rook-Ceph)
+# Wait for infrastructure core first (includes Reflector, MetalLB, Rook-Ceph, Vault, ESO)
 echo "Waiting for infrastructure core components..."
-kubectl wait --for=condition=ready --timeout=300s -n flux-system kustomization/infrastructure-core 2>/dev/null || {
+kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/infrastructure-core 2>/dev/null || {
   echo "⚠️  Infrastructure core not ready yet, checking status..."
   kubectl get kustomization infrastructure-core -n flux-system 2>/dev/null || echo "Infrastructure-core kustomization not found"
 }
@@ -139,6 +147,17 @@ kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/ext
   echo "⚠️  ESO not ready yet"
   kubectl get helmrelease external-secrets -n flux-system 2>/dev/null || echo "ESO HelmRelease not found"
 }
+
+# Wait for cert-manager-env-config secret to be created by VaultStaticSecret
+echo "Waiting for cert-manager credentials from Vault..."
+for i in {1..60}; do
+  if kubectl get secret cert-manager-env-config -n flux-system >/dev/null 2>&1; then
+    echo "✅ cert-manager credentials secret created"
+    break
+  fi
+  echo "Waiting for VaultStaticSecret to create cert-manager-env-config... ($i/60)"
+  sleep 5
+done
 
 # Wait for other infrastructure
 echo "Waiting for remaining infrastructure..."

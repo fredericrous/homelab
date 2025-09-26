@@ -20,4 +20,4 @@ spec:
         optional: false
       - kind: Secret
         name: cert-manager-env-config
-        optional: true
+        optional: true  # Created by Terraform during bootstrap, replaced by VaultStaticSecret later
