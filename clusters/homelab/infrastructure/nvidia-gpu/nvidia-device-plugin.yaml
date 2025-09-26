@@ -43,5 +43,4 @@ spec:
       - name: config
         configMap:
           name: nvidia-device-plugin-config
-      nodeSelector:
-        extensions.talos.dev/nvidia-container-toolkit-production: "570.148.08-v1.17.8"
+      # nodeSelector removed temporarily for testing
