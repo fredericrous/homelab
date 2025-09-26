@@ -15,8 +15,6 @@ spec:
     - name: external-secrets-config
     - name: cert-manager-setup
       namespace: flux-system
-    - name: istio-gateway
-      namespace: istio-ingress
     - name: harbor-setup
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2beta1

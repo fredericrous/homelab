@@ -13,7 +13,7 @@ spec:
     name: flux-system
   dependsOn:
     - name: external-secrets-config
-    - name: istio-gateway
+    # Istio gateway resources are deployed by infrastructure kustomization
     - name: cert-manager
     - name: plex-setup
   healthChecks:

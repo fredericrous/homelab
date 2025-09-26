@@ -15,6 +15,6 @@ spec:
   dependsOn:
     - name: vault-transit-config
     - name: external-secrets-config
-    - name: istio-gateway
+    # Istio gateway resources are deployed by infrastructure kustomization
     - name: lldap
     - name: authelia-setup
