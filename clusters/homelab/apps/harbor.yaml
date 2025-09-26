@@ -12,7 +12,6 @@ spec:
     kind: GitRepository
     name: flux-system
   dependsOn:
-    - name: metallb-config
     - name: external-secrets-config
     - name: cert-manager-setup
       namespace: flux-system
