@@ -148,6 +148,9 @@ tasks:
         echo "🔐 Creating vault-transit-token secret..."
         ./scripts/bootstrap-vault-transit-secret.sh
         
+        echo "🔐 Creating cluster variables secret..."
+        ./scripts/bootstrap-cluster-vars.sh
+        
         echo "✅ Cluster created and FluxCD bootstrapped successfully!"
 
 

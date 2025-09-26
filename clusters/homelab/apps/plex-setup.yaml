@@ -25,26 +25,10 @@ spec:
       secrets:
         - path: plex/config
           data:
-            claim: "${PLEX_CLAIM_TOKEN}"
+            claim: "placeholder"  # Will be replaced by valuesFrom
             timezone: "Europe/Paris"
-  postRenderers:
-    - kustomize:
-        patches:
-          - target:
-              kind: ConfigMap
-              name: plex-vault-script
-            patch: |
-              - op: replace
-                path: /data/setup-vault.sh
-                value: |
-                  #!/bin/sh
-                  set -e
-                  
-                  echo "Setting up Vault for plex..."
-                  
-                  # Store secrets in vault
-                  vault kv put secret/plex/config \
-                    claim="${PLEX_CLAIM_TOKEN}" \
-                    timezone="Europe/Paris"
-                  
-                  echo "Vault setup complete for plex"
+  valuesFrom:
+    - kind: Secret
+      name: cluster-vars
+      valuesKey: PLEX_CLAIM_TOKEN
+      targetPath: vault.secrets[0].data.claim
