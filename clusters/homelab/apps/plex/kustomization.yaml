@@ -7,7 +7,6 @@ resources:
   - namespace.yaml
   - service-account.yaml
   - external-secret.yaml
-  - certificate.yaml
   - pvc-config.yaml
   - pvc-nfs-media.yaml
   - deployment.yaml

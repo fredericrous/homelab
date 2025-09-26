@@ -19,6 +19,6 @@ spec:
       protocol: HTTPS
     tls:
       mode: MUTUAL
-      credentialName: plex-tls-certificate
+      credentialName: plex-tls
     hosts:
     - plex.daddyshome.fr
