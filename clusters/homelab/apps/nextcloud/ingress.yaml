@@ -15,7 +15,7 @@ spec:
   - hosts:
     - nextcloud.daddyshome.fr
     - drive.daddyshome.fr
-    secretName: nextcloud-tls-certificate
+    secretName: nextcloud-tls
   rules:
   - host: nextcloud.daddyshome.fr
     http:

@@ -20,7 +20,7 @@ spec:
       protocol: HTTPS
     tls:
       mode: MUTUAL
-      credentialName: nextcloud-tls-certificate
+      credentialName: nextcloud-tls
     hosts:
     - nextcloud.daddyshome.fr
     - drive.daddyshome.fr
@@ -47,6 +47,6 @@ spec:
       protocol: HTTPS
     tls:
       mode: SIMPLE  # No client certificate required for mobile
-      credentialName: nextcloud-mobile-tls-certificate
+      credentialName: nextcloud-mobile-tls
     hosts:
     - drive-mobile.daddyshome.fr
