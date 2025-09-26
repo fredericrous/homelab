@@ -13,3 +13,11 @@ resources:
   - nas-vault-eso-token-secret.yaml
   - external-secrets-operator.yaml
   - external-secrets-config.yaml
+  # Istio components
+  - istio-repository.yaml
+  - istio-base.yaml
+  - istio-cni.yaml
+  - istio-istiod.yaml
+  - istio-ztunnel.yaml
+  - istio-gateway.yaml
+  - istio-sa-fix.yaml

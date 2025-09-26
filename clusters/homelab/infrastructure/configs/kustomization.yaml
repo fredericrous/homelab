@@ -10,9 +10,6 @@ resources:
   - cert-manager-vault-secret.yaml
   - cert-manager
   - client-ca-externalsecret.yaml
-  # Moved to post-istio directory - deployed after Istio CRDs are available
-  # - lldap-istio-gateway.yaml
-  # - authelia-istio-gateway.yaml
   # Commented out - vault-admin-token should not be fetched from vault itself
   # - postgres-vault-token-secret.yaml
   - postgres-superuser-secret.yaml
@@ -21,3 +18,8 @@ resources:
   # - postgres-apps-cluster.yaml
   - postgres-setup.yaml
   - istio-cni-rbac-fix.yaml
+  # Istio Gateway resources (depend on Istio CRDs from infrastructure-core)
+  - lldap-istio-gateway.yaml
+  - authelia-istio-gateway.yaml
+  - plex-istio-gateway.yaml
+  - nextcloud-istio-gateway.yaml

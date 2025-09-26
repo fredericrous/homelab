@@ -6,3 +6,5 @@ resources:
   - rook-ceph.yaml
   - vault.yaml
   - external-secrets.yaml
+  - istio-system.yaml
+  - istio-ingress.yaml

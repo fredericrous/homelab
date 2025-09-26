@@ -6,5 +6,4 @@ resources:
 - ../infrastructure-core.yaml
 - ../infrastructure.yaml
 - ../infrastructure-data.yaml
-- ../infrastructure-istio-configs.yaml
 - ../apps.yaml

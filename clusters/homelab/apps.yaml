@@ -12,4 +12,5 @@ spec:
   prune: true
   wait: false
   dependsOn:
-    - name: infrastructure-istio-configs
+    - name: infrastructure
+    - name: infrastructure-data
