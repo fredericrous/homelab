@@ -43,4 +43,5 @@ spec:
       - name: config
         configMap:
           name: nvidia-device-plugin-config
-      # nodeSelector removed temporarily for testing
+      nodeSelector:
+        gpu: nvidia-rtx-4060
