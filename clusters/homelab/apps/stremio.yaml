@@ -15,6 +15,7 @@ spec:
     - name: stremio-setup
     - name: external-secrets-config
     - name: istio-gateway
+      namespace: istio-ingress
     - name: cert-manager
   healthChecks:
     - apiVersion: apps/v1
