@@ -15,6 +15,7 @@ resources:
   # - postgres-vault-token-secret.yaml
   - postgres-superuser-secret.yaml
   - postgres-db-creator-role.yaml
-  - postgres-apps-cluster.yaml
+  # Moved to postgres namespace kustomization to avoid namespace override
+  # - postgres-apps-cluster.yaml
   - postgres-setup.yaml
   - istio-cni-rbac-fix.yaml
