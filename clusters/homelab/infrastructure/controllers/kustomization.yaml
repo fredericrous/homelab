@@ -14,13 +14,13 @@ resources:
   - cloudnative-pg.yaml
   - job-vault-pki-sync.yaml
   - nas-vault-eso-token-secret.yaml
-  # Istio HelmReleases are already deployed to istio-system namespace
+  # Istio components
   - istio-repository.yaml
-  # - istio-base.yaml
-  # - istio-cni.yaml
-  # - istio-istiod.yaml
-  # - istio-ztunnel.yaml
-  # - istio-gateway.yaml
+  - istio-base.yaml
+  - istio-cni.yaml
+  - istio-istiod.yaml
+  - istio-ztunnel.yaml
+  - istio-gateway.yaml
   - redis-operator.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
