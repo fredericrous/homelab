@@ -56,3 +56,14 @@ Database username
 {{- define "app-setup.databaseUsername" -}}
 {{- .Values.postgres.username | default .Values.appName }}
 {{- end }}
+
+{{/*
+Service account name
+*/}}
+{{- define "app-setup.serviceAccountName" -}}
+{{- if .Values.serviceAccount.name }}
+{{- .Values.serviceAccount.name }}
+{{- else }}
+{{- include "app-setup.fullname" . }}
+{{- end }}
+{{- end }}

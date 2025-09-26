@@ -28,8 +28,7 @@ roleRef:
   name: {{ include "app-setup.fullname" . }}-postgres-reader
 subjects:
 - kind: ServiceAccount
-  name: {{ .Values.serviceAccount }}
-  namespace: {{ .Values.namespace }}
+  name: {{ include "app-setup.serviceAccountName" . }}
 {{- end }}
 
 {{- range .Values.rbac.additionalNamespaces }}
@@ -60,7 +59,6 @@ roleRef:
   name: {{ include "app-setup.fullname" $ }}-{{ . }}-access
 subjects:
 - kind: ServiceAccount
-  name: {{ $.Values.serviceAccount }}
-  namespace: {{ $.Values.namespace }}
+  name: {{ include "app-setup.serviceAccountName" $ }}
 {{- end }}
 {{- end }}

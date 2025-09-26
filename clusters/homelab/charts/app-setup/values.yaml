@@ -4,8 +4,12 @@ appName: ""
 # Namespace where the setup jobs will run
 namespace: ""
 
-# Service account to use for the jobs
-serviceAccount: default
+# Service account configuration
+serviceAccount:
+  # Create a service account
+  create: true
+  # Name of the service account
+  name: ""  # defaults to chart fullname if not set
 
 # PostgreSQL database setup
 postgres:
@@ -15,21 +19,19 @@ postgres:
   database: ""
   # Username (defaults to appName)
   username: ""
+  # Superuser secret name in postgres namespace
+  superuserSecret: postgres-apps-superuser
 
 # Vault setup  
 vault:
   enabled: true
   address: http://vault-vault.vault.svc.cluster.local:8200
   tokenSecret: vault-admin-token
-  # Default secrets to create
-  defaultSecrets:
-    JWT_SECRET: "generate"
-    SESSION_SECRET: "generate"
-    ENCRYPTION_KEY: "generate"
-  # Additional app-specific secrets (key: value or key: generate)
-  additionalSecrets: {}
-  # Custom script to run after default setup
-  customScript: ""
+  # Secrets to create, with structure:
+  # - path: secret/app/section
+  #   data:
+  #     key: value or __GENERATE_PASSWORD__ or __GENERATE_BASE64__
+  secrets: []
 
 # Job configuration
 jobs:

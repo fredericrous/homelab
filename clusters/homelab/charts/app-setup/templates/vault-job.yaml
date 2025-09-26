@@ -16,7 +16,7 @@ spec:
         {{- include "app-setup.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: vault-setup
     spec:
-      serviceAccountName: {{ .Values.serviceAccount }}
+      serviceAccountName: {{ include "app-setup.serviceAccountName" . }}
       restartPolicy: OnFailure
       containers:
       - name: vault-setup

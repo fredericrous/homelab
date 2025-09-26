@@ -19,7 +19,7 @@ resources:
   - gateway.yaml
   - virtualservice.yaml
   - peerauthentication.yaml
-  - init-job.yaml
+  - post-install-job.yaml
 
 patches:
   # Add backup annotations
