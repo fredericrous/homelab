@@ -12,7 +12,7 @@ spec:
     kind: GitRepository
     name: flux-system
   dependsOn:
-    - name: harbor-setup
+    - name: harbor
     - name: external-secrets-config
   healthChecks:
     - apiVersion: apps/v1

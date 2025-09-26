@@ -7,6 +7,7 @@ resources:
   - namespace.yaml
   - service-account.yaml
   - harbor-registry-external-secret.yaml
+  - harbor-registry-creds.yaml
   - buildkitd-config.yaml
   - buildkitd-deployment.yaml
   - buildkitd-service.yaml

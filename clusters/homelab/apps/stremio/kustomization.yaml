@@ -4,6 +4,8 @@ kind: Kustomization
 namespace: stremio
 
 resources:
+  - namespace.yaml
+  - service-account.yaml
   - external-secrets.yaml
   - pvc.yaml
   - nginx-config.yaml
@@ -13,9 +15,9 @@ resources:
   - deployment-server.yaml
   - deployment-web.yaml
   - service.yaml
-  - ingress.yaml
-  - ingress-mobile.yaml
-  - server-ingress.yaml
+  - peerauthentication.yaml
+  - gateway.yaml
+  - virtualservice.yaml
 
 patches:
   # Add backup annotations
