@@ -2,7 +2,7 @@ apiVersion: v2
 name: app-setup
 description: Reusable Helm chart for app database and vault setup
 type: application
-version: 0.4.1
+version: 0.4.2
 appVersion: "1.0"
 maintainers:
   - name: Platform Team

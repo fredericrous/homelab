@@ -20,7 +20,7 @@ postgres:
   # Username (defaults to appName)
   username: ""
   # Superuser secret name in postgres namespace
-  superuserSecret: postgres-apps-superuser
+  superuserSecret: postgres-superuser
 
 # Vault setup  
 vault:

@@ -18,6 +18,10 @@ spec:
     spec:
       serviceAccountName: {{ include "app-setup.serviceAccountName" . }}
       restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       initContainers:
       - name: vault-fetch-creds
         image: {{ .Values.jobs.vaultImage }}

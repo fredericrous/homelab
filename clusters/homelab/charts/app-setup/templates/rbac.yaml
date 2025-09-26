@@ -29,6 +29,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "app-setup.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
 {{- end }}
 
 {{- range .Values.rbac.additionalNamespaces }}
@@ -60,5 +61,6 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "app-setup.serviceAccountName" $ }}
+  namespace: {{ $.Release.Namespace }}
 {{- end }}
 {{- end }}
