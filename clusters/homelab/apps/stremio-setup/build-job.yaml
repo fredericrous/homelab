@@ -42,11 +42,6 @@ spec:
                 "username": "${HARBOR_USER}",
                 "password": "${HARBOR_PASS}",
                 "auth": "$(echo -n "${HARBOR_USER}:${HARBOR_PASS}" | base64)"
-              },
-              "192.168.1.220:5000": {
-                "username": "${HARBOR_USER}",
-                "password": "${HARBOR_PASS}",
-                "auth": "$(echo -n "${HARBOR_USER}:${HARBOR_PASS}" | base64)"
               }
             }
           }
@@ -56,7 +51,7 @@ spec:
           echo "Checking if image already exists..."
           IMAGE_EXISTS=$(curl -s -u "${HARBOR_USER}:${HARBOR_PASS}" \
             -o /dev/null -w "%{http_code}" \
-            "http://192.168.1.220:5000/v2/library/stremio-web/manifests/latest" || true)
+            "http://harbor-registry.harbor.svc.cluster.local:5000/v2/library/stremio-web/manifests/latest" || true)
           
           if [ "$IMAGE_EXISTS" = "200" ]; then
             echo "Image already exists in Harbor, skipping build."
@@ -69,7 +64,7 @@ spec:
             --frontend dockerfile.v0 \
             --local context=/workspace \
             --local dockerfile=/workspace \
-            --output type=image,name=192.168.1.220:5000/library/stremio-web:latest,push=true,registry.insecure=true
+            --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest,push=true,registry.insecure=true
           
           echo "Build completed successfully!"
         env:

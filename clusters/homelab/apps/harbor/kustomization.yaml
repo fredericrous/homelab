@@ -7,7 +7,7 @@ resources:
   - namespace.yaml
   - service-account.yaml
   - external-secrets.yaml
-  - harbor-ip-pool.yaml
-  - harbor-registry-lb.yaml
+  # - harbor-ip-pool.yaml    # No longer needed with internal DNS
+  # - harbor-registry-lb.yaml # No longer needed with internal DNS
   - ingress.yaml
   - harbor-helmrelease.yaml

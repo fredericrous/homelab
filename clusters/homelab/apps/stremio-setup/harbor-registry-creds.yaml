@@ -16,7 +16,7 @@ spec:
         .dockerconfigjson: |
           {
             "auths": {
-              "192.168.1.220:5000": {
+              "harbor-registry.harbor.svc.cluster.local:5000": {
                 "username": "{{ .username }}",
                 "password": "{{ .password }}",
                 "auth": "{{ printf "%s:%s" .username .password | b64enc }}"
