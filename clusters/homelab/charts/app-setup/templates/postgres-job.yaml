@@ -44,11 +44,11 @@ spec:
         - name: PGHOST
           value: {{ .Values.postgres.host }}
         - name: PGUSER
-          value: postgres
+          value: app
         - name: PGPASSWORD
           valueFrom:
             secretKeyRef:
-              name: postgres-superuser
+              name: postgres-apps-app
               key: password
         command: ['/bin/sh', '/scripts/create-db.sh']
         volumeMounts:

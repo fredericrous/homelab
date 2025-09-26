@@ -31,13 +31,23 @@ data:
     # Check if database exists
     if psql -lqt | cut -d \| -f 1 | grep -qw "{{ include "app-setup.databaseName" . }}"; then
       echo "✅ Database {{ include "app-setup.databaseName" . }} already exists"
+      # Update user password if user exists
+      if psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
+        echo "Updating password for existing user $DB_USER..."
+        psql -c "ALTER USER \"$DB_USER\" WITH PASSWORD '$DB_PASS';"
+      fi
     else
       echo "Creating database {{ include "app-setup.databaseName" . }}..."
-      psql <<EOF
-    CREATE USER "$DB_USER" WITH PASSWORD '$DB_PASS';
-    CREATE DATABASE "{{ include "app-setup.databaseName" . }}" OWNER "$DB_USER";
-    GRANT ALL PRIVILEGES ON DATABASE "{{ include "app-setup.databaseName" . }}" TO "$DB_USER";
-    EOF
+      # Check if user already exists
+      if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
+        echo "Creating user $DB_USER..."
+        psql -c "CREATE USER \"$DB_USER\" WITH PASSWORD '$DB_PASS';"
+      else
+        echo "User $DB_USER already exists, updating password..."
+        psql -c "ALTER USER \"$DB_USER\" WITH PASSWORD '$DB_PASS';"
+      fi
+      psql -c "CREATE DATABASE \"{{ include "app-setup.databaseName" . }}\" OWNER \"$DB_USER\";"
+      psql -c "GRANT ALL PRIVILEGES ON DATABASE \"{{ include "app-setup.databaseName" . }}\" TO \"$DB_USER\";"
       echo "✅ Database {{ include "app-setup.databaseName" . }} created"
     fi
 {{- end }}
