@@ -42,6 +42,9 @@ spec:
       memory: "2Gi"
       cpu: "2"
   
+  # Enable superuser access for database creation
+  enableSuperuserAccess: true
+  
   # Backup configuration (commented out for now)
   # backup:
   #   retentionPolicy: "30d"
