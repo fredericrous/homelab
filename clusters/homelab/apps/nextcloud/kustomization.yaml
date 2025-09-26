@@ -8,7 +8,6 @@ resources:
   - service-account.yaml
   - rbac-setup-jobs.yaml
   - external-secrets.yaml
-  - certificate.yaml
   - pvc.yaml
   - pvc-nfs.yaml
   - configmap.yaml
