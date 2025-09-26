@@ -6,6 +6,7 @@ namespace: stremio
 resources:
   - namespace.yaml
   - service-account.yaml
+  - certificate.yaml
   - external-secrets.yaml
   - pvc.yaml
   - nginx-config.yaml

@@ -8,7 +8,7 @@ spec:
   timeout: 5m
   chart:
     spec:
-      chart: ./charts/app-setup
+      chart: ./clusters/homelab/charts/app-setup
       reconcileStrategy: ChartVersion
       sourceRef:
         kind: GitRepository
