@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  timeout: 5m
+  timeout: 1m
   chart:
     spec:
       chart: ./clusters/homelab/charts/app-setup
@@ -46,6 +46,7 @@ spec:
             applicationKey: "REPLACE_WITH_KEY"
             applicationSecret: "REPLACE_WITH_SECRET"
             consumerKey: "REPLACE_WITH_CONSUMER_KEY"
+      skipDatabaseCreation: true
     postgres:
       enabled: true
       database: harbor
