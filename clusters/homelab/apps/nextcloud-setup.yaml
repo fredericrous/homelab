@@ -7,7 +7,6 @@ spec:
   interval: 10m
   timeout: 5m
   targetNamespace: flux-system
-  suspend: true
   chart:
     spec:
       chart: ./clusters/homelab/charts/app-setup
