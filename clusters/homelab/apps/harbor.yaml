@@ -15,6 +15,7 @@ spec:
     - name: metallb-config
     - name: external-secrets-config
     - name: cert-manager-setup
+      namespace: flux-system
     - name: istio-gateway
     - name: harbor-setup
   healthChecks:
