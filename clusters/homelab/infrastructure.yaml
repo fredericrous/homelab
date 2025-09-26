@@ -18,6 +18,6 @@ spec:
       - kind: Secret
         name: vault-transit-token
         optional: false
-      - kind: ConfigMap
+      - kind: Secret
         name: cert-manager-env-config
-        optional: false
+        optional: true
