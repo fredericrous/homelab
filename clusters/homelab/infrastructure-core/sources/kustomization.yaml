@@ -7,3 +7,4 @@ resources:
   - rook-release.yaml
   - hashicorp.yaml
   - external-secrets.yaml
+  - fredericrous.yaml
