@@ -25,43 +25,41 @@ data:
       head -c 32 /dev/urandom | base64 | tr -d '\n'
     }
     
-    # Check if secrets already exist
-    if vault kv get -mount=secret {{ .Values.appName }} > /dev/null 2>&1; then
-      echo "✅ {{ .Values.appName }} secrets already exist in Vault"
-      # Patch with any new secrets
-      {{- range $key, $value := .Values.vault.defaultSecrets }}
-      {{- if eq $value "generate" }}
-      vault kv patch -mount=secret {{ $.Values.appName }} {{ $key }}=$(generate_secret) || true
+    # Process secrets
+    {{- range .Values.vault.secrets }}
+    SECRET_PATH="{{ .path }}"
+    
+    if vault kv get -mount=secret "$SECRET_PATH" > /dev/null 2>&1; then
+      echo "✅ Secret at $SECRET_PATH already exists"
+      # Update with any new keys
+      {{- range $key, $value := .data }}
+      {{- if eq $value "__GENERATE_PASSWORD__" }}
+      if ! vault kv get -mount=secret "$SECRET_PATH" -field={{ $key }} > /dev/null 2>&1; then
+        vault kv patch -mount=secret "$SECRET_PATH" {{ $key }}=$(generate_secret) || true
+      fi
+      {{- else if eq $value "__GENERATE_BASE64__" }}
+      if ! vault kv get -mount=secret "$SECRET_PATH" -field={{ $key }} > /dev/null 2>&1; then
+        vault kv patch -mount=secret "$SECRET_PATH" {{ $key }}=$(generate_secret | base64 | tr -d '\n') || true
+      fi
       {{- else }}
-      vault kv patch -mount=secret {{ $.Values.appName }} {{ $key }}="{{ $value }}" || true
-      {{- end }}
-      {{- end }}
-      {{- range $key, $value := .Values.vault.additionalSecrets }}
-      {{- if eq $value "generate" }}
-      vault kv patch -mount=secret {{ $.Values.appName }} {{ $key }}=$(generate_secret) || true
-      {{- else }}
-      vault kv patch -mount=secret {{ $.Values.appName }} {{ $key }}="{{ $value }}" || true
+      vault kv patch -mount=secret "$SECRET_PATH" {{ $key }}="{{ $value }}" || true
       {{- end }}
       {{- end }}
     else
-      echo "📝 Creating {{ .Values.appName }} secrets in Vault"
-      vault kv put -mount=secret {{ .Values.appName }} \
-        {{- range $key, $value := .Values.vault.defaultSecrets }}
-        {{- if eq $value "generate" }}
+      echo "📝 Creating secret at $SECRET_PATH"
+      vault kv put -mount=secret "$SECRET_PATH" \
+        {{- range $key, $value := .data }}
+        {{- if eq $value "__GENERATE_PASSWORD__" }}
         {{ $key }}=$(generate_secret) \
-        {{- else }}
-        {{ $key }}="{{ $value }}" \
-        {{- end }}
-        {{- end }}
-        {{- range $key, $value := .Values.vault.additionalSecrets }}
-        {{- if eq $value "generate" }}
-        {{ $key }}=$(generate_secret) \
+        {{- else if eq $value "__GENERATE_BASE64__" }}
+        {{ $key }}=$(generate_secret | base64 | tr -d '\n') \
         {{- else }}
         {{ $key }}="{{ $value }}" \
         {{- end }}
         {{- end }}
         placeholder="end"
     fi
+    {{- end }}
     
     # Create Vault policy for the app
     echo "📝 Creating {{ .Values.appName }} Vault policy"
@@ -77,8 +75,8 @@ data:
     # Create Kubernetes auth role
     echo "📝 Creating {{ .Values.appName }} Kubernetes auth role"
     vault write auth/kubernetes/role/{{ .Values.appName }} \
-      bound_service_account_names={{ .Values.serviceAccount }} \
-      bound_service_account_namespaces={{ .Values.namespace }} \
+      bound_service_account_names={{ include "app-setup.serviceAccountName" . }} \
+      bound_service_account_namespaces={{ .Values.appName }} \
       policies={{ .Values.appName }}-policy \
       ttl=24h
     
