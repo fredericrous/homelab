@@ -57,6 +57,14 @@ kubectl annotate secret vault-transit-token -n vault \
   reflector.v1.k8s.emberstack.com/reflection-auto-enabled="true" \
   --overwrite
 
-echo "✅ Secret created successfully!"
+# Also create in flux-system namespace for infrastructure-core
+echo "Creating vault-transit-token secret in flux-system namespace..."
+kubectl create secret generic vault-transit-token \
+  --namespace=flux-system \
+  --from-literal=vault_transit_token="$TRANSIT_TOKEN" \
+  --from-literal=token="$TRANSIT_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "✅ Secrets created successfully!"
 echo ""
-echo "Note: Reflector will copy the secret to flux-system namespace once deployed."
+echo "Note: The secret is created in both vault and flux-system namespaces for bootstrap."
