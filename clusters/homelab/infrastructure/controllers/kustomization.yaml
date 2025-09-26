@@ -23,5 +23,6 @@ resources:
   - istio-ztunnel.yaml
   - istio-gateway.yaml
   - redis-operator.yaml
+  - redis-config.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
