@@ -6,4 +6,5 @@ resources:
 - ../infrastructure-core.yaml
 - ../infrastructure.yaml
 - ../infrastructure-data.yaml
+- ../monitoring.yaml
 - ../apps.yaml

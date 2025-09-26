@@ -10,3 +10,4 @@ resources:
   - external-secrets.yaml
   - harbor.yaml
   - node-feature-discovery.yaml
+  - kserve.yaml

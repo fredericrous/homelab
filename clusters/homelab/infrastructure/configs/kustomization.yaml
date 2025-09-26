@@ -9,6 +9,7 @@ resources:
   - vault-auth-flux-system.yaml
   - cert-manager-vault-secret.yaml
   - cert-manager
+  - kserve
   - client-ca-externalsecret.yaml
   # Commented out - vault-admin-token should not be fetched from vault itself
   # - postgres-vault-token-secret.yaml
@@ -23,3 +24,5 @@ resources:
   - authelia-istio-gateway.yaml
   - plex-istio-gateway.yaml
   - nextcloud-istio-gateway.yaml
+  - minio-certificate.yaml
+  - minio-istio-gateway.yaml

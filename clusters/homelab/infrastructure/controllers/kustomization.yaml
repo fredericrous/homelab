@@ -8,3 +8,5 @@ resources:
   - redis-operator.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
+  - kserve-crds.yaml
+  - kserve.yaml

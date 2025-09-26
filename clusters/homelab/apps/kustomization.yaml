@@ -13,3 +13,5 @@ resources:
   - plex.yaml
   - nextcloud-setup.yaml
   - nextcloud.yaml
+  - vllm.yaml
+  - openwebui.yaml

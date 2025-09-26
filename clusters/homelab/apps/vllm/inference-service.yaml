@@ -1,0 +1,44 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: vllm
+  namespace: vllm
+spec:
+  predictor:
+    serviceAccountName: vllm
+    containers:
+    - name: kserve-container
+      image: vllm/vllm-openai:latest
+      args:
+        - "--model"
+        - "microsoft/phi-2"
+        - "--dtype"
+        - "float16"
+        - "--port"
+        - "8080"
+        - "--max-model-len"
+        - "4096"
+      env:
+        - name: HF_HOME
+          value: /mnt/models
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      resources:
+        requests:
+          cpu: "4"
+          memory: "8Gi"
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "8"
+          memory: "16Gi"
+          nvidia.com/gpu: "1"
+      volumeMounts:
+        - name: model-cache
+          mountPath: /mnt/models
+    volumes:
+      - name: model-cache
+        persistentVolumeClaim:
+          claimName: model-cache
+    minReplicas: 1
+    maxReplicas: 1

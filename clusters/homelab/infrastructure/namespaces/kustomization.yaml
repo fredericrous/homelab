@@ -6,5 +6,6 @@ resources:
   - cnpg-system.yaml
   - external-secrets.yaml
   - postgres.yaml
+  - kserve.yaml
   # Moved to infrastructure-core
   # - istio.yaml
