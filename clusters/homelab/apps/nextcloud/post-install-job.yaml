@@ -59,11 +59,11 @@ spec:
           done
 
           echo "Checking if Nextcloud is already installed..."
-          if kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ status" | grep -q "installed: true"; then
+          if kubectl exec -n nextcloud $POD -c nextcloud -- php occ status | grep -q "installed: true"; then
             echo "Nextcloud is already installed"
           else
             echo "Installing Nextcloud..."
-            kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ maintenance:install \
+            kubectl exec -n nextcloud $POD -c nextcloud -- php occ maintenance:install \
               --database=pgsql \
               --database-host=postgres-apps-rw.postgres.svc.cluster.local \
               --database-name=nextcloud \
@@ -71,34 +71,34 @@ spec:
               --database-pass='$DB_PASSWORD' \
               --admin-user='$ADMIN_USER' \
               --admin-pass='$ADMIN_PASSWORD' \
-              --data-dir=/var/www/html/data""
+              --data-dir=/var/www/html/data"
           fi
 
           echo "Configuring trusted domains..."
-          kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ config:system:set trusted_domains 0 --value=localhost"
-          kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ config:system:set trusted_domains 1 --value=nextcloud.daddyshome.fr"
-          kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ config:system:set trusted_domains 2 --value=drive.daddyshome.fr"
-          kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ config:system:set trusted_domains 3 --value=drive-mobile.daddyshome.fr"
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 0 --value=localhost
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 1 --value=nextcloud.daddyshome.fr
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 2 --value=drive.daddyshome.fr
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 3 --value=drive-mobile.daddyshome.fr
 
           echo "Configuring overwrite protocol..."
-          kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ config:system:set overwriteprotocol --value=https"
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set overwriteprotocol --value=https
 
           echo "Configuring UTF8 support..."
-          kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ config:system:set mysql.utf8mb4 --type=boolean --value=true"
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set mysql.utf8mb4 --type=boolean --value=true
 
           echo "Enabling external storage app..."
-          kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ app:enable files_external" || true
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ app:enable files_external || true
 
           echo "Configuring external storage..."
           # Check if Media storage already exists
-          if ! kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ files_external:list" | grep -q "Media"; then
-            kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ files_external:create \
+          if ! kubectl exec -n nextcloud $POD -c nextcloud -- php occ files_external:list | grep -q "Media"; then
+            kubectl exec -n nextcloud $POD -c nextcloud -- php occ files_external:create \
               -c datadir=/media \
-              'Media' local null::null""
+              'Media' local null::null"
           fi
 
           echo "Setting default phone region..."
-          kubectl exec -n nextcloud $POD -c nextcloud -- su -s /bin/sh www-data -c "php occ config:system:set default_phone_region --value=FR"
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set default_phone_region --value=FR
 
           echo "Fixing file permissions..."
           kubectl exec -n nextcloud $POD -c nextcloud -- chown -R www-data:www-data /var/www/html
