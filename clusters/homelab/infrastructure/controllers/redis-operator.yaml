@@ -16,3 +16,6 @@ spec:
   dependsOn:
     - name: rook-ceph-cluster
       namespace: flux-system
+  postBuild:
+    substitute: {}
+    substituteFrom: []
