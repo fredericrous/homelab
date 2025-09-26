@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: plex-media-pv
+  name: plex-media-pv-v2
 spec:
   capacity:
     storage: 1000Gi
@@ -28,4 +28,4 @@ spec:
     requests:
       storage: 1000Gi
   storageClassName: nfs
-  volumeName: plex-media-pv
+  volumeName: plex-media-pv-v2
