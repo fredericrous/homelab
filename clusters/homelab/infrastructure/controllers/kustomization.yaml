@@ -2,18 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: flux-system
 resources:
-  # Moved to infrastructure-core to fix circular dependencies
-  # - vault.yaml
-  # - vault-transit-unseal-operator.yaml
-  # - vault-transit-config.yaml
-  # - external-secrets-operator.yaml
-  # - external-secrets-config.yaml
   - cert-manager.yaml
-  # Temporarily disabled during Istio migration
-  # - haproxy-ingress.yaml
-  # - haproxy-service.yaml
-  # Moved to infrastructure-data
-  # - cloudnative-pg.yaml
   - job-vault-pki-sync.yaml
   - nas-vault-eso-token-secret.yaml
   - redis-operator.yaml

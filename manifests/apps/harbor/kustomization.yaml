@@ -28,7 +28,7 @@ resources:
   - harbor-registry-lb.yaml
 
 helmCharts:
-- name: harbor  
+- name: harbor
   repo: https://helm.goharbor.io
   version: "1.15.1"
   releaseName: harbor

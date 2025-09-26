@@ -3,8 +3,6 @@ kind: Kustomization
 namespace: flux-system
 resources:
   - reflector.yaml
-  - metallb.yaml
-  - metallb-config.yaml
   - rook-ceph.yaml
   - rook-ceph-cluster.yaml
   - vault.yaml
