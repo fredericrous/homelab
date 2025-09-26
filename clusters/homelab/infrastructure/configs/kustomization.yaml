@@ -11,7 +11,8 @@ resources:
   - client-ca-externalsecret.yaml
   - lldap-istio-gateway.yaml
   - authelia-istio-gateway.yaml
-  - postgres-vault-token-secret.yaml
+  # Commented out - vault-admin-token should not be fetched from vault itself
+  # - postgres-vault-token-secret.yaml
   - postgres-superuser-secret.yaml
   - postgres-db-creator-role.yaml
   - postgres-apps-cluster.yaml
