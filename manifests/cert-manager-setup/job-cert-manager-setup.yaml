@@ -43,11 +43,20 @@ spec:
           echo "✅ cert-manager OVH DNS credentials stored successfully"
         env:
         - name: CERT_MANAGER_OVH_APPLICATION_KEY
-          value: "a4598a81b100e759"
+          valueFrom:
+            secretKeyRef:
+              name: cert-manager-ovh-setup-credentials
+              key: applicationKey
         - name: CERT_MANAGER_OVH_APPLICATION_SECRET  
-          value: "2066396e3b624e34d4f1a3d009ca0139"
+          valueFrom:
+            secretKeyRef:
+              name: cert-manager-ovh-setup-credentials
+              key: applicationSecret
         - name: CERT_MANAGER_OVH_CONSUMER_KEY
-          value: "cb8d03d3d3a2de55f9df196190022425"
+          valueFrom:
+            secretKeyRef:
+              name: cert-manager-ovh-setup-credentials
+              key: consumerKey
         securityContext:
           runAsUser: 1000
           runAsGroup: 1000
