@@ -5,3 +5,4 @@ resources:
   - namespaces
   - configs
   - controllers
+  - postgres.yaml
