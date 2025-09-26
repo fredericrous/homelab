@@ -3,7 +3,6 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ include "app-setup.fullname" . }}-postgres
-  namespace: {{ .Values.namespace }}
   labels:
     {{- include "app-setup.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgres-setup

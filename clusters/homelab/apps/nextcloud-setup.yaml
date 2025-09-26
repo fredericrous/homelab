@@ -23,7 +23,6 @@ spec:
       namespace: flux-system
   values:
     appName: nextcloud
-    namespace: vault
     vault:
       secrets:
         - path: nextcloud/admin
