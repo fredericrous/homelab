@@ -12,7 +12,8 @@ resources:
   # Temporarily disabled during Istio migration
   # - haproxy-ingress.yaml
   # - haproxy-service.yaml
-  - cloudnative-pg.yaml
+  # Moved to infrastructure-data
+  # - cloudnative-pg.yaml
   - job-vault-pki-sync.yaml
   - nas-vault-eso-token-secret.yaml
   # Istio components
@@ -23,6 +24,5 @@ resources:
   - istio-ztunnel.yaml
   - istio-gateway.yaml
   - redis-operator.yaml
-  - redis-config.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml

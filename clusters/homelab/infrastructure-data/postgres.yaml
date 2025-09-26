@@ -1,16 +1,16 @@
+---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: redis-config
+  name: postgres
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./clusters/homelab/infrastructure/configs/redis
+  path: ./clusters/homelab/infrastructure/postgres
   prune: true
   sourceRef:
     kind: GitRepository
     name: flux-system
   wait: true
-  dependsOn:
-    - name: redis-operator
-      namespace: flux-system
+  force: true
+  # No dependencies - included in infrastructure-data
