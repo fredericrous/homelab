@@ -16,7 +16,7 @@ spec:
         app.kubernetes.io/instance: stremio
     spec:
       serviceAccountName: stremio
-      # runtimeClassName: nvidia  # Enable GPU support - uncomment when GPU node is fixed
+      runtimeClassName: nvidia  # Enable GPU support
       initContainers:
       - name: ffmpeg-provider
         image: stremio/server:latest
@@ -191,11 +191,11 @@ spec:
           name: https
         resources:
           limits:
-            # nvidia.com/gpu: 1  # Request 1 GPU for hardware acceleration - uncomment when GPU node is fixed
+            nvidia.com/gpu: 1  # Request 1 GPU for hardware acceleration
             memory: 4Gi
             cpu: 4
           requests:
-            # nvidia.com/gpu: 1  # Request 1 GPU for hardware acceleration - uncomment when GPU node is fixed
+            nvidia.com/gpu: 1  # Request 1 GPU for hardware acceleration
             memory: 2Gi
             cpu: 2
         volumeMounts:
@@ -212,8 +212,8 @@ spec:
         - name: mtls-certs
           mountPath: /etc/ssl/mtls
           readOnly: true
-        # securityContext:
-        #   privileged: true  # Required for GPU access
+        securityContext:
+          privileged: true  # Required for GPU access
       volumes:
       - name: nginx-proxy-config
         configMap:

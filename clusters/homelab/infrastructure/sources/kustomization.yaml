@@ -10,3 +10,4 @@ resources:
   - fredericrous.yaml
   - external-secrets.yaml
   - harbor.yaml
+  - node-feature-discovery.yaml

@@ -21,7 +21,7 @@ spec:
       serviceAccountName: plex
       # GPU Feature Discovery will label nodes with nvidia.com/gpu
       # No manual nodeSelector needed when using gpu resources
-      # runtimeClassName: nvidia # Disabled until GPU node is fixed
+      runtimeClassName: nvidia  # Enable GPU support
       containers:
       - name: plex
         image: plexinc/pms-docker:latest
@@ -48,7 +48,7 @@ spec:
         resources:
           limits:
             memory: 4Gi
-            # nvidia.com/gpu: 1  # Uncomment when GPU node is fixed
+            nvidia.com/gpu: 1
           requests:
             memory: 2Gi
             cpu: 1000m
@@ -61,8 +61,8 @@ spec:
           mountPath: /media
         - name: transcode
           mountPath: /transcode
-        # securityContext:
-        #   privileged: true  # Required for GPU access
+        securityContext:
+          privileged: true  # Required for GPU access
       volumes:
       - name: config
         persistentVolumeClaim:
