@@ -18,7 +18,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: setup
-        image: bitnami/kubectl:1.28
+        image: alpine/kubectl:1.34.1
         env:
         - name: ADMIN_USER
           valueFrom:
@@ -40,13 +40,13 @@ spec:
         - -c
         - |
           set -e
-          
+
           echo "Waiting for Nextcloud pod to be ready..."
           kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=nextcloud -n nextcloud --timeout=600s
-          
+
           POD=$(kubectl get pods -n nextcloud -l app.kubernetes.io/name=nextcloud -o jsonpath='{.items[0].metadata.name}')
           echo "Found pod: $POD"
-          
+
           # Wait for Nextcloud to be accessible
           echo "Waiting for Nextcloud to be accessible..."
           for i in {1..30}; do
@@ -57,7 +57,7 @@ spec:
             echo "Waiting for Nextcloud to start... ($i/30)"
             sleep 10
           done
-          
+
           echo "Checking if Nextcloud is already installed..."
           if kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ status" | grep -q "installed: true"; then
             echo "Nextcloud is already installed"
@@ -73,22 +73,22 @@ spec:
               --admin-pass='$ADMIN_PASSWORD' \
               --data-dir=/var/www/html/data"
           fi
-          
+
           echo "Configuring trusted domains..."
           kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set trusted_domains 0 --value=localhost"
           kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set trusted_domains 1 --value=nextcloud.daddyshome.fr"
           kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set trusted_domains 2 --value=drive.daddyshome.fr"
           kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set trusted_domains 3 --value=drive-mobile.daddyshome.fr"
-          
+
           echo "Configuring overwrite protocol..."
           kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set overwriteprotocol --value=https"
-          
+
           echo "Configuring UTF8 support..."
           kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set mysql.utf8mb4 --type=boolean --value=true"
-          
+
           echo "Enabling external storage app..."
           kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ app:enable files_external" || true
-          
+
           echo "Configuring external storage..."
           # Check if Media storage already exists
           if ! kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ files_external:list" | grep -q "Media"; then
@@ -96,13 +96,13 @@ spec:
               -c datadir=/media \
               'Media' local null::null"
           fi
-          
+
           echo "Setting default phone region..."
           kubectl exec -n nextcloud $POD -- su -s /bin/bash www-data -c "php occ config:system:set default_phone_region --value=FR"
-          
+
           echo "Fixing file permissions..."
           kubectl exec -n nextcloud $POD -- chown -R www-data:www-data /var/www/html
-          
+
           echo "Nextcloud post-install completed!"
       securityContext:
         runAsNonRoot: true

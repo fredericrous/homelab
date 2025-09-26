@@ -39,7 +39,7 @@ spec:
       serviceAccountName: client-ca-patcher
       containers:
       - name: ca-patcher
-        image: bitnami/kubectl:1.28
+        image: alpine/kubectl:1.34.1
         securityContext:
           runAsNonRoot: true
           runAsUser: 65534
@@ -54,37 +54,37 @@ spec:
         - -c
         - |
           set -e
-          
+
           echo "🔒 GitOps: Adding client CA to cert-manager TLS secrets..."
-          
+
           # Get client CA certificate
           CA_CRT=$(kubectl get secret client-ca-cert -n flux-system -o jsonpath='{.data.ca\.crt}')
-          
+
           if [ -z "$CA_CRT" ]; then
             echo "❌ Client CA certificate not found in flux-system/client-ca-cert"
             exit 1
           fi
-          
+
           # List of secrets to patch: namespace:secret-name
           SECRETS="authelia:authelia-tls plex:plex-tls nextcloud:nextcloud-tls nextcloud:nextcloud-mobile-tls"
-          
+
           for SECRET_INFO in $SECRETS; do
             NAMESPACE=$(echo $SECRET_INFO | cut -d: -f1)
             SECRET=$(echo $SECRET_INFO | cut -d: -f2)
-            
+
             echo "🔧 Adding client CA to $SECRET in $NAMESPACE namespace..."
-            
+
             # Check if secret exists
             if ! kubectl get secret $SECRET -n $NAMESPACE >/dev/null 2>&1; then
               echo "⏳ Secret $SECRET not found in $NAMESPACE, skipping..."
               continue
             fi
-            
+
             # Add client CA to the secret
             kubectl patch secret $SECRET -n $NAMESPACE \
               --patch="{\"data\":{\"ca.crt\":\"$CA_CRT\"}}"
-              
+
             echo "✅ Added client CA to $SECRET in $NAMESPACE"
           done
-          
+
           echo "🎉 GitOps: Client CA added to all available TLS secrets!"
