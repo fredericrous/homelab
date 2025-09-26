@@ -11,3 +11,4 @@ resources:
   - external-secrets.yaml
   - harbor.yaml
   - node-feature-discovery.yaml
+  - ot-container-kit.yaml

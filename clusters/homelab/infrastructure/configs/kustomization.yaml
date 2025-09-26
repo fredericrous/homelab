@@ -21,3 +21,4 @@ resources:
   # - postgres-apps-cluster.yaml
   - postgres-setup.yaml
   - istio-cni-rbac-fix.yaml
+  - redis-standalone.yaml
