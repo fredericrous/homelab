@@ -7,3 +7,9 @@ resources:
   - metallb-config.yaml
   - rook-ceph.yaml
   - rook-ceph-cluster.yaml
+  - vault.yaml
+  - vault-transit-unseal-operator.yaml
+  - vault-transit-config.yaml
+  - nas-vault-eso-token-secret.yaml
+  - external-secrets-operator.yaml
+  - external-secrets-config.yaml

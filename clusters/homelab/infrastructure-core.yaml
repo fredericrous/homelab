@@ -11,3 +11,8 @@ spec:
   path: ./clusters/homelab/infrastructure-core
   prune: true
   wait: true
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: vault-transit-token
+        optional: false

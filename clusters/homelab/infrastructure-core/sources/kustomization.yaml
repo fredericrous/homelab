@@ -5,3 +5,5 @@ resources:
   - emberstack.yaml
   - metallb.yaml
   - rook-release.yaml
+  - hashicorp.yaml
+  - external-secrets.yaml
