@@ -8,17 +8,17 @@ spec:
   timeout: 5m
   chart:
     spec:
-      chart: ./charts/app-setup
+      chart: ./clusters/homelab/charts/app-setup
       reconcileStrategy: ChartVersion
       sourceRef:
         kind: GitRepository
         name: flux-system
   dependsOn:
-    - name: vault-transit-config
+    - name: vault
       namespace: flux-system
-    - name: external-secrets-config
+    - name: external-secrets
       namespace: flux-system
-    - name: postgres-apps
+    - name: cloudnative-pg
       namespace: flux-system
   values:
     appName: nextcloud
