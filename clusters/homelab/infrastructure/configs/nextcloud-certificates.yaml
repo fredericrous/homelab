@@ -6,6 +6,11 @@ metadata:
   namespace: nextcloud
 spec:
   secretName: nextcloud-tls
+  secretTemplate:
+    annotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "istio-ingress"
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
   dnsNames:
     - drive.daddyshome.fr
     - nextcloud.daddyshome.fr
@@ -21,6 +26,11 @@ metadata:
   namespace: nextcloud
 spec:
   secretName: nextcloud-mobile-tls
+  secretTemplate:
+    annotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "istio-ingress"
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
   dnsNames:
     - drive-mobile.daddyshome.fr
   issuerRef:
