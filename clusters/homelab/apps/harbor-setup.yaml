@@ -12,8 +12,6 @@ spec:
     kind: GitRepository
     name: flux-system
   dependsOn:
-    - name: vault-transit-config
-      namespace: flux-system
     - name: external-secrets-config
       namespace: flux-system
     - name: postgres-setup
