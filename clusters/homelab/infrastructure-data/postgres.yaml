@@ -6,7 +6,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./clusters/homelab/infrastructure/postgres
+  path: ./clusters/homelab/infrastructure-data/postgres
   prune: true
   sourceRef:
     kind: GitRepository
