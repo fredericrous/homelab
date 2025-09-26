@@ -6,6 +6,7 @@ metadata:
 spec:
   interval: 10m
   timeout: 5m
+  targetNamespace: vault
   chart:
     spec:
       chart: ./clusters/homelab/charts/app-setup
