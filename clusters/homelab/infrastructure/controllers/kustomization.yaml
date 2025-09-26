@@ -14,10 +14,11 @@ resources:
   - cloudnative-pg.yaml
   - job-vault-pki-sync.yaml
   - nas-vault-eso-token-secret.yaml
-  - istio-repository.yaml
-  - istio-base.yaml
-  - istio-cni.yaml
-  - istio-istiod.yaml
-  - istio-ztunnel.yaml
-  # - istio-gateway.yaml  # Already deployed to istio-ingress namespace
+  # Istio HelmReleases are already deployed to istio-system namespace
+  # - istio-repository.yaml
+  # - istio-base.yaml
+  # - istio-cni.yaml
+  # - istio-istiod.yaml
+  # - istio-ztunnel.yaml
+  # - istio-gateway.yaml
   - redis-operator.yaml
