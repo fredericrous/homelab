@@ -1,0 +1,154 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: minio-setup
+  namespace: minio
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: minio-setup
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+- apiGroups: ["external-secrets.io"]
+  resources: ["externalsecrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: minio-setup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: minio-setup
+subjects:
+- kind: ServiceAccount
+  name: minio-setup
+  namespace: minio
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-setup
+  namespace: minio
+spec:
+  backoffLimit: 5
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: minio-setup
+      initContainers:
+      # First, create credentials in Vault
+      - name: vault-setup
+        image: hashicorp/vault:1.18.3
+        command: 
+        - /bin/sh
+        - -c
+        - |
+          # Get Vault token from mounted secret
+          VAULT_TOKEN=$(cat /vault/token)
+          export VAULT_TOKEN
+          
+          # Wait for Vault to be accessible
+          echo "Waiting for Vault..."
+          until vault status 2>/dev/null; do
+            echo "Vault not ready, waiting..."
+            sleep 5
+          done
+          
+          # Check if secret already exists
+          if vault kv get secret/minio 2>/dev/null; then
+            echo "MinIO credentials already exist in Vault"
+            exit 0
+          fi
+          
+          # Generate credentials
+          MINIO_ROOT_USER="minioadmin"
+          MINIO_ROOT_PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+          
+          # Store in Vault
+          echo "Creating MinIO credentials in Vault..."
+          vault kv put secret/minio \
+            root-user="$MINIO_ROOT_USER" \
+            root-password="$MINIO_ROOT_PASSWORD"
+          
+          echo "MinIO credentials created successfully"
+        env:
+        - name: VAULT_ADDR
+          value: http://vault-vault.vault.svc.cluster.local:8200
+        volumeMounts:
+        - name: vault-token
+          mountPath: /vault
+          readOnly: true
+      
+      # Wait for ExternalSecret to sync
+      - name: wait-for-secret
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "Waiting for minio-credentials secret to be created by ExternalSecret..."
+          for i in {1..60}; do
+            if kubectl get secret minio-credentials -n minio 2>/dev/null; then
+              echo "Secret minio-credentials found!"
+              exit 0
+            fi
+            echo "Waiting for secret... ($i/60)"
+            sleep 5
+          done
+          echo "ERROR: Secret minio-credentials not created after 5 minutes"
+          exit 1
+      
+      # Finally, initialize MinIO buckets
+      containers:
+      - name: init-buckets
+        image: minio/mc:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Waiting for MinIO to be ready..."
+          until mc alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+            echo "Waiting for MinIO..."
+            sleep 5
+          done
+          
+          # Create models bucket if it doesn't exist
+          if ! mc ls myminio/models 2>/dev/null; then
+            echo "Creating models bucket..."
+            mc mb myminio/models
+            echo "Bucket created successfully"
+          else
+            echo "Bucket 'models' already exists"
+          fi
+          
+          # Set public download policy for models bucket
+          mc anonymous set download myminio/models
+          
+          echo "MinIO initialization complete"
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: rootUser
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: rootPassword
+      
+      volumes:
+      - name: vault-token
+        secret:
+          secretName: vault-admin-token
+          defaultMode: 0400
+          items:
+          - key: token
+            path: token

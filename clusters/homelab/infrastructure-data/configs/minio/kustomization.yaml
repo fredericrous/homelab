@@ -4,8 +4,9 @@ kind: Kustomization
 namespace: minio
 
 resources:
+  - vault-admin-token-reflector.yaml
   - minio-standalone.yaml
   - minio-service.yaml
   - minio-external-secret.yaml
   - virtualservice.yaml
-  - job-init-bucket.yaml
+  - job-minio-setup.yaml
