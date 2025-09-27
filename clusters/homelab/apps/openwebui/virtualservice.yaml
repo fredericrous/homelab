@@ -7,7 +7,7 @@ spec:
   hosts:
   - ai.${PUBLIC_DOMAIN}
   gateways:
-  - openwebui
+  - istio-system/openwebui
   http:
   - match:
     - uri:

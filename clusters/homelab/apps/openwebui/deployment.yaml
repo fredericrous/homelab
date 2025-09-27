@@ -22,9 +22,9 @@ spec:
           name: http
         env:
         - name: OLLAMA_BASE_URL
-          value: "http://vllm.vllm.svc.cluster.local:80/v1"
+          value: "http://vllm-predictor-default.vllm.svc.cluster.local:80/v1"
         - name: OPENAI_API_BASE_URL
-          value: "http://vllm.vllm.svc.cluster.local:80/v1"
+          value: "http://vllm-predictor-default.vllm.svc.cluster.local:80/v1"
         - name: OPENAI_API_KEY
           value: "dummy-key"
         - name: WEBUI_AUTH
@@ -36,6 +36,18 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /app/backend/data
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 5
         resources:
           requests:
             memory: "512Mi"

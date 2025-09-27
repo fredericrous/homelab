@@ -4,10 +4,8 @@ namespace: flux-system
 resources:
   - bitnami.yaml
   - jetstack.yaml
-  - hashicorp.yaml
   - authelia.yaml
   - fredericrous.yaml
-  - external-secrets.yaml
   - harbor.yaml
   - node-feature-discovery.yaml
   # Temporarily disabled - kserve timing out

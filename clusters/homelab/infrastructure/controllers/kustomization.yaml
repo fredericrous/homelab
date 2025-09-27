@@ -5,9 +5,8 @@ resources:
   - cert-manager.yaml
   - job-vault-pki-sync.yaml
   - nas-vault-eso-token-secret.yaml
-  - redis-operator.yaml
   - node-feature-discovery.yaml
-  - nvidia-device-plugin.yaml
+  # nvidia-device-plugin is deployed via separate kustomization
   # Temporarily disabled - timing out during install
   # - kserve-crds.yaml
   # - kserve.yaml

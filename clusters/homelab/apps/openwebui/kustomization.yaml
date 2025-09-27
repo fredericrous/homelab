@@ -6,10 +6,7 @@ namespace: openwebui
 resources:
   - namespace.yaml
   - service-account.yaml
-  - certificate.yaml
-  - istio-system-gateway.yaml
   - pvc.yaml
   - deployment.yaml
   - service.yaml
-  - gateway.yaml
   - virtualservice.yaml
