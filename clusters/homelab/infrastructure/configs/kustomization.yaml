@@ -3,8 +3,7 @@ kind: Kustomization
 namespace: flux-system
 resources:
   - cluster-config.yaml
-  # Temporarily disabled - stuck in uninstalling state
-  # - kyverno
+  - kyverno
   - cert-manager-setup.yaml
   - vault-auth-flux-system.yaml
   - cert-manager-vault-secret.yaml
