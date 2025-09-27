@@ -8,5 +8,6 @@ resources:
   - redis-operator.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
-  - kserve-crds.yaml
-  - kserve.yaml
+  # Temporarily disabled - timing out during install
+  # - kserve-crds.yaml
+  # - kserve.yaml

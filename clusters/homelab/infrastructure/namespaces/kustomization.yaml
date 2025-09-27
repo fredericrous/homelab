@@ -6,6 +6,7 @@ resources:
   - cnpg-system.yaml
   - external-secrets.yaml
   - postgres.yaml
-  - kserve.yaml
+  # Temporarily disabled - kserve timing out
+  # - kserve.yaml
   # Moved to infrastructure-core
   # - istio.yaml
