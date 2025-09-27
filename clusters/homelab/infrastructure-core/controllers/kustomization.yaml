@@ -8,7 +8,7 @@ resources:
   - vault.yaml
   - vault-transit-unseal-operator.yaml
   - vault-transit-config.yaml
-  - nas-vault-eso-token-secret.yaml
+  # nas-vault-eso-token-secret.yaml moved to infrastructure/controllers
   - external-secrets-operator.yaml
   - external-secrets-config.yaml
   # Istio components
