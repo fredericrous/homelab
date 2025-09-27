@@ -11,15 +11,10 @@ resources:
   # Temporarily disabled - timing out during install
   # - kserve
   - client-ca-externalsecret.yaml
-  # Commented out - vault-admin-token should not be fetched from vault itself
-  # - postgres-vault-token-secret.yaml
   - postgres-superuser-secret.yaml
   - postgres-db-creator-role.yaml
-  # Moved to postgres namespace kustomization to avoid namespace override
-  # - postgres-apps-cluster.yaml
   - postgres-setup.yaml
   - istio-cni-rbac-fix.yaml
-  # Istio Gateway resources (depend on Istio CRDs from infrastructure-core)
   - lldap-istio-gateway.yaml
   - authelia-istio-gateway.yaml
   - plex-istio-gateway.yaml
