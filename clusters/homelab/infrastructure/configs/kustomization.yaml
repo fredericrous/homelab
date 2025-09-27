@@ -25,5 +25,6 @@ resources:
   - authelia-istio-gateway.yaml
   - plex-istio-gateway.yaml
   - nextcloud-istio-gateway.yaml
-  - minio-certificate.yaml
-  - minio-istio-gateway.yaml
+  # Minio namespace doesn't exist yet - move to apps deployment
+  # - minio-certificate.yaml
+  # - minio-istio-gateway.yaml
