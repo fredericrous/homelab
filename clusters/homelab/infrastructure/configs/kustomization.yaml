@@ -9,7 +9,8 @@ resources:
   - vault-auth-flux-system.yaml
   - cert-manager-vault-secret.yaml
   - cert-manager
-  - kserve
+  # Temporarily disabled - timing out during install
+  # - kserve
   - client-ca-externalsecret.yaml
   # Commented out - vault-admin-token should not be fetched from vault itself
   # - postgres-vault-token-secret.yaml
