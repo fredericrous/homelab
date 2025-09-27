@@ -6,6 +6,8 @@ namespace: harbor
 resources:
   - namespace.yaml
   - service-account.yaml
-  - external-secrets.yaml
+  # - external-secrets.yaml  # Replaced with generated secrets
+  - password-generators.yaml
+  - external-secrets-generated.yaml
   - ingress.yaml
   - harbor-helmrelease.yaml
