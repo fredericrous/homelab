@@ -15,7 +15,7 @@ spec:
     - name: external-secrets-config
     - name: cert-manager-setup
       namespace: flux-system
-    - name: harbor-setup
+    # - name: harbor-setup  # No longer needed - using ESO generators instead
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2beta1
       kind: HelmRelease
