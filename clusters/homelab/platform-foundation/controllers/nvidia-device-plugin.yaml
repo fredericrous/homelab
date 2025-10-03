@@ -6,7 +6,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 15m
-  path: "./clusters/homelab/infrastructure/configs/nvidia"
+  path: "./clusters/homelab/serverless/configs/nvidia"
   prune: true
   sourceRef:
     kind: GitRepository
