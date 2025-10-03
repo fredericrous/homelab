@@ -20,7 +20,7 @@ resources:
   - istio-gateway.yaml
   - istio-sa-fix.yaml
   # Infrastructure core controllers
-  - job-vault-pki-sync.yaml
+  - vault-pki-sync-externalsecret.yaml
   - node-feature-discovery-repository.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
