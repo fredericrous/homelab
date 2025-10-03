@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: authelia
+  namespace: authelia
+spec:
+  selector:
+    app: authelia
+  ports:
+  - name: http
+    port: 80
+    targetPort: 9091
+  type: ClusterIP
+---
+# NodePort for testing
+apiVersion: v1
+kind: Service
+metadata:
+  name: authelia-nodeport
+  namespace: authelia
+spec:
+  selector:
+    app: authelia
+  ports:
+  - name: http
+    port: 80
+    targetPort: 9091
+    nodePort: 30091
+  type: NodePort

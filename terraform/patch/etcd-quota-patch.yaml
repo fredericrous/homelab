@@ -1,0 +1,4 @@
+cluster:
+  etcd:
+    extraArgs:
+      quota-backend-bytes: "2147483648"   # 2 GiB

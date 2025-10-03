@@ -1,0 +1,13 @@
+# Override the ExternalSecret from mtls-certificates component
+# Use reflector to copy client-ca-cert from istio-system instead
+apiVersion: v1
+kind: Secret
+metadata:
+  name: client-ca-cert
+  namespace: lldap
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflects: "istio-system/client-ca-cert"
+type: Opaque
+data:
+  # Placeholder data - will be replaced by reflector
+  placeholder: ""

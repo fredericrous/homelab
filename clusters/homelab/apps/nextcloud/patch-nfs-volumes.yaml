@@ -1,0 +1,16 @@
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: media
+    persistentVolumeClaim:
+      claimName: nextcloud-media
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: media
+    mountPath: /media
+- op: add
+  path: /spec/template/spec/containers/1/volumeMounts/-
+  value:
+    name: media
+    mountPath: /media

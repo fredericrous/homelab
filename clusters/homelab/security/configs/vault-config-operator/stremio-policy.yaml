@@ -1,0 +1,43 @@
+# Namespace-scoped policy for Stremio
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: stremio
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    namespace: vault-config-operator
+    serviceAccount:
+      name: controller-manager
+  policy: |
+    # Stremio can read Harbor registry credentials
+    path "secret/data/harbor/registry-user" {
+      capabilities = ["read", "list"]
+    }
+  type: acl
+---
+# Kubernetes auth role for Stremio namespace
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: stremio
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    namespace: vault-config-operator
+    serviceAccount:
+      name: controller-manager
+  path: kubernetes
+  policies:
+    - stremio
+    - external-secrets
+  targetServiceAccounts:
+    - default
+    - stremio
+  targetNamespaces:
+    targetNamespaces:
+      - stremio

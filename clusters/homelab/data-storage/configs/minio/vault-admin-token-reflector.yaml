@@ -1,0 +1,10 @@
+# This creates a copy of vault-admin-token in minio namespace using Reflector
+# The original secret in vault namespace should have the annotation:
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vault-admin-token
+  namespace: minio
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflects: "vault/vault-admin-token"
+type: Opaque

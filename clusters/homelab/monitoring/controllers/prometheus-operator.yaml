@@ -1,0 +1,53 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "65.x"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  dependsOn:
+    - name: prometheus-operator-crds
+      namespace: flux-system
+  values:
+    crds:
+      enabled: false
+    alertmanager:
+      enabled: false
+    grafana:
+      enabled: false
+    kubeStateMetrics:
+      enabled: false
+    nodeExporter:
+      enabled: true
+    prometheus:
+      prometheusSpec:
+        retention: 24h
+        resources:
+          requests:
+            cpu: 200m
+            memory: 200Mi
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: ceph-block
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 10Gi
+        additionalScrapeConfigs:
+          - job_name: 'flux-system'
+            honor_labels: true
+            static_configs:
+              - targets:
+                  - 'source-controller.flux-system:8080'
+                  - 'kustomize-controller.flux-system:8080'
+                  - 'notification-controller.flux-system:8080'
+                  - 'helm-controller.flux-system:8080'

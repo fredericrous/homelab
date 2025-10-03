@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lldap
+  namespace: lldap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lldap
+  template:
+    metadata:
+      labels:
+        app: lldap
+    spec:
+      serviceAccountName: lldap
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: fix-permissions
+        image: lldap/lldap:latest
+        securityContext:
+          runAsUser: 0
+          allowPrivilegeEscalation: true
+          capabilities:
+            add:
+            - CHOWN
+            - FOWNER
+        command: ['sh', '-c']
+        args:
+        - |
+          # Fix permissions for the data directory
+          chown -R 1000:1000 /data
+          chmod -R u+rwx /data
+          # Ensure database can be created
+          touch /data/users.db
+          chown 1000:1000 /data/users.db
+          chmod 664 /data/users.db
+          echo "Permissions fixed"
+        volumeMounts:
+        - name: lldap-data
+          mountPath: /data
+      containers:
+      - name: lldap
+        image: lldap/lldap:latest
+        command: ["/app/lldap"]
+        args: ["run"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        ports:
+        - containerPort: 3890
+          name: ldap
+        - containerPort: 17170
+          name: http
+        env:
+        - name: LLDAP_HTTP_PORT
+          value: "17170"
+        - name: LLDAP_LDAP_PORT
+          value: "3890"
+        - name: LLDAP_LDAP_BASE_DN
+          value: "dc=daddyshome,dc=fr"
+        - name: LLDAP_HTTP_URL
+          value: "https://lldap.daddyshome.fr"
+        - name: LLDAP_DATABASE_URL
+          value: "sqlite:///data/users.db"
+        - name: LLDAP_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: lldap-secrets
+              key: jwt_secret
+        - name: LLDAP_LDAP_USER_PASS
+          valueFrom:
+            secretKeyRef:
+              name: lldap-secrets
+              key: ldap_user_pass
+        - name: LLDAP_USER_EMAIL
+          value: "admin@daddyshome.fr"
+        - name: LLDAP_VERBOSE
+          value: "true"
+        - name: LLDAP_KEY_FILE
+          value: "/data/server_key"
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 10m
+          limits:
+            memory: 128Mi
+            cpu: 100m
+        volumeMounts:
+        - name: lldap-data
+          mountPath: /data
+      volumes:
+      - name: lldap-data
+        persistentVolumeClaim:
+          claimName: lldap-data

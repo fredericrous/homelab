@@ -1,0 +1,472 @@
+version: '3'
+
+dotenv: ['.env']
+
+includes:
+  nas:
+    taskfile: ./nas/Taskfile.yml
+    dir: ./nas
+
+vars:
+  TERRAFORM_DIR: './terraform'
+  KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
+  TALOSCONFIG: '{{.ROOT_DIR}}/talosconfig'
+
+env:
+  KUBECONFIG: '{{.KUBECONFIG}}'
+  SHELL: /bin/bash
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # Helper task to check prerequisites
+  check-prereq:
+    desc: Check prerequisites
+    silent: true
+    cmds:
+      - |
+        if ! command -v yq &> /dev/null; then
+          echo "ERROR: yq is required but not installed. Install with: brew install yq"
+          exit 1
+        fi
+      - |
+        if [ ! -f ".env" ]; then
+          echo "ERROR: .env file not found. Copy .env.example and update with your values"
+          exit 1
+        fi
+
+  up:
+    desc: Create cluster infrastructure (VMs + Talos + CNI)
+    deps: [check-prereq]
+    cmds:
+      - task: init
+      - task: provision
+      - task: configure
+      - task: kubeconfig
+      - task: install-cilium
+      - task: validate-cluster
+
+  sync-env-secrets:
+    desc: "Sync environment variables to cluster-vars secret"
+    aliases: [load-env]
+    deps: [check-prereq]
+    preconditions:
+      - sh: kubectl get nodes
+        msg: "Cluster must be accessible"
+    cmds:
+      - |
+        echo "🔐 Creating/updating cluster variables secret from .env..."
+        ./scripts/bootstrap-cluster-vars.sh
+
+  create-vault-transit-secret:
+    desc: "Create vault-transit-token secret for Vault auto-unseal"
+    deps: [check-prereq]
+    preconditions:
+      - sh: kubectl get nodes
+        msg: "Cluster must be accessible"
+      - sh: test -n "${VAULT_TRANSIT_TOKEN:-}"
+        msg: "VAULT_TRANSIT_TOKEN must be set in .env file"
+    cmds:
+      - |
+        echo "🔐 Creating vault-transit-token secret..."
+        ./scripts/bootstrap-vault-transit-secret.sh
+
+  install:
+    desc: Full installation (cluster + GitOps + apps)
+    deps: [check-prereq]
+    cmds:
+      - task: bootstrap
+      - task: verify
+
+  init:
+    desc: Initialize Terraform
+    dir: '{{.TERRAFORM_DIR}}'
+    deps: [check-prereq]
+    preconditions:
+      - sh: test -f terraform.tfvars
+      - msg: "terraform.tfvars not found. Copy terraform.tfvars.example and update with your values"
+    cmds:
+      - terraform init -upgrade
+
+  provision:
+    desc: "Provision VMs on Proxmox"
+    dir: '{{.TERRAFORM_DIR}}'
+    deps: [check-prereq]
+    cmds:
+      - echo "Creating VMs..."
+      - terraform apply -target=module.vms -auto-approve
+
+  configure:
+    desc: "Configure Talos on VMs"
+    dir: '{{.TERRAFORM_DIR}}'
+    deps: [check-prereq]
+    cmds:
+      - echo "Waiting for VMs to get IP addresses..."
+      - |
+        # Extract IPs from terraform output
+        VM_IPS=($(terraform output -json | jq -r '.talos_client_configuration.value.nodes[]'))
+        ../scripts/wait-vms-ready.sh "${VM_IPS[@]}"
+      - terraform apply -var="configure_talos=true" -auto-approve
+
+  kubeconfig:
+    desc: "Get kubeconfig from Talos"
+    deps: [check-prereq]
+    dir: '{{.TERRAFORM_DIR}}'
+    env:
+      TALOSCONFIG: '{{.TALOSCONFIG}}'
+    cmds:
+      - |
+        # Extract control plane IP from terraform output
+        CONTROL_PLANE_IP=$(terraform output -json | jq -r '.talos_client_configuration.value.endpoints[0]')
+        talosctl kubeconfig -n "$CONTROL_PLANE_IP" -f {{.KUBECONFIG}}
+      - chmod 600 {{.KUBECONFIG}}
+      - echo "⏳ Waiting for Kubernetes API to be ready..."
+      - |
+        for i in {1..60}; do
+          if kubectl get nodes >/dev/null 2>&1; then
+            echo "✅ Kubernetes API is ready"
+            break
+          fi
+          echo "  Waiting for API server... ($i/60)"
+          sleep 5
+        done
+      - |
+        echo ""
+        echo "📋 Initial cluster status (nodes will be NotReady until CNI is installed):"
+        kubectl get nodes
+        echo ""
+        echo "✅ Kubernetes cluster API is ready!"
+        echo "ℹ️  Note: Nodes will remain NotReady until Cilium CNI is installed"
+
+  validate-cluster:
+    desc: "Validate complete cluster health (nodes, CNI, DNS)"
+    deps: [check-prereq]
+    preconditions:
+      - sh: kubectl get nodes
+        msg: "Cluster must be accessible before validation"
+    cmds:
+      - |
+        echo "🔍 Validating complete cluster health..."
+        echo ""
+
+        echo "📋 Node Status:"
+        kubectl get nodes -o wide
+        echo ""
+
+        echo "🌐 Cilium Status:"
+        kubectl get pods -n kube-system -l k8s-app=cilium
+        echo ""
+
+        echo "🔍 DNS Status:"
+        kubectl get svc -n kube-system kube-dns
+        kubectl get endpoints -n kube-system kube-dns
+        echo ""
+
+        # Count ready nodes
+        total_nodes=$(kubectl get nodes --no-headers | wc -l)
+        ready_nodes=$(kubectl get nodes --no-headers | grep -w Ready | wc -l)
+
+        echo "📊 Cluster Health Summary:"
+        echo "  Nodes: $ready_nodes/$total_nodes Ready"
+
+        # Check Cilium
+        cilium_ready=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers | wc -l)
+        echo "  Cilium: $cilium_ready pods running"
+
+        # Check DNS
+        dns_endpoints=$(kubectl get endpoints -n kube-system kube-dns -o jsonpath='{.subsets[0].addresses[*].ip}' 2>/dev/null | wc -w)
+        echo "  DNS: $dns_endpoints endpoints ready"
+        echo ""
+
+        # Final validation
+        if [ "$ready_nodes" -gt 0 ] && [ "$cilium_ready" -gt 0 ] && [ "$dns_endpoints" -gt 0 ]; then
+          echo "✅ Cluster validation successful!"
+          echo "   • API server: ✅ Accessible"
+          echo "   • Nodes: ✅ $ready_nodes ready"
+          echo "   • CNI: ✅ Cilium running"
+          echo "   • DNS: ✅ CoreDNS endpoints ready"
+          echo ""
+          echo "🚀 Cluster is ready for workloads!"
+        else
+          echo "⚠️  Cluster validation issues detected:"
+          [ "$ready_nodes" -eq 0 ] && echo "   • No nodes are ready"
+          [ "$cilium_ready" -eq 0 ] && echo "   • Cilium CNI not running"
+          [ "$dns_endpoints" -eq 0 ] && echo "   • DNS endpoints not ready"
+          echo ""
+          echo "Run 'task check-nodes' for detailed troubleshooting"
+          exit 1
+        fi
+
+  check-nodes:
+    desc: "Check node status and provide troubleshooting guidance"
+    deps: [check-prereq]
+    cmds:
+      - |
+        echo "🔍 Node Status Overview:"
+        kubectl get nodes -o wide
+        echo ""
+
+        # Check for NotReady nodes
+        not_ready_nodes=$(kubectl get nodes --no-headers | grep NotReady | awk '{print $1}' || true)
+        if [ -n "$not_ready_nodes" ]; then
+          echo "⚠️  NotReady nodes detected:"
+          for node in $not_ready_nodes; do
+            echo "  📋 Node: $node"
+            echo "     Conditions:"
+            kubectl describe node $node | grep -A 10 "Conditions:" | head -15
+            echo ""
+          done
+
+          echo "💡 Troubleshooting steps:"
+          echo "  1. Check if nodes are reachable via ping"
+          echo "  2. Restart unresponsive VMs from Proxmox web interface"
+          echo "  3. For GPU nodes, check if GPU passthrough is causing issues"
+          echo "  4. Run 'kubectl delete node <node-name>' and let it rejoin if needed"
+        else
+          echo "✅ All nodes are Ready"
+        fi
+
+
+  install-cilium:
+    desc: "Install Cilium CNI (required before workers can join)"
+    deps: [check-prereq]
+    preconditions:
+      - sh: kubectl get nodes
+        msg: "Cluster must be accessible before installing Cilium"
+    cmds:
+      - |
+        # Extract control plane IP from terraform output and pass to script
+        cd terraform
+        export CONTROL_PLANE_IP=$(terraform output -json | jq -r '.talos_client_configuration.value.endpoints[0]')
+        cd ..
+        export KUBECONFIG=kubeconfig
+        ./scripts/install-cilium.sh
+
+  install-fluxcd:
+    desc: "Install FluxCD GitOps controller"
+    deps: [check-prereq]
+    preconditions:
+      - sh: kubectl get nodes
+        msg: "Cluster must be accessible before installing FluxCD"
+    vars:
+      FLUX_PATH: '{{.flux_path | default "clusters/homelab/flux-system"}}'
+    cmds:
+      - |
+        # Skip if FluxCD is already installed
+        if kubectl get ns flux-system >/dev/null 2>&1; then
+          echo "✅ FluxCD is already installed"
+          echo "Run 'task verify' to check infrastructure status"
+          exit 0
+        fi
+
+        # Install flux CLI if needed
+        if ! command -v flux &> /dev/null; then
+          echo "📦 Installing flux CLI..."
+          curl -s https://fluxcd.io/install.sh | sudo bash
+        fi
+
+        echo "🚀 Installing FluxCD..."
+
+        # Check for GitHub token in environment or .env file
+        if [ -z "${FLUXCD_GITHUB_TOKEN:-}" ] && [ -f .env ]; then
+          source .env
+        fi
+
+        # Validate required environment variables
+        if [ -z "${FLUXCD_OWNER:-}" ]; then
+          echo "❌ FLUXCD_OWNER environment variable is required"
+          echo "Set it in .env file or export FLUXCD_OWNER=your-github-username"
+          exit 1
+        fi
+
+        if [ -z "${FLUXCD_REPOSITORY:-}" ]; then
+          echo "❌ FLUXCD_REPOSITORY environment variable is required"
+          echo "Set it in .env file or export FLUXCD_REPOSITORY=your-repo-name"
+          exit 1
+        fi
+
+        if [ -n "${FLUXCD_GITHUB_TOKEN:-}" ]; then
+          echo "✅ Using GitHub token from environment"
+          export GITHUB_TOKEN="$FLUXCD_GITHUB_TOKEN"
+        else
+          echo "⚠️  No FLUXCD_GITHUB_TOKEN found - you will be prompted for your GitHub token"
+        fi
+
+        echo "📋 FluxCD Configuration:"
+        echo "  Owner: $FLUXCD_OWNER"
+        echo "  Repository: $FLUXCD_REPOSITORY"
+        echo "  Path: {{.FLUX_PATH}}"
+        echo "  Branch: main"
+        echo ""
+
+        # Bootstrap FluxCD
+        flux bootstrap github \
+          --owner="$FLUXCD_OWNER" \
+          --repository="$FLUXCD_REPOSITORY" \
+          --branch=main \
+          --path="{{.FLUX_PATH}}" \
+          --personal \
+          --token-auth
+
+        echo "✅ FluxCD installed and configured successfully!"
+
+  bootstrap:
+    desc: "Create cluster and bootstrap FluxCD"
+    deps: [check-prereq]
+    vars:
+      FLUX_PATH: '{{.flux_path | default "clusters/homelab/flux-system"}}'
+    cmds:
+      - |
+        # Create cluster if kubeconfig doesn't exist
+        if [ ! -f "{{.KUBECONFIG}}" ]; then
+          echo "🚀 Creating Kubernetes cluster..."
+          task up
+        else
+          echo "✅ Cluster already exists"
+        fi
+
+        # Install Cilium CNI if not already installed
+        if ! kubectl get pods -n kube-system -l k8s-app=cilium | grep -q Running; then
+          echo "🌐 Installing Cilium CNI..."
+          task install-cilium
+        else
+          echo "✅ Cilium CNI is already installed"
+        fi
+
+        # Install FluxCD
+        echo "🚀 Installing FluxCD GitOps..."
+        task install-fluxcd flux_path="{{.FLUX_PATH}}"
+
+        # Create required secrets after FluxCD creates flux-system namespace
+        task create-vault-transit-secret
+        task sync-env-secrets
+
+        echo "✅ Cluster created and FluxCD bootstrapped successfully!"
+
+
+  verify:
+    desc: "Verify all infrastructure components are ready"
+    deps: [check-prereq]
+    cmds:
+      - echo "Waiting for all infrastructure components..."
+      - ./scripts/wait-for-infrastructure.sh
+      - echo ""
+      - echo "✅ All infrastructure ready!"
+      - echo ""
+      - echo "Platform Foundation status:"
+      - kubectl get kustomization -n flux-system | grep -E 'NAME|platform-foundation'
+      - echo ""
+      - echo "Infrastructure layers status:"
+      - kubectl get kustomization -n flux-system | grep -E 'NAME|security|serverless|data-cache|ml-serving|data-storage'
+      - echo ""
+      - echo "Application status:"
+      - kubectl get kustomization -n flux-system | grep -E 'apps|lldap|authelia|openwebui' || echo "No applications deployed yet"
+
+  suspend:
+    desc: "Suspend Flux reconciliation (services keep running)"
+    deps: [check-prereq]
+    cmds:
+      - |
+        if kubectl get nodes >/dev/null 2>&1; then
+          echo "⏸️  Suspending Flux reconciliation..."
+
+          # Suspend all GitRepositories
+          kubectl get gitrepository -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+
+          # Suspend all HelmRepositories
+          kubectl get helmrepository -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+
+          # Suspend all HelmReleases
+          kubectl get helmrelease -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+
+          # Suspend all Kustomizations
+          kubectl get kustomization -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":true}}' || true
+
+          echo "✅ Flux reconciliation suspended"
+          echo "ℹ️  Services continue running but won't be updated"
+          echo "ℹ️  Run 'task resume' to re-enable reconciliation"
+        else
+          echo "⚠️  Cluster not accessible"
+        fi
+
+  resume:
+    desc: "Resume Flux reconciliation"
+    deps: [check-prereq]
+    cmds:
+      - |
+        if kubectl get nodes >/dev/null 2>&1; then
+          echo "▶️  Resuming Flux reconciliation..."
+
+          # Resume all GitRepositories
+          kubectl get gitrepository -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+
+          # Resume all HelmRepositories
+          kubectl get helmrepository -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+
+          # Resume all HelmReleases
+          kubectl get helmrelease -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+
+          # Resume all Kustomizations
+          kubectl get kustomization -n flux-system -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n flux-system --type='merge' -p='{"spec":{"suspend":false}}' || true
+
+          echo "✅ Flux reconciliation resumed"
+        else
+          echo "⚠️  Cluster not accessible"
+        fi
+
+  destroy:
+    desc: "Destroy FluxCD and all deployed resources (inverse of bootstrap)"
+    deps: [check-prereq]
+    prompt: This will remove FluxCD and all deployed resources. Are you sure?
+    cmds:
+      - ./scripts/destroy-flux.sh
+      - echo ""
+      - echo "✅ Destroy completed"
+      - echo "ℹ️  Disk cleanup will be handled by Rook's cleanupPolicy during cluster deletion"
+
+  force-cleanup:
+    desc: "Force cleanup stuck namespaces (use when destroy doesn't fully clean)"
+    deps: [check-prereq]
+    cmds:
+      - ./scripts/force-cleanup-namespaces.sh
+
+  uninstall:
+    desc: Uninstall everything (cluster + VMs + configs)
+    dir: '{{.TERRAFORM_DIR}}'
+    deps: [check-prereq]
+    prompt: This will destroy the entire cluster and VMs. Are you sure?
+    cmds:
+      - echo "🗑️  Destroying VMs..."
+      - terraform destroy -auto-approve
+      - echo "🧹 Cleaning up configs..."
+      - rm -f {{.KUBECONFIG}} {{.TALOSCONFIG}}
+      - ../scripts/cleanup-vms.sh
+      - |
+        echo
+        echo "=== IMPORTANT: GPU Passthrough Users ==="
+        echo "If you have VMs with GPU passthrough, you MUST reboot the Proxmox host"
+        echo "before creating new VMs with GPU, otherwise you'll get QEMU errors."
+        echo
+        echo "Run: task reboot"
+        echo
+        echo "This will prevent the 'pci_irq_handler: Assertion' error."
+      - echo "✅ Uninstall complete"
+
+  cleanup:
+    desc: "Clean up existing VMs from Proxmox"
+    dir: '{{.TERRAFORM_DIR}}'
+    deps: [check-prereq]
+    prompt: This will stop and remove all VMs defined in terraform.tfvars. Are you sure?
+    cmds:
+      - ../scripts/cleanup-vms.sh
+
+
+  reboot:
+    desc: "Reboot Proxmox host (required after destroying VMs with GPU passthrough)"
+    dir: '{{.TERRAFORM_DIR}}'
+    prompt: This will reboot the Proxmox host. Are you sure?
+    cmds:
+      - ../scripts/reboot-proxmox.sh

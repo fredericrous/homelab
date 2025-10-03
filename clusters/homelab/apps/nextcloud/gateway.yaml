@@ -1,0 +1,52 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: nextcloud-gateway
+  namespace: nextcloud
+spec:
+  selector:
+    istio: gateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - nextcloud.daddyshome.fr
+    - drive.daddyshome.fr
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: MUTUAL
+      credentialName: nextcloud-tls
+    hosts:
+    - nextcloud.daddyshome.fr
+    - drive.daddyshome.fr
+---
+# Separate gateway for mobile access without mTLS
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: nextcloud-mobile-gateway
+  namespace: nextcloud
+spec:
+  selector:
+    istio: gateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - drive-mobile.daddyshome.fr
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE  # No client certificate required for mobile
+      credentialName: nextcloud-mobile-tls
+    hosts:
+    - drive-mobile.daddyshome.fr

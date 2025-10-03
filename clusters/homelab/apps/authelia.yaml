@@ -1,0 +1,20 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authelia
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./clusters/homelab/apps/authelia
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 5m
+  wait: true
+  dependsOn:
+    - name: data-storage
+    - name: security
+    - name: lldap
+    # authelia-setup will run in parallel and create required secrets
+    # Istio gateway resources are deployed by infrastructure kustomization

@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+  annotations:
+    # Auto-reload when secrets or configmap changes
+    reloader.stakater.com/auto: "true"
+    # Wait for database secrets to be synced from Vault
+    kustomize.toolkit.fluxcd.io/depends-on: nextcloud/ExternalSecret/nextcloud-db,nextcloud/ExternalSecret/nextcloud-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud
+      app.kubernetes.io/instance: nextcloud
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nextcloud
+        app.kubernetes.io/instance: nextcloud
+    spec:
+      serviceAccountName: nextcloud
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z postgres-apps-rw.postgres.svc.cluster.local 5432; do echo waiting for postgres; sleep 2; done']
+      containers:
+      - name: nextcloud
+        image: nextcloud:29-apache
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          # Fix config ownership and permissions
+          if [ -f /var/www/html/config/config.php ]; then
+            chown www-data:www-data /var/www/html/config/config.php
+            chmod 640 /var/www/html/config/config.php
+          fi
+          # Ensure config directory is writable
+          chown www-data:www-data /var/www/html/config
+          chmod 750 /var/www/html/config
+          # Start the original entrypoint
+          exec /entrypoint.sh apache2-foreground
+        ports:
+        - containerPort: 80
+          name: http
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: host
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: database
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: password
+        - name: NEXTCLOUD_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-admin
+              key: username
+        - name: NEXTCLOUD_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-admin
+              key: password
+        - name: NEXTCLOUD_TRUSTED_DOMAINS
+          value: "nextcloud.daddyshome.fr drive.daddyshome.fr"
+        - name: NEXTCLOUD_UPDATE
+          value: "1"
+        - name: PHP_MEMORY_LIMIT
+          value: "512M"
+        - name: PHP_UPLOAD_LIMIT
+          value: "10G"
+        volumeMounts:
+        - name: nextcloud-data
+          mountPath: /var/www/html
+        - name: php-config
+          mountPath: /usr/local/etc/php/conf.d/custom.ini
+          subPath: php.ini
+        - name: apache-config
+          mountPath: /etc/apache2/conf-enabled/pretty-urls.conf
+          subPath: apache-pretty-urls.conf
+        - name: nextcloud-config
+          mountPath: /var/www/html/config/custom.config.php
+          subPath: custom.config.php
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+      - name: nextcloud-cron
+        image: nextcloud:29-apache
+        command: ["/cron.sh"]
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: host
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: database
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-db
+              key: password
+        volumeMounts:
+        - name: nextcloud-data
+          mountPath: /var/www/html
+        - name: nextcloud-config
+          mountPath: /var/www/html/config/custom.config.php
+          subPath: custom.config.php
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: nextcloud-data
+        persistentVolumeClaim:
+          claimName: nextcloud-data
+      - name: php-config
+        configMap:
+          name: nextcloud-config
+      - name: apache-config
+        configMap:
+          name: nextcloud-config
+      - name: nextcloud-config
+        configMap:
+          name: nextcloud-config

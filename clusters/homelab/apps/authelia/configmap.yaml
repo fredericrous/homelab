@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authelia-config
+  namespace: authelia
+data:
+  configuration.yml: |
+    theme: dark
+    
+    server:
+      host: 0.0.0.0
+      port: 9091
+      headers:
+        csp_template: "default-src 'self'; frame-src 'none'; object-src 'none'; style-src 'self' 'nonce-${NONCE}'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; img-src 'self' data:;"
+      
+    log:
+      level: info
+      
+    totp:
+      issuer: authelia.local
+      period: 30
+      skew: 1
+    
+    webauthn:
+      disable: false
+      display_name: Authelia
+      attestation_conveyance_preference: indirect
+      user_verification: preferred
+      timeout: 60s
+      
+    authentication_backend:
+      password_reset:
+        disable: false
+      ldap:
+        address: ldap://lldap.lldap.svc.cluster.local:3890
+        timeout: 5s
+        start_tls: false
+        base_dn: dc=daddyshome,dc=fr
+        username_attribute: uid
+        users_filter: "(&({username_attribute}={input})(objectClass=person))"
+        groups_filter: "(member={dn})"
+        group_search_mode: filter
+        user: uid=admin,ou=people,dc=daddyshome,dc=fr
+        attributes:
+          username: uid
+          display_name: cn
+          mail: mail
+          group_name: cn
+        
+    access_control:
+      default_policy: deny
+      rules:
+        # Allow access to Authelia itself
+        - domain: auth.daddyshome.fr
+          policy: bypass
+        # Protect all other domains
+        - domain: "*.daddyshome.fr"
+          policy: two_factor
+          
+    session:
+      name: authelia_session
+      cookies:
+        - domain: daddyshome.fr
+          authelia_url: https://auth.daddyshome.fr
+      same_site: lax
+      expiration: 1h
+      inactivity: 5m
+      remember_me: 1M
+      redis:
+        host: redis-standalone.ot-operators.svc.cluster.local
+        port: 6379
+        database_index: 0
+        
+    regulation:
+      max_retries: 3
+      find_time: 2m
+      ban_time: 5m
+      
+    storage:
+      postgres:
+        host: postgres-apps-rw.postgres.svc.cluster.local
+        port: 5432
+        database: authelia
+        username: authelia
+        schema: public
+        
+    notifier:
+      disable_startup_check: true
+      smtp:
+        username: noreply@daddyshome.fr
+        # Password for the noreply user in Maddy
+        password: maddy-password-123
+        host: maddy.maddy.svc.cluster.local
+        port: 587
+        sender: "Authelia <noreply@daddyshome.fr>"
+        identifier: localhost
+        subject: "[Authelia] {title}"
+        startup_check_address: test@example.com
+        disable_require_tls: false
+        disable_html_emails: false
+        

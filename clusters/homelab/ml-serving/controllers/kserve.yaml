@@ -1,0 +1,40 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kserve
+  namespace: flux-system
+spec:
+  targetNamespace: kserve
+  interval: 10m
+  dependsOn:
+    - name: kserve-crd
+      namespace: flux-system
+  chart:
+    spec:
+      chart: kserve
+      version: v0.15.0
+      sourceRef:
+        kind: HelmRepository
+        name: kserve
+        namespace: flux-system
+  install:
+    createNamespace: true
+    timeout: 10m
+    remediation:
+      retries: 3
+  upgrade:
+    timeout: 10m
+    remediation:
+      retries: 3
+  values:
+    kserve:
+      controller:
+        deploymentMode: "Serverless"
+      storageSpec: |
+        key: minio
+        schemaPath: s3
+        storageSecretName: storage-config
+    knativeServingIstio:
+      enabled: true  # Using Istio ingress
+    certManager:
+      enabled: true

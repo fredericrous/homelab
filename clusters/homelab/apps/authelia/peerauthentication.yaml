@@ -1,0 +1,11 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: authelia
+  namespace: authelia
+spec:
+  selector:
+    matchLabels:
+      app: authelia
+  mtls:
+    mode: PERMISSIVE  # Allow both mTLS and plain text for health checks

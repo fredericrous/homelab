@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: plex
+  labels:
+    name: plex
+    backup: velero
+    # Enable Istio Ambient mode for better performance
+    istio.io/dataplane-mode: ambient
+    # Pod Security Standards - allow privileged containers for GPU access
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

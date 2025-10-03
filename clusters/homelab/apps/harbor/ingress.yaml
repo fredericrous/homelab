@@ -1,0 +1,65 @@
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: harbor-gateway
+  namespace: harbor
+spec:
+  selector:
+    istio: gateway
+  servers:
+  # HTTP redirect to HTTPS
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - harbor.daddyshome.fr
+  # HTTPS with mTLS client certificate authentication
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: MUTUAL
+      credentialName: harbor-tls-secret
+    hosts:
+    - harbor.daddyshome.fr
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: harbor-redirect
+  namespace: harbor
+spec:
+  hosts:
+  - harbor.daddyshome.fr
+  gateways:
+  - harbor-gateway
+  http:
+  # HTTP to HTTPS redirect for port 80
+  - match:
+    - port: 80
+    redirect:
+      scheme: https
+      redirectCode: 301
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: harbor-https
+  namespace: harbor
+spec:
+  hosts:
+  - harbor.daddyshome.fr
+  gateways:
+  - harbor-gateway
+  http:
+  # HTTPS traffic to service (port 443)
+  - match:
+    - port: 443
+    route:
+    - destination:
+        host: harbor-core
+        port:
+          number: 80

@@ -1,0 +1,235 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stremio-server
+  namespace: stremio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stremio-server
+      app.kubernetes.io/instance: stremio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stremio-server
+        app.kubernetes.io/instance: stremio
+    spec:
+      serviceAccountName: stremio
+      runtimeClassName: nvidia  # Enable GPU support
+      initContainers:
+      - name: ffmpeg-provider
+        image: stremio/server:latest
+        command: 
+        - sh
+        - -c
+        - |
+          # Stremio server image already has Jellyfin ffmpeg installed
+          echo "Using ffmpeg from Stremio server image..."
+          
+          # Find the ffmpeg binaries (they should be at /usr/lib/jellyfin-ffmpeg/)
+          if [ -f /usr/lib/jellyfin-ffmpeg/ffmpeg ]; then
+            echo "Found Jellyfin ffmpeg, copying..."
+            cp /usr/lib/jellyfin-ffmpeg/ffmpeg /ffmpeg-bin/ffmpeg
+            cp /usr/lib/jellyfin-ffmpeg/ffprobe /ffmpeg-bin/ffprobe
+          else
+            echo "Jellyfin ffmpeg not found, checking other locations..."
+            which ffmpeg && cp $(which ffmpeg) /ffmpeg-bin/ffmpeg
+            which ffprobe && cp $(which ffprobe) /ffmpeg-bin/ffprobe
+          fi
+          
+          chmod +x /ffmpeg-bin/*
+          
+          # Create wrapper script for ffprobe with mTLS support
+          cat > /ffmpeg-bin/ffprobe-wrapper << 'EOF'
+          #!/bin/sh
+          # Wrapper for ffprobe to handle mTLS
+          
+          # Check if cert options are already provided
+          has_cert_file=0
+          has_https=0
+          
+          for arg in "$@"; do
+            case "$arg" in
+              -cert_file)
+                has_cert_file=1
+                ;;
+              https://*)
+                has_https=1
+                ;;
+            esac
+          done
+          
+          # Only add cert options if they're not already provided and we have an HTTPS URL
+          if [ "$has_https" = "1" ] && [ "$has_cert_file" = "0" ]; then
+            # For HTTPS URLs without cert options, add mTLS certificates
+            exec /opt/ffmpeg/ffprobe.real -cert_file /etc/ssl/mtls/client1.crt -key_file /etc/ssl/mtls/client1.key -tls_verify 0 "$@"
+          else
+            # Pass through as-is
+            exec /opt/ffmpeg/ffprobe.real "$@"
+          fi
+          EOF
+          
+          chmod +x /ffmpeg-bin/ffprobe-wrapper
+          
+          # Create wrapper script for ffmpeg with mTLS support
+          cat > /ffmpeg-bin/ffmpeg-wrapper << 'EOF'
+          #!/bin/sh
+          # Wrapper for ffmpeg to handle mTLS
+          
+          # Check if cert options are already provided and if we have HTTPS input
+          has_cert_file=0
+          has_https_input=0
+          
+          # Look for -cert_file and HTTPS URLs in -i parameters
+          i=1
+          while [ $i -le $# ]; do
+            eval "arg=\${$i}"
+            case "$arg" in
+              -cert_file)
+                has_cert_file=1
+                ;;
+              -i)
+                # Check the next argument for HTTPS URL
+                next_i=$((i + 1))
+                if [ $next_i -le $# ]; then
+                  eval "next_arg=\${$next_i}"
+                  case "$next_arg" in
+                    https://*)
+                      has_https_input=1
+                      ;;
+                  esac
+                fi
+                ;;
+            esac
+            i=$((i + 1))
+          done
+          
+          # Only add cert options if they're not already provided and we have an HTTPS input
+          if [ "$has_https_input" = "1" ] && [ "$has_cert_file" = "0" ]; then
+            # For HTTPS inputs without cert options, add mTLS certificates before -i
+            args=""
+            i=1
+            while [ $i -le $# ]; do
+              eval "arg=\${$i}"
+              if [ "$arg" = "-i" ]; then
+                # Insert cert options before -i
+                args="$args -cert_file /etc/ssl/mtls/client1.crt -key_file /etc/ssl/mtls/client1.key -tls_verify 0 -i"
+              else
+                args="$args \"$arg\""
+              fi
+              i=$((i + 1))
+            done
+            eval "exec /opt/ffmpeg/ffmpeg.real $args"
+          else
+            # Pass through as-is
+            exec /opt/ffmpeg/ffmpeg.real "$@"
+          fi
+          EOF
+          
+          chmod +x /ffmpeg-bin/ffmpeg-wrapper
+          
+          # Rename real binaries and create symlinks to wrappers
+          mv /ffmpeg-bin/ffmpeg /ffmpeg-bin/ffmpeg.real
+          ln -s ffmpeg-wrapper /ffmpeg-bin/ffmpeg
+          mv /ffmpeg-bin/ffprobe /ffmpeg-bin/ffprobe.real
+          ln -s ffprobe-wrapper /ffmpeg-bin/ffprobe
+          
+          # Test the binaries
+          echo "Testing ffmpeg..."
+          /ffmpeg-bin/ffmpeg -version
+          echo ""
+          echo "Checking hardware acceleration support:"
+          /ffmpeg-bin/ffmpeg -hwaccels 2>&1 || true
+          echo ""
+          echo "Checking NVIDIA encoders:"
+          /ffmpeg-bin/ffmpeg -encoders 2>&1 | grep -i nvenc || true
+          echo ""
+          echo "Checking HTTPS/TLS protocol support:"
+          /ffmpeg-bin/ffprobe -protocols 2>&1 | grep -E "https|tls" || echo "No HTTPS/TLS protocols found"
+        volumeMounts:
+        - name: ffmpeg-bin
+          mountPath: /ffmpeg-bin
+      containers:
+      - name: nginx-proxy
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+          name: http-proxy
+        volumeMounts:
+        - name: nginx-proxy-config
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+      - name: stremio-server
+        image: stremio/server:latest
+        env:
+        - name: FFMPEG_BIN
+          value: "/bin/ffmpeg"
+        - name: FFPROBE_BIN
+          value: "/bin/ffprobe"
+        - name: NO_CORS
+          value: "1"
+        # GPU environment variables for hardware acceleration
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility,video"
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - |
+                # Create symlinks to the ffmpeg binaries (ffprobe uses wrapper)
+                ln -sf /opt/ffmpeg/ffmpeg /bin/ffmpeg
+                ln -sf /opt/ffmpeg/ffprobe /bin/ffprobe
+        ports:
+        - containerPort: 11470
+          name: http
+        - containerPort: 12470
+          name: https
+        resources:
+          limits:
+            nvidia.com/gpu: 1  # Request 1 GPU for hardware acceleration
+            memory: 4Gi
+            cpu: 4
+          requests:
+            nvidia.com/gpu: 1  # Request 1 GPU for hardware acceleration
+            memory: 2Gi
+            cpu: 2
+        volumeMounts:
+        - name: ffmpeg-bin
+          mountPath: /opt/ffmpeg
+          readOnly: true
+        - name: cache
+          mountPath: /var/cache/stremio
+        - name: config
+          mountPath: /root/.stremio-server
+        - name: media
+          mountPath: /media
+          readOnly: true
+        - name: mtls-certs
+          mountPath: /etc/ssl/mtls
+          readOnly: true
+        securityContext:
+          privileged: true  # Required for GPU access
+      volumes:
+      - name: nginx-proxy-config
+        configMap:
+          name: stremio-server-nginx-proxy
+      - name: ffmpeg-bin
+        emptyDir: {}
+      - name: cache
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: config
+        persistentVolumeClaim:
+          claimName: stremio-config
+      - name: media
+        persistentVolumeClaim:
+          claimName: stremio-media
+      - name: mtls-certs
+        configMap:
+          name: mtls-client-cert
+          defaultMode: 0444

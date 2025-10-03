@@ -1,0 +1,58 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ovh-webhook
+  namespace: flux-system
+spec:
+  targetNamespace: cert-manager
+  interval: 30m
+  chart:
+    spec:
+      chart: cert-manager-webhook-ovh
+      version: "0.8.0"
+      sourceRef:
+        kind: HelmRepository
+        name: ovh-webhook
+        namespace: flux-system
+      interval: 12h
+  dependsOn:
+    - name: cert-manager
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    configVersion: '0.0.2'
+    groupName: ovh.acme.cert-manager.io
+    
+    # Create ClusterIssuer directly via Helm values
+    issuers:
+      - name: letsencrypt-ovh-webhook
+        create: true
+        kind: ClusterIssuer
+        acmeServerUrl: https://acme-v02.api.letsencrypt.org/directory
+        email: admin@daddyshome.fr
+        ovhEndpointName: ovh-eu
+        ovhAuthenticationMethod: application
+        ovhAuthenticationRef:
+          applicationKeyRef:
+            name: cert-manager-env-config
+            key: CERT_MANAGER_OVH_APPLICATION_KEY
+          applicationSecretRef:
+            name: cert-manager-env-config
+            key: CERT_MANAGER_OVH_APPLICATION_SECRET
+          applicationConsumerKeyRef:
+            name: cert-manager-env-config
+            key: CERT_MANAGER_OVH_CONSUMER_KEY
+    
+    # Resource limits for homelab environment
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi

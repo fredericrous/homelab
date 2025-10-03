@@ -1,0 +1,48 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: stremio-patch-secrets
+  namespace: stremio
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stremio-patch-istio-secrets
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "patch"]
+  resourceNames: ["stremio-tls"]
+  namespaces: ["istio-ingress"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: stremio-patch-secrets
+  namespace: stremio
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: stremio-patch-secrets
+subjects:
+- kind: ServiceAccount
+  name: stremio
+  namespace: stremio
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stremio-patch-istio-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stremio-patch-istio-secrets
+subjects:
+- kind: ServiceAccount
+  name: stremio
+  namespace: stremio

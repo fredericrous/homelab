@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: lldap
+
+# Use mTLS component to automatically sync client CA certificate
+components:
+  - ../../components/mtls-certificates
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - rbac.yaml
+  - secret-store.yaml        # Namespace-scoped SecretStore with LLDAP policy
+  - password-generator.yaml  # Generate passwords using ESO
+  - external-secret.yaml     # Pull from Vault (after push)
+  # - database.yaml  # MOVED: to data-storage/configs/postgres/ (must be in same namespace as Cluster)
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  # - ingress.yaml  # Replaced with Istio Gateway
+  - certificates.yaml
+  - client-ca-reflector.yaml # Override mtls-certificates ExternalSecret with reflector
+  - istio/gateway.yaml
+  # - istio/ca-secret.yaml  # Not needed - mtls-certificates component handles CA
+
+# Configuration for mTLS component
+configMapGenerator:
+- name: mtls-config
+  literals:
+  - serviceAccount=lldap

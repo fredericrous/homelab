@@ -1,0 +1,93 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: kube-state-metrics
+      version: "5.x"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  values:
+    customResourceState:
+      enabled: true
+      config:
+        spec:
+          resources:
+            - groupVersionKind:
+                group: source.toolkit.fluxcd.io
+                version: v1
+                kind: GitRepository
+              metricNamePrefix: gotk
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+                namespace:
+                  - metadata
+                  - namespace
+              metrics:
+                - name: "info"
+                  help: "GitRepository information"
+                  each:
+                    type: Info
+                    info:
+                      labelsFromPath:
+                        ready:
+                          - status
+                          - conditions
+                          - "[type=Ready]"
+                          - status
+            - groupVersionKind:
+                group: kustomize.toolkit.fluxcd.io
+                version: v1
+                kind: Kustomization
+              metricNamePrefix: gotk
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+                namespace:
+                  - metadata
+                  - namespace
+              metrics:
+                - name: "info"
+                  help: "Kustomization information"
+                  each:
+                    type: Info
+                    info:
+                      labelsFromPath:
+                        ready:
+                          - status
+                          - conditions
+                          - "[type=Ready]"
+                          - status
+            - groupVersionKind:
+                group: helm.toolkit.fluxcd.io
+                version: v2
+                kind: HelmRelease
+              metricNamePrefix: gotk
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+                namespace:
+                  - metadata
+                  - namespace
+              metrics:
+                - name: "info"
+                  help: "HelmRelease information"
+                  each:
+                    type: Info
+                    info:
+                      labelsFromPath:
+                        ready:
+                          - status
+                          - conditions
+                          - "[type=Ready]"
+                          - status

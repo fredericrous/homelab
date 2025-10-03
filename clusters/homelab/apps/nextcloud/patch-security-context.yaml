@@ -1,0 +1,12 @@
+- op: add
+  path: /spec/template/spec/securityContext
+  value:
+    runAsUser: 33
+    runAsGroup: 33
+    fsGroup: 33
+- op: add
+  path: /spec/template/spec/containers/0/securityContext
+  value:
+    runAsUser: 33
+    runAsGroup: 33
+    runAsNonRoot: true

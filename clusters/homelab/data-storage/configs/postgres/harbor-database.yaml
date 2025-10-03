@@ -1,0 +1,11 @@
+# Declarative database creation for Harbor
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: harbor
+  namespace: postgres
+spec:
+  name: harbor
+  owner: harbor
+  cluster:
+    name: postgres-apps

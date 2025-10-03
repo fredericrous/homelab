@@ -1,0 +1,12 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: lldap
+  namespace: postgres
+spec:
+  name: lldap
+  owner: lldap
+  cluster:
+    name: postgres-apps
+  # Ensure the database is created after the role
+  # The role must be defined in the Cluster's spec.managed.roles

@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: minio
+  namespace: istio-system
+spec:
+  selector:
+    istio: gateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: minio-tls
+    hosts:
+    - minio.${PUBLIC_DOMAIN}

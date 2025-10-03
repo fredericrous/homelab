@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nextcloud
+  labels:
+    name: nextcloud
+    backup: velero
+    # Enable Istio Ambient mode for better performance
+    istio.io/dataplane-mode: ambient
+    # Enable mTLS client CA certificate sync
+    mtls.enabled: "true"
+  annotations:
+    # mTLS component configuration
+    mtls/tls-secret-name: "nextcloud-tls"

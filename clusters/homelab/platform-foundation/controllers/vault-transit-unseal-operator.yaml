@@ -1,0 +1,35 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vault-transit-unseal-operator
+  namespace: flux-system
+spec:
+  targetNamespace: vault-transit-unseal-operator
+  interval: 10m
+  chart:
+    spec:
+      chart: vault-transit-unseal-operator
+      version: 1.0.6
+      sourceRef:
+        kind: HelmRepository
+        name: fredericrous
+        namespace: flux-system
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+    crds: CreateReplace
+  upgrade:
+    remediation:
+      retries: 3
+    crds: CreateReplace
+  values:
+    image:
+      tag: "1.0.10"
+
+    watchNamespace: ""
+    enableLeaderElection: false
+    maxConcurrentReconciles: 3
+
+    webhook:
+      enabled: false

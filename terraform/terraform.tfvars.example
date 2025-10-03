@@ -1,0 +1,74 @@
+# Copy this file to terraform.tfvars and update with your values
+
+# Proxmox connection details
+proxmox_api_url  = "https://192.168.1.1:8006/api2/json"  # Your Proxmox server IP
+proxmox_user     = "root@pam"
+proxmox_password = "your-proxmox-password"
+proxmox_node     = "proxmox"  # Your Proxmox node name
+
+# Talos ISO - should be uploaded to Proxmox ISO storage
+talos_iso = "talos-nocloud-amd64.iso"
+
+# Network configuration
+gateway     = "192.168.1.1"
+dns_servers = ["1.1.1.1", "8.8.8.8"]
+
+# Cluster configuration
+cluster_name     = "homelab"
+cluster_endpoint = "https://192.168.1.67:6443"
+
+# Node configuration
+nodes = {
+  controlplane = {
+    ip          = "192.168.1.67"
+    mac_address = ""  # Leave empty for auto-generated
+    labels      = {}  # Optional: custom labels for control plane
+  }
+  workers = [
+    {
+      name            = "talos-wk-1-gpu"
+      vmid            = 101
+      ip              = "192.168.1.68"
+      mac_address     = ""  # Leave empty for auto-generated
+      cores           = 12
+      memory          = 48128
+      os_disk_size    = 128
+      data_disk_size  = 800
+      gpu_passthrough = "0000:01:00"  # PCI ID for GPU
+      labels = {
+        "gpu" = "nvidia-rtx-4060"  # Optional: custom labels (auto-adds node.kubernetes.io/type=worker)
+      }
+    },
+    {
+      name            = "talos-wk-2"
+      vmid            = 102
+      ip              = "192.168.1.69"
+      mac_address     = ""  # Leave empty for auto-generated
+      cores           = 10
+      memory          = 37888
+      os_disk_size    = 96
+      data_disk_size  = 673
+      gpu_passthrough = null  # No GPU
+      labels          = {}    # Optional: custom labels (auto-adds node.kubernetes.io/type=worker)
+    }
+    # Easy to add more workers here:
+    # ,{
+    #   name            = "talos-wk-3"
+    #   vmid            = 103
+    #   ip              = "192.168.1.70"
+    #   mac_address     = ""
+    #   cores           = 8
+    #   memory          = 32768
+    #   os_disk_size    = 64
+    #   data_disk_size  = 500
+    #   gpu_passthrough = null
+    #   labels          = {}
+    # }
+  ]
+}
+
+# Talos configuration (optional - defaults are usually fine)
+# talos_version      = "v1.10.6"
+# kubernetes_version = "v1.33.3"
+# talos_install_image = "factory.talos.dev/nocloud-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba:v1.10.6"
+

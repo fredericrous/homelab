@@ -1,0 +1,14 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: authelia-tls
+  namespace: authelia
+spec:
+  secretName: authelia-tls
+  dnsNames:
+    - auth.daddyshome.fr
+  issuerRef:
+    name: letsencrypt-ovh-webhook
+    kind: ClusterIssuer
+    group: cert-manager.io

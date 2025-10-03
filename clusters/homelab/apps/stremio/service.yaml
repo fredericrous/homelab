@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: stremio-web
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/instance: stremio
+    app.kubernetes.io/component: web
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: stremio-web
+    app.kubernetes.io/instance: stremio
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stremio-server
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/instance: stremio
+    app.kubernetes.io/component: server
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: stremio-server
+    app.kubernetes.io/instance: stremio

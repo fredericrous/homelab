@@ -1,0 +1,4 @@
+.env
+vault-keys.txt
+cert/*
+!cert/.gitkeep

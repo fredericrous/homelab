@@ -1,0 +1,74 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nextcloud-https
+  namespace: nextcloud
+spec:
+  hosts:
+  - nextcloud.daddyshome.fr
+  - drive.daddyshome.fr
+  gateways:
+  - nextcloud-gateway
+  http:
+  - match:
+    - port: 443
+    route:
+    - destination:
+        host: nextcloud
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nextcloud-redirect
+  namespace: nextcloud
+spec:
+  hosts:
+  - nextcloud.daddyshome.fr
+  - drive.daddyshome.fr
+  gateways:
+  - nextcloud-gateway
+  http:
+  - match:
+    - port: 80
+    redirect:
+      uri: https://drive.daddyshome.fr
+      redirectCode: 301
+---
+# Mobile access virtual services
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nextcloud-mobile-https
+  namespace: nextcloud
+spec:
+  hosts:
+  - drive-mobile.daddyshome.fr
+  gateways:
+  - nextcloud-mobile-gateway
+  http:
+  - match:
+    - port: 443
+    route:
+    - destination:
+        host: nextcloud
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nextcloud-mobile-redirect
+  namespace: nextcloud
+spec:
+  hosts:
+  - drive-mobile.daddyshome.fr
+  gateways:
+  - nextcloud-mobile-gateway
+  http:
+  - match:
+    - port: 80
+    redirect:
+      uri: https://drive-mobile.daddyshome.fr
+      redirectCode: 301

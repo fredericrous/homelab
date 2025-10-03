@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: openwebui
+  namespace: openwebui
+spec:
+  hosts:
+  - ai.daddyshome.fr
+  gateways:
+  - openwebui
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: openwebui.openwebui.svc.cluster.local
+        port:
+          number: 80

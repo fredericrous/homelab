@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: plex-vault-config-
+  namespace: plex
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: plex
+      volumes:
+      - name: vault-admin-token
+        secret:
+          secretName: vault-admin-token
+      containers:
+      - name: vault
+        image: hashicorp/vault:1.16
+        env:
+        - name: VAULT_ADDR
+          value: "http://vault-vault.vault.svc.cluster.local:8200"
+        - name: PLEX_CLAIM
+          valueFrom:
+            secretKeyRef:
+              name: cluster-vars
+              key: PLEX_CLAIM_TOKEN
+        volumeMounts:
+        - name: vault-admin-token
+          mountPath: /vault/token
+        command:
+        - /bin/sh
+        - -c
+        - |
+          export VAULT_TOKEN=$(cat /vault/token/token)
+          
+          # Check if secret already exists
+          if vault kv get secret/plex/config >/dev/null 2>&1; then
+            echo "✅ Plex config already exists in Vault"
+            exit 0
+          fi
+          
+          # Create Plex config in Vault
+          vault kv put secret/plex/config \
+            timezone="Europe/Paris" \
+            claim="$PLEX_CLAIM"
+          
+          echo "✅ Plex config created in Vault"

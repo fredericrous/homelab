@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex
+  namespace: plex
+  annotations:
+    # Auto-reload when secrets change
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plex
+      app.kubernetes.io/instance: plex
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plex
+        app.kubernetes.io/instance: plex
+    spec:
+      serviceAccountName: plex
+      # GPU scheduling handled by nvidia.com/gpu resource request
+      runtimeClassName: nvidia  # Enable GPU support
+      containers:
+      - name: plex
+        image: plexinc/pms-docker:latest
+        env:
+        - name: TZ
+          valueFrom:
+            secretKeyRef:
+              name: plex-config
+              key: timezone
+        - name: PLEX_CLAIM
+          valueFrom:
+            secretKeyRef:
+              name: plex-config
+              key: claim
+        - name: ADVERTISE_IP
+          value: "https://plex.daddyshome.fr/"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,video,utility"
+        ports:
+        - containerPort: 32400
+          name: plex
+        resources:
+          limits:
+            memory: 4Gi
+            nvidia.com/gpu: 1
+          requests:
+            memory: 2Gi
+            cpu: 1000m
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        - name: data
+          mountPath: /data
+        - name: media
+          mountPath: /media
+        - name: transcode
+          mountPath: /transcode
+        securityContext:
+          privileged: true  # Required for GPU access
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: plex-config
+      - name: data
+        emptyDir: {}  # Can be replaced with another PVC if needed
+      - name: transcode
+        emptyDir: {}  # Temp storage for transcoding
+      - name: media
+        persistentVolumeClaim:
+          claimName: plex-media

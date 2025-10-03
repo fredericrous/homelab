@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: authelia-https
+  namespace: authelia
+spec:
+  gateways:
+  - authelia-gateway
+  hosts:
+  - auth.daddyshome.fr
+  http:
+  - match:
+    - port: 443
+    route:
+    - destination:
+        host: authelia-headless
+        port:
+          number: 9091

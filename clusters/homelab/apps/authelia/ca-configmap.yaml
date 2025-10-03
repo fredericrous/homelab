@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ca-certificates-config
+  namespace: authelia
+data:
+  ca-bundle-path: "/etc/ssl/certs/ca-bundle.crt"

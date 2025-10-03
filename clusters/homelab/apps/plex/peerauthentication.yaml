@@ -1,0 +1,11 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: plex
+  namespace: plex
+spec:
+  selector:
+    matchLabels:
+      app: plex
+  mtls:
+    mode: PERMISSIVE  # Allow both mTLS and plain text for health checks
