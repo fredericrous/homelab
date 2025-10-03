@@ -10,10 +10,11 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  dependsOn:
-    - name: knative-operator
-      namespace: flux-system
   healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: knative-operator
+      namespace: flux-system
     - apiVersion: operator.knative.dev/v1beta1
       kind: KnativeServing
       name: knative-serving
