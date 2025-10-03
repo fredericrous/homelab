@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: "./clusters/homelab/infrastructure/configs/knative"
+  path: "./clusters/homelab/serverless/configs/knative"
   prune: true
   sourceRef:
     kind: GitRepository

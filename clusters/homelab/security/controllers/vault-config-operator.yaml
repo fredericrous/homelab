@@ -10,7 +10,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./clusters/homelab/infrastructure/controllers/vault-config-operator
+  path: ./clusters/homelab/security/controllers/vault-config-operator
   prune: true
   wait: true
   postBuild:

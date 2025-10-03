@@ -6,7 +6,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: "./clusters/homelab/infrastructure/configs/cert-manager"
+  path: "./clusters/homelab/security/configs/cert-manager"
   prune: true
   sourceRef:
     kind: GitRepository
