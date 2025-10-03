@@ -8,3 +8,4 @@ resources:
   - external-secrets.yaml
   - fredericrous.yaml
   - node-feature-discovery-repository.yaml
+  - jetstack.yaml
