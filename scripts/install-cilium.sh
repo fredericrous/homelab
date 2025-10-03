@@ -277,16 +277,18 @@ for i in {1..30}; do
 
   echo "  Cilium pods ready: $ready_count/$total_nodes (Running: $ready_count, Pending: $pending_count, attempt $i/30)"
 
-  # Check if we have Cilium running on all Ready nodes
+  # Check if we have Cilium running on all nodes
   if [ "$ready_count" -eq "$total_nodes" ]; then
     log_info "Cilium is fully deployed ($ready_count/$total_nodes pods running)"
     break
-  elif [ "$ready_count" -eq "$ready_nodes" ] && [ "$pending_count" -gt 0 ]; then
+  elif [ "$ready_nodes" -gt 0 ] && [ "$ready_count" -eq "$ready_nodes" ] && [ "$pending_count" -gt 0 ]; then
     log_warning "Cilium is running on all Ready nodes ($ready_count/$ready_nodes)"
     log_warning "$(($total_nodes - $ready_nodes)) node(s) are NotReady - Cilium pods cannot start there"
     kubectl get nodes | grep NotReady || true
     log_warning "Fix node connectivity issues and Cilium will automatically deploy there"
     break
+  elif [ "$ready_nodes" -eq 0 ]; then
+    echo "  All nodes are NotReady, waiting for them to become Ready after CNI installation..."
   fi
 
   sleep 10
