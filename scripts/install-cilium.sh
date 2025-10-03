@@ -149,8 +149,9 @@ if helm list -n kube-system | grep -q cilium; then
   log_info "Cilium is already installed"
   # Skip waiting loop if already installed and running
   running_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running 2>/dev/null | grep -c Running || echo "0")
-  running_count=$(echo "$running_count" | tr -d '\n' | tr -d ' ')
-  total_nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  running_count=$(echo "$running_count" | tr -d ' \n\r\t')
+  total_nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+  total_nodes=$(echo "$total_nodes" | tr -d ' \n\r\t')
   if [ "$running_count" -eq "$total_nodes" ]; then
     log_info "Cilium is already fully deployed ($running_count/$total_nodes pods running)"
     rm -f /tmp/cilium-bootstrap-values.yaml
@@ -223,13 +224,17 @@ if [ -z "$node_output" ]; then
   total_nodes=0
   ready_nodes=0
 else
-  total_nodes=$(echo "$node_output" | wc -l | tr -d ' ')
+  # Clean total_nodes count
+  total_nodes=$(echo "$node_output" | wc -l)
+  total_nodes=$(echo "$total_nodes" | tr -d ' \n\r\t')
+  
   # grep returns exit code 1 if no matches found, use || true to prevent script exit
   ready_lines=$(echo "$node_output" | grep -w Ready 2>/dev/null || true)
   if [ -z "$ready_lines" ]; then
-    ready_nodes="0"
+    ready_nodes=0
   else
-    ready_nodes=$(echo "$ready_lines" | wc -l | tr -d ' \n\r')
+    ready_nodes=$(echo "$ready_lines" | wc -l)
+    ready_nodes=$(echo "$ready_nodes" | tr -d ' \n\r\t')
   fi
 fi
 
@@ -252,9 +257,9 @@ for i in {1..30}; do
   ready_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l || echo "0")
   pending_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l || echo "0")
 
-  # Trim any whitespace/newlines
-  ready_count=$(echo "$ready_count" | tr -d '\n' | tr -d ' ')
-  pending_count=$(echo "$pending_count" | tr -d '\n' | tr -d ' ')
+  # Clean count values properly
+  ready_count=$(echo "$ready_count" | tr -d ' \n\r\t')
+  pending_count=$(echo "$pending_count" | tr -d ' \n\r\t')
 
   echo "  Cilium pods ready: $ready_count/$total_nodes (Running: $ready_count, Pending: $pending_count, attempt $i/30)"
 
@@ -288,9 +293,10 @@ fi
 log_info "Validating cluster readiness..."
 ready_worker_lines=$(kubectl get nodes --no-headers | grep -v control-plane | grep -w Ready 2>/dev/null || true)
 if [ -z "$ready_worker_lines" ]; then
-  ready_workers="0"
+  ready_workers=0
 else
-  ready_workers=$(echo "$ready_worker_lines" | wc -l | tr -d ' \n\r')
+  ready_workers=$(echo "$ready_worker_lines" | wc -l)
+  ready_workers=$(echo "$ready_workers" | tr -d ' \n\r\t')
 fi
 if [ "$ready_workers" -gt 0 ]; then
   log_info "✅ $ready_workers worker node(s) are ready"
