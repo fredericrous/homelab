@@ -21,7 +21,6 @@ resources:
   - istio-sa-fix.yaml
   # Infrastructure core controllers
   - job-vault-pki-sync.yaml
-  - knative-config.yaml
   - node-feature-discovery-repository.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
