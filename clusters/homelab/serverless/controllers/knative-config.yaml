@@ -10,7 +10,9 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  # No dependencies - knative-operator HelmRelease is handled separately
+  dependsOn:
+    - name: knative-operator
+      namespace: flux-system
   healthChecks:
     - apiVersion: operator.knative.dev/v1beta1
       kind: KnativeServing
