@@ -9,3 +9,4 @@ resources:
   - fredericrous.yaml
   - node-feature-discovery-repository.yaml
   - jetstack.yaml
+  - ovh-webhook-helm-repository.yaml
