@@ -23,3 +23,4 @@ resources:
   - vault-pki-sync-externalsecret.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
+  - cert-manager.yaml

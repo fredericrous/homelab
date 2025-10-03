@@ -10,3 +10,4 @@ resources:
   - kyverno.yaml
   - postgres.yaml
   - node-feature-discovery-namespace.yaml
+  - cert-manager.yaml

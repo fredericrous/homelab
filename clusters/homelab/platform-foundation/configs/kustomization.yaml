@@ -11,3 +11,6 @@ resources:
   - vault-transit/
   - external-secrets/
   - rook-ceph-cluster/
+  - cert-manager-setup.yaml
+  - cert-manager-ovh-credentials-externalsecret.yaml
+  - cert-manager/
