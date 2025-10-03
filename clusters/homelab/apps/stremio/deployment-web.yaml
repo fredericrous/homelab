@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stremio-web
+  namespace: stremio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stremio-web
+      app.kubernetes.io/instance: stremio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stremio-web
+        app.kubernetes.io/instance: stremio
+    spec:
+      serviceAccountName: stremio
+      imagePullSecrets:
+      - name: harbor-registry-creds
+      initContainers:
+      - name: copy-build
+        image: harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest
+        imagePullPolicy: Always
+        command: ["sh", "-c", "cp -r /var/www/stremio-web/build/* /build-output/"]
+        volumeMounts:
+        - name: stremio-build
+          mountPath: /build-output
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: stremio-build
+          mountPath: /var/www/stremio-web
+          readOnly: true
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+      volumes:
+      - name: stremio-build
+        emptyDir: {}
+      - name: nginx-config
+        configMap:
+          name: stremio-nginx-config

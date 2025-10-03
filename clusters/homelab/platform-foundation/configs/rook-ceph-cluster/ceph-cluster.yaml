@@ -1,0 +1,115 @@
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    image: quay.io/ceph/ceph:v19.2.0
+  dataDirHostPath: /var/lib/rook
+  skipUpgradeChecks: false
+  continueUpgradeAfterChecksEvenIfNotHealthy: false
+  cleanupPolicy:
+    sanitizeDisks:
+      method: quick
+    allowUninstallWithVolumes: true
+  mon:
+    count: 3
+    allowMultiplePerNode: false  # One monitor per node for stability
+  mgr:
+    count: 2
+    allowMultiplePerNode: true
+    modules:
+    - name: rook
+      enabled: true
+  dashboard:
+    enabled: false  # Disable to save resources
+    ssl: false
+  crashCollector:
+    disable: true  # Disable to reduce etcd objects
+  logCollector:
+    enabled: false  # Disable to save resources
+  monitoring:
+    enabled: false
+  network:
+    hostNetwork: false
+  # Ceph configuration for small cluster
+  cephConfig:
+    global:
+      osd_pool_default_size: "2"
+      osd_pool_default_min_size: "1"
+      mon_warn_on_pool_no_redundancy: "false"
+      osd_recovery_max_active: "1"
+      osd_max_backfills: "1"
+      osd_memory_target: "1073741824"
+      bluestore_cache_size: "536870912"
+  # Placement configuration
+  placement:
+    all:
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    mon:
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      # Use soft anti-affinity to prevent scheduling issues
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 50  # Reduced weight to allow flexibility
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - rook-ceph-mon
+            topologyKey: kubernetes.io/hostname
+    mgr:
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    # OSDs should only run on worker nodes
+    osd:
+      tolerations: []
+  storage:
+    useAllNodes: false
+    useAllDevices: false
+    deviceFilter: "sdb"
+    config:
+      osdsPerDevice: "1"
+      encryptedDevice: "false"
+    nodes:
+    - name: "talos-wk-1-gpu"
+      devices:
+      - name: "sdb"
+        config:
+          deviceClass: hdd
+    - name: "talos-wk-2"
+      devices:
+      - name: "sdb"
+        config:
+          deviceClass: hdd
+  # Reduced resources for small cluster
+  resources:
+    mgr:
+      limits:
+        memory: "1Gi"
+      requests:
+        cpu: "100m"
+        memory: "512Mi"
+    mon:
+      limits:
+        memory: "2Gi"
+      requests:
+        cpu: "100m"
+        memory: "1Gi"
+    osd:
+      limits:
+        memory: "4Gi"
+      requests:
+        cpu: "200m"  # Reduced from 1000m
+        memory: "2Gi"

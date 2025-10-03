@@ -1,0 +1,39 @@
+apiVersion: operator.knative.dev/v1beta1
+kind: KnativeServing
+metadata:
+  name: knative-serving
+  namespace: knative-serving
+spec:
+  # Use Istio as the ingress
+  ingress:
+    istio:
+      enabled: true
+  config:
+    # Network configuration
+    network:
+      ingress-class: "istio.ingress.networking.knative.dev"
+    # Domain configuration for services
+    domain:
+      # Default domain
+      "kserve.daddyshome.fr": ""
+    # Deployment configuration  
+    deployment:
+      # Increase progress deadline for large model downloads
+      progress-deadline: "1200s"
+    # Features configuration
+    features:
+      # Enable multi-container support for transformer/predictor pattern
+      multi-container: enabled
+      # Enable Kubernetes EmptyDir volumes
+      kubernetes.podspec-volumes-emptydir: enabled
+      # Enable PVC support
+      kubernetes.podspec-persistent-volume-claim: enabled
+      # Enable init containers
+      kubernetes.podspec-init-containers: enabled
+      # Enable GPU support
+      kubernetes.podspec-nodeselector: enabled
+      kubernetes.podspec-tolerations: enabled
+      kubernetes.podspec-runtimeclassname: enabled
+  # High availability with at least 2 replicas
+  high-availability:
+    replicas: 2

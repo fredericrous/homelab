@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cluster-config.yaml
+  - client-ca-externalsecret.yaml
+  - authelia-certificate.yaml
+  - istio-cni-rbac-fix.yaml
+  - kyverno/
+  - vault-minio-setup.yaml
+  - vault-setup-job-template.yaml
+  - vault-transit/
+  - external-secrets/
+  - rook-ceph-cluster/

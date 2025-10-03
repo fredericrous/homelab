@@ -1,0 +1,55 @@
+# Namespace-scoped policy for LLDAP to read/write its own secrets
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: lldap
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    serviceAccount:
+      name: controller-manager
+  policy: |
+    # LLDAP can read/write its own secrets (including root path)
+    path "secret/data/lldap" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # LLDAP can read/write for PushSecret
+    path "secret/data/lldap/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # Metadata access for PushSecret (including root path)
+    path "secret/metadata/lldap" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+    
+    # Metadata access for subpaths
+    path "secret/metadata/lldap/*" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+  type: acl
+---
+# Kubernetes auth role for LLDAP namespace
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: lldap
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    serviceAccount:
+      name: controller-manager
+  path: kubernetes
+  policies:
+    - lldap
+    - external-secrets
+  targetServiceAccounts:
+    - default
+  targetNamespaces:
+    targetNamespaces:
+      - lldap

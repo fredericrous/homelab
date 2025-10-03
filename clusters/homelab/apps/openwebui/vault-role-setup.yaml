@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openwebui-vault-role-setup
+  namespace: openwebui
+spec:
+  template:
+    spec:
+      serviceAccountName: openwebui
+      restartPolicy: OnFailure
+      containers:
+      - name: vault-role-setup
+        image: hashicorp/vault:1.18.1
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          
+          # Skip if role already exists
+          if vault read -format=json auth/kubernetes/role/openwebui > /dev/null 2>&1; then
+            echo "Vault auth role 'openwebui' already exists, skipping setup"
+            exit 0
+          fi
+          
+          echo "Creating Vault Kubernetes auth role for OpenWebUI..."
+          
+          # Create policy for OpenWebUI to read LLDAP secrets
+          vault policy write openwebui - <<EOF
+          # OpenWebUI can read LLDAP secrets for authentication
+          path "secret/data/lldap" {
+            capabilities = ["read"]
+          }
+          
+          # OpenWebUI can read/write its own secrets
+          path "secret/data/openwebui" {
+            capabilities = ["create", "read", "update", "delete", "list"]
+          }
+          
+          # OpenWebUI can read/write for PushSecret
+          path "secret/data/openwebui/*" {
+            capabilities = ["create", "read", "update", "delete", "list"]
+          }
+          
+          # Metadata access for PushSecret (including root path)
+          path "secret/metadata/openwebui" {
+            capabilities = ["read", "list", "create", "update", "delete"]
+          }
+          
+          # Metadata access for subpaths
+          path "secret/metadata/openwebui/*" {
+            capabilities = ["read", "list", "create", "update", "delete"]
+          }
+          EOF
+          
+          # Create Kubernetes auth role
+          vault write auth/kubernetes/role/openwebui \
+            bound_service_account_names=openwebui \
+            bound_service_account_namespaces=openwebui \
+            policies=openwebui,external-secrets \
+            ttl=24h
+          
+          echo "Vault auth setup completed"
+        env:
+        - name: VAULT_ADDR
+          value: "http://vault-vault.vault.svc.cluster.local:8200"
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        volumeMounts:
+        - name: vault-admin-token
+          mountPath: /vault/token
+      volumes:
+      - name: vault-admin-token
+        secret:
+          secretName: vault-admin-token

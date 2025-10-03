@@ -1,0 +1,53 @@
+# Namespace-scoped policy for Plex
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: plex
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    namespace: vault-config-operator
+    serviceAccount:
+      name: controller-manager
+  policy: |
+    # Plex can read its own config
+    path "secret/data/plex/config" {
+      capabilities = ["read", "list"]
+    }
+    
+    # Plex can read/write for PushSecret if needed
+    path "secret/data/plex/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # Metadata access for PushSecret
+    path "secret/metadata/plex/*" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+  type: acl
+---
+# Kubernetes auth role for Plex namespace
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: plex
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    namespace: vault-config-operator
+    serviceAccount:
+      name: controller-manager
+  path: kubernetes
+  policies:
+    - plex
+    - external-secrets
+  targetServiceAccounts:
+    - default
+    - plex
+  targetNamespaces:
+    targetNamespaces:
+      - plex

@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: minio-bucket-setup
+  namespace: minio
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-bucket-setup
+  namespace: minio
+  annotations:
+    # This job depends on MinIO StatefulSet being ready
+    kustomize.toolkit.fluxcd.io/depends-on: minio/StatefulSet/minio
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: minio-bucket-setup
+      containers:
+      - name: init-buckets
+        image: minio/mc:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Waiting for MinIO to be ready..."
+          until mc alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+            echo "Waiting for MinIO..."
+            sleep 5
+          done
+          
+          # Create models bucket if it doesn't exist
+          if ! mc ls myminio/models 2>/dev/null; then
+            echo "Creating models bucket..."
+            mc mb myminio/models
+            echo "Bucket created successfully"
+          else
+            echo "Bucket 'models' already exists"
+          fi
+          
+          # Set public download policy for models bucket
+          mc anonymous set download myminio/models
+          
+          echo "MinIO bucket initialization complete"
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: rootUser
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: rootPassword

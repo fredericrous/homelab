@@ -1,0 +1,5 @@
+machine:
+  features:
+    hostDNS:
+      # Disable forwardKubeDNSToHost to fix DNS "operation not permitted" with nftables
+      forwardKubeDNSToHost: false

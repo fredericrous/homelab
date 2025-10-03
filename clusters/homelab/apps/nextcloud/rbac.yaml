@@ -1,0 +1,75 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nextcloud-jobs
+  namespace: nextcloud
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/exec"]
+  verbs: ["get", "list", "create", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-jobs
+  namespace: nextcloud
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nextcloud-jobs
+subjects:
+- kind: ServiceAccount
+  name: nextcloud-jobs
+  namespace: nextcloud
+---
+# ClusterRole to read namespace (needed for mTLS patch job to get annotations)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nextcloud-read-namespace
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get"]
+---
+# ClusterRoleBinding to allow reading namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nextcloud-read-namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nextcloud-read-namespace
+subjects:
+- kind: ServiceAccount
+  name: nextcloud
+  namespace: nextcloud
+---
+# Role to manage secrets in the namespace (for mTLS patch job)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nextcloud-patch-tls
+  namespace: nextcloud
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-patch-tls
+  namespace: nextcloud
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nextcloud-patch-tls
+subjects:
+- kind: ServiceAccount
+  name: nextcloud
+  namespace: nextcloud

@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: harbor
+
+# Use mTLS component to automatically sync client CA certificate
+components:
+  - ../../components/mtls-certificates
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - rbac.yaml
+  - secret-store.yaml               # Namespace-scoped SecretStore with Harbor policy
+  - password-generators.yaml         # Password generators
+  - external-secrets-generated.yaml  # Generated secrets
+  - harbor-db-credentials.yaml      # Database credentials for CloudNativePG
+  - push-secrets.yaml               # Push generated secrets to Vault
+  - external-secrets.yaml           # Pull from Vault (after push)
+  # - ingress.yaml  # Replaced with Istio Gateway
+  - certificates.yaml
+  - harbor-helmrelease.yaml
+  - istio/gateway.yaml
+  # - istio/ca-secret.yaml  # Not needed - mtls-certificates component handles CA
+
+# Configuration for mTLS component
+configMapGenerator:
+- name: mtls-config
+  literals:
+  - serviceAccount=harbor

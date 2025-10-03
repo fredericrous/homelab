@@ -1,0 +1,26 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: vllm
+  namespace: flux-system
+spec:
+  targetNamespace: vllm
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: vllm
+      app.kubernetes.io/instance: vllm
+  interval: 10m0s
+  retryInterval: 1m0s
+  timeout: 5m0s
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./clusters/homelab/apps/vllm
+  prune: true
+  wait: true
+  dependsOn:
+    - name: data-storage
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-config

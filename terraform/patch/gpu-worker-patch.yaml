@@ -1,0 +1,15 @@
+machine:
+  kernel:
+    modules:
+      - name: nvidia
+      - name: nvidia_uvm
+      - name: nvidia_drm
+      - name: nvidia_modeset
+  sysctls:
+    net.core.bpf_jit_harden: 1
+  udev:
+    rules:
+      - # Allow access to NVIDIA GPU render nodes
+        SUBSYSTEM=="char", KERNEL=="nvidia*", GROUP="44", MODE="0660"
+      - # Also include renderD* if using NVIDIA container runtime with `/dev/dri`
+        SUBSYSTEM=="drm", KERNEL=="renderD*", GROUP="44", MODE="0660"

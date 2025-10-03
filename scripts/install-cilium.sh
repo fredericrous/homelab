@@ -1,0 +1,307 @@
+#!/bin/bash
+# Install Cilium CNI (required before workers can join)
+# This script installs Cilium using Helm with native routing configuration
+
+set -euo pipefail
+
+# Add debug trap to see where script fails
+trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
+
+# Ensure KUBECONFIG is set
+if [ -z "${KUBECONFIG:-}" ]; then
+  echo "ERROR: KUBECONFIG environment variable must be set"
+  exit 1
+fi
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Helper functions
+log_info() {
+  echo -e "${GREEN}✅ $1${NC}"
+}
+
+log_warning() {
+  echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+log_error() {
+  echo -e "${RED}❌ $1${NC}"
+}
+
+# Get control plane IP from environment variable or detect it
+get_control_plane_ip() {
+  if [ -n "${CONTROL_PLANE_IP:-}" ]; then
+    echo "$CONTROL_PLANE_IP"
+  elif kubectl get nodes -o wide 2>/dev/null | grep -q control-plane; then
+    kubectl get nodes -o wide 2>/dev/null | grep control-plane | awk '{print $6}' | head -1
+  else
+    # Fallback - extract from kubeconfig
+    kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null | sed 's|https://||' | sed 's|:.*||'
+  fi
+}
+
+echo "🌐 Installing Cilium CNI..."
+
+# Add Cilium helm repo
+helm repo add cilium https://helm.cilium.io
+helm repo update
+
+# Get control plane IP
+CONTROL_PLANE_IP=$(get_control_plane_ip)
+echo "Using control plane IP: $CONTROL_PLANE_IP"
+
+# Create temporary values file with environment substitution
+cat > /tmp/cilium-bootstrap-values.yaml << EOF
+# Cilium bootstrap configuration for homelab
+routingMode: "native"
+ipv4NativeRoutingCIDR: "10.244.0.0/16"
+autoDirectNodeRoutes: true
+endpointRoutes:
+  enabled: true
+
+kubeProxyReplacement: true
+k8sServiceHost: "$CONTROL_PLANE_IP"
+k8sServicePort: 6443
+
+bandwidthManager:
+  enabled: true
+  bbr: true
+
+bpf:
+  masquerade: true
+  tproxy: true
+  hostRouting: false
+
+ipam:
+  mode: "kubernetes"
+  operator:
+    clusterPoolIPv4PodCIDRList: ["10.244.0.0/16"]
+    clusterPoolIPv4MaskSize: 24
+
+dnsProxy:
+  enabled: true
+  enableTransparentMode: true
+  minTTL: 3600
+  maxTTL: 86400
+
+mtu: 1450
+
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+  metrics:
+    enabled:
+      - dns:query
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+
+operator:
+  replicas: 1
+  prometheus:
+    enabled: true
+
+healthChecking: true
+healthPort: 9879
+
+sysctlfix:
+  enabled: false
+
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+
+socketLB:
+  hostNamespaceOnly: true
+EOF
+
+# Install Cilium
+if helm list -n kube-system | grep -q cilium; then
+  log_info "Cilium is already installed"
+  # Skip waiting loop if already installed and running
+  running_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running 2>/dev/null | grep -c Running || echo "0")
+  running_count=$(echo "$running_count" | tr -d '\n' | tr -d ' ')
+  total_nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$running_count" -eq "$total_nodes" ]; then
+    log_info "Cilium is already fully deployed ($running_count/$total_nodes pods running)"
+    rm -f /tmp/cilium-bootstrap-values.yaml
+    log_info "Cilium CNI installed successfully!"
+    exit 0
+  fi
+else
+  # Install without --wait to avoid timeout issues
+  # We'll handle readiness checking in our own loop below
+  helm install cilium cilium/cilium \
+    --version 1.18.1 \
+    --namespace kube-system \
+    --values /tmp/cilium-bootstrap-values.yaml
+fi
+
+# Clean up temporary file
+rm -f /tmp/cilium-bootstrap-values.yaml
+
+# Give Cilium a moment to initialize
+echo "⏳ Waiting for Cilium to initialize..."
+sleep 5
+
+echo "⏳ Waiting for Cilium to be ready..."
+# Wait for Cilium pods on all ready nodes
+ready_count=0
+
+# Get node counts with better error handling
+# After helm install, there might be a brief period where API is unstable
+echo "Checking cluster nodes..."
+for attempt in {1..5}; do
+  echo "DEBUG: Checking nodes attempt $attempt"
+  if kubectl get nodes >/dev/null 2>&1; then
+    echo "DEBUG: kubectl get nodes succeeded"
+    break
+  fi
+  echo "  Waiting for API to stabilize (attempt $attempt/5)..."
+  sleep 2
+done
+echo "DEBUG: After node check loop"
+
+# Now get the actual counts
+echo "DEBUG: Getting node output..."
+node_output=$(kubectl get nodes --no-headers 2>&1) || true
+echo "DEBUG: Got node_output, checking if empty..."
+if [[ "$node_output" == *"No resources found"* ]] || [ -z "$node_output" ]; then
+  log_warning "No nodes found - this is normal right after Cilium installation with kubeProxyReplacement"
+  log_warning "Waiting for nodes to reappear..."
+
+  # Give it more time and retry
+  for wait_attempt in {1..10}; do
+    sleep 3
+    node_output=$(kubectl get nodes --no-headers 2>&1) || true
+    if [[ "$node_output" != *"No resources found"* ]] && [ -n "$node_output" ]; then
+      log_info "Nodes are back online"
+      break
+    fi
+    echo "  Still waiting for nodes (attempt $wait_attempt/10)..."
+  done
+
+  # Final check
+  if [[ "$node_output" == *"No resources found"* ]] || [ -z "$node_output" ]; then
+    log_error "No nodes found after waiting - cluster may have issues"
+    echo "Node output: $node_output"
+    exit 1
+  fi
+fi
+
+# Handle empty output correctly - wc -l returns 1 for empty string
+if [ -z "$node_output" ]; then
+  total_nodes=0
+  ready_nodes=0
+else
+  total_nodes=$(echo "$node_output" | wc -l | tr -d ' ')
+  # grep returns exit code 1 if no matches found, use || true to prevent script exit
+  ready_lines=$(echo "$node_output" | grep -w Ready 2>/dev/null || true)
+  if [ -z "$ready_lines" ]; then
+    ready_nodes="0"
+  else
+    ready_nodes=$(echo "$ready_lines" | wc -l | tr -d ' \n\r')
+  fi
+fi
+
+# Debug output
+echo "DEBUG: total_nodes=$total_nodes, ready_nodes=$ready_nodes"
+echo "DEBUG: node_output:"
+echo "$node_output"
+
+# Validate we have nodes
+if [ "$total_nodes" -eq 0 ]; then
+  log_error "No nodes found in cluster"
+  exit 1
+fi
+
+for i in {1..30}; do
+  echo "DEBUG: Starting loop iteration $i"
+
+  # Get running pods count, handle empty results gracefully
+  # Note: immediately after helm install, pods might not exist yet
+  ready_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l || echo "0")
+  pending_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l || echo "0")
+
+  # Trim any whitespace/newlines
+  ready_count=$(echo "$ready_count" | tr -d '\n' | tr -d ' ')
+  pending_count=$(echo "$pending_count" | tr -d '\n' | tr -d ' ')
+
+  echo "  Cilium pods ready: $ready_count/$total_nodes (Running: $ready_count, Pending: $pending_count, attempt $i/30)"
+
+  # Check if we have Cilium running on all Ready nodes
+  if [ "$ready_count" -eq "$total_nodes" ]; then
+    log_info "Cilium is fully deployed ($ready_count/$total_nodes pods running)"
+    break
+  elif [ "$ready_count" -eq "$ready_nodes" ] && [ "$pending_count" -gt 0 ]; then
+    log_warning "Cilium is running on all Ready nodes ($ready_count/$ready_nodes)"
+    log_warning "$(($total_nodes - $ready_nodes)) node(s) are NotReady - Cilium pods cannot start there"
+    kubectl get nodes | grep NotReady || true
+    log_warning "Fix node connectivity issues and Cilium will automatically deploy there"
+    break
+  fi
+
+  sleep 10
+done
+
+echo "DEBUG: After loop - ready_count=$ready_count, ready_nodes=$ready_nodes"
+
+# Ensure ready_nodes is properly cleaned
+ready_nodes=$(echo "$ready_nodes" | tr -d ' \n\r')
+
+if [ "$ready_count" -lt "$ready_nodes" ]; then
+  log_error "Cilium deployment incomplete: only $ready_count/$ready_nodes pods on Ready nodes"
+  log_error "This indicates a Cilium configuration or resource issue"
+  exit 1
+fi
+
+# Basic validation - nodes should be ready after CNI installation
+log_info "Validating cluster readiness..."
+ready_worker_lines=$(kubectl get nodes --no-headers | grep -v control-plane | grep -w Ready 2>/dev/null || true)
+if [ -z "$ready_worker_lines" ]; then
+  ready_workers="0"
+else
+  ready_workers=$(echo "$ready_worker_lines" | wc -l | tr -d ' \n\r')
+fi
+if [ "$ready_workers" -gt 0 ]; then
+  log_info "✅ $ready_workers worker node(s) are ready"
+else
+  log_warning "⚠️  No worker nodes are ready yet"
+fi
+
+log_info "Cilium CNI installed successfully!"
+echo ""
+echo "CNI Status:"
+kubectl get pods -n kube-system -l k8s-app=cilium
+echo ""
+echo "Node Status:"
+kubectl get nodes

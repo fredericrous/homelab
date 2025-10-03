@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Setup files removed - using declarative database management
+  - lldap.yaml
+  - authelia.yaml
+  - harbor.yaml
+  - stremio.yaml
+  - plex.yaml
+  - nextcloud.yaml
+  - vllm.yaml
+  - openwebui.yaml

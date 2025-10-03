@@ -1,0 +1,11 @@
+kubeconfig
+talosconfig
+charts/
+.claude/
+CLAUDE.local.md
+
+# Environment-specific configurations
+.env
+
+# Taskfile
+.task/

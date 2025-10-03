@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: authelia
+
+# Use mTLS component to automatically sync client CA certificate
+components:
+  - ../../components/mtls-certificates
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - rbac.yaml
+  - secret-store.yaml         # Namespace-scoped SecretStore with Authelia policy
+  - password-generator.yaml   # Generate passwords using ESO
+  - external-secret.yaml      # Pull from Vault (after push)
+  - certificates.yaml
+  # - cnpg-cluster.yaml  # Using shared postgres-apps cluster instead
+  - configmap.yaml
+  - ca-configmap.yaml
+  - ca-certificates-secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - service-headless.yaml
+  # - ingress-simple.yaml  # Replaced with Istio Gateway
+  - destinationrule.yaml
+  # - virtualservice-patch.yaml  # Replaced with istio/gateway.yaml
+  - peerauthentication.yaml
+  - istio/gateway.yaml
+  # - istio/ca-secret.yaml  # Not needed - mtls-certificates component handles CA
+
+# Configuration for mTLS component
+configMapGenerator:
+- name: mtls-config
+  literals:
+  - serviceAccount=authelia

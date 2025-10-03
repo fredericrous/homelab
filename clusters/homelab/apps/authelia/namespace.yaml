@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: authelia
+  labels:
+    # Re-enabled ambient mode with proper Istio configuration
+    istio.io/dataplane-mode: ambient
+  annotations:
+    # mTLS component configuration
+    mtls/tls-secret-name: "authelia-tls"

@@ -1,0 +1,65 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istiod
+  namespace: flux-system
+spec:
+  interval: 30m
+  targetNamespace: istio-system
+  dependsOn:
+  - name: istio-base
+    namespace: flux-system
+  - name: istio-cni
+    namespace: flux-system
+  chart:
+    spec:
+      chart: istiod
+      version: "1.23.2"
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # Enable ambient mode
+    pilot:
+      env:
+        PILOT_ENABLE_AMBIENT: true
+        PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: true
+    # Security configuration
+    meshConfig:
+      defaultConfig:
+        # Enable ambient mode
+        proxyMetadata:
+          ISTIO_META_ENABLE_HBONE: "true"
+      # Extension providers for external authorization
+      extensionProviders:
+      - name: authelia
+        envoyExtAuthzHttp:
+          service: authelia.authelia.svc.cluster.local
+          port: 9091
+          pathPrefix: /api/authz/ext-authz/
+          includeRequestHeadersInCheck:
+          - accept
+          - cookie
+          - authorization
+          - proxy-authorization
+          headersToUpstreamOnAllow:
+          - remote-*
+          - authelia-*
+          includeAdditionalHeadersInCheck:
+            X-Forwarded-Proto: '%REQ(:SCHEME)%'
+          headersToDownstreamOnDeny:
+          - set-cookie
+          headersToDownstreamOnAllow:
+          - set-cookie
+    # External traffic policy
+    global:
+      meshID: cluster.local
+      network: cluster.local

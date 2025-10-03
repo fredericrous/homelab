@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openwebui
+  namespace: openwebui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openwebui
+  template:
+    metadata:
+      labels:
+        app: openwebui
+    spec:
+      serviceAccountName: openwebui
+      containers:
+      - name: openwebui
+        image: ghcr.io/open-webui/open-webui:main
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: OLLAMA_BASE_URL
+          value: "http://phi3-mini-instruct-predictor-00003.text-generation.svc.cluster.local/v1"
+        - name: OPENAI_API_BASE_URL
+          value: "http://phi3-mini-instruct-predictor-00003.text-generation.svc.cluster.local/v1"
+        - name: OPENAI_API_KEY
+          value: "dummy-key"
+        - name: WEBUI_AUTH
+          value: "True"
+        - name: WEBUI_NAME
+          value: "HomeLab AI"
+        - name: DEFAULT_MODELS
+          value: "microsoft/Phi-3-mini-4k-instruct"
+        # LDAP Configuration
+        - name: ENABLE_LDAP
+          value: "true"
+        - name: LDAP_SERVER_LABEL
+          value: "LLDAP"
+        - name: LDAP_SERVER_HOST
+          value: "lldap.lldap.svc.cluster.local"
+        - name: LDAP_SERVER_PORT
+          value: "3890"
+        - name: LDAP_USE_TLS
+          value: "false"
+        - name: LDAP_VALIDATE_CERT
+          value: "false"
+        - name: LDAP_APP_DN
+          value: "uid=admin,ou=people,dc=daddyshome,dc=fr"
+        - name: LDAP_APP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: openwebui-ldap-secret
+              key: LLDAP_LDAP_USER_PASS
+        - name: LDAP_SEARCH_BASE
+          value: "ou=people,dc=daddyshome,dc=fr"
+        - name: LDAP_ATTRIBUTE_FOR_USERNAME
+          value: "uid"
+        - name: LDAP_ATTRIBUTE_FOR_MAIL
+          value: "mail"
+        - name: LDAP_SEARCH_FILTER
+          value: "(&(objectClass=person)(uid=%(user)s))"
+        volumeMounts:
+        - name: data
+          mountPath: /app/backend/data
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: openwebui-data

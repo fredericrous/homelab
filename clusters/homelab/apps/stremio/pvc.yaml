@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stremio-config
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/instance: stremio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: rook-ceph-block
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stremio-media
+  namespace: stremio
+  labels:
+    app.kubernetes.io/name: stremio
+    app.kubernetes.io/instance: stremio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: rook-ceph-block

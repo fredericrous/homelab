@@ -1,0 +1,10 @@
+# Reflected secret that mirrors vault-admin-token from vault namespace
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vault-admin-token
+  namespace: vault-config-operator
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflects: "vault/vault-admin-token"
+type: Opaque
+data: {}

@@ -1,0 +1,61 @@
+# Namespace-scoped policy for Authelia to read/write its own secrets
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: authelia
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    serviceAccount:
+      name: controller-manager
+  policy: |
+    # Authelia can read/write its own secrets (including root path)
+    path "secret/data/authelia" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # Authelia can read/write for PushSecret
+    path "secret/data/authelia/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # Metadata access for PushSecret (including root path)
+    path "secret/metadata/authelia" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+    
+    # Metadata access for subpaths
+    path "secret/metadata/authelia/*" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+    
+    # Authelia needs to read LLDAP password for LDAP authentication
+    path "secret/data/lldap" {
+      capabilities = ["read"]
+    }
+  type: acl
+---
+# Kubernetes auth role for Authelia namespace
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: authelia
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    serviceAccount:
+      name: controller-manager
+  path: kubernetes
+  policies:
+    - authelia
+    - external-secrets
+  targetServiceAccounts:
+    - default
+    - authelia
+  targetNamespaces:
+    targetNamespaces:
+      - authelia

@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: plex
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - vault-config-job.yaml   # Job to populate Vault with Plex config
+  - secret-store.yaml       # Namespace-scoped SecretStore
+  - external-secret.yaml
+  - pvc-config.yaml
+  - pvc-nfs-media.yaml
+  - deployment.yaml
+  - service.yaml
+  # - ingress.yaml  # Replaced with Istio resources
+  - gateway.yaml
+  - virtualservice.yaml
+  - peerauthentication.yaml
+  - plex-certificate.yaml
+
+patches:
+  # Add backup annotations
+  - target:
+      kind: Deployment
+      name: plex
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: plex
+      spec:
+        template:
+          metadata:
+            annotations:
+              backup.velero.io/backup-volumes: plex-config
+  # Enable GPU support - uncomment when GPU node is fixed
+  # - path: patch-gpu-resources.yaml
+  #   target:
+  #     kind: Deployment
+  #     name: plex

@@ -1,0 +1,33 @@
+# ServiceAccount for vault-config-operator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-config-operator
+  namespace: vault-config-operator
+---
+# Role to read vault-admin-token from vault namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-admin-token-reader
+  namespace: vault
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["vault-admin-token"]
+  verbs: ["get"]
+---
+# RoleBinding to grant vault-config-operator access to vault-admin-token
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-config-operator-token-reader
+  namespace: vault
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-admin-token-reader
+subjects:
+- kind: ServiceAccount
+  name: vault-config-operator
+  namespace: vault-config-operator

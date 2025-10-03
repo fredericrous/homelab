@@ -1,0 +1,29 @@
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStore
+metadata:
+  name: ceph-objectstore
+  namespace: rook-ceph
+spec:
+  metadataPool:
+    failureDomain: host
+    replicated:
+      size: 2  # Reduced from default 3 for 2-node cluster
+      requireSafeReplicaSize: false
+    parameters:
+      pg_num: "16"
+  dataPool:
+    failureDomain: osd  # Changed from host to osd since we only have 2 hosts
+    replicated:
+      size: 2  # Use replication instead of erasure coding for 2 nodes
+      requireSafeReplicaSize: false
+    parameters:
+      pg_num: "32"
+  preservePoolsOnDelete: false
+  gateway:
+    instances: 1  # Only 1 RGW instance to save resources
+    resources:
+      limits:
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi

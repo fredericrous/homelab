@@ -1,0 +1,60 @@
+# Namespace-scoped policy for OpenWebUI to read lldap secrets
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: openwebui
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    serviceAccount:
+      name: controller-manager
+  policy: |
+    # OpenWebUI can read LLDAP secrets for authentication
+    path "secret/data/lldap" {
+      capabilities = ["read"]
+    }
+    
+    # OpenWebUI can read/write its own secrets
+    path "secret/data/openwebui" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # OpenWebUI can read/write for PushSecret
+    path "secret/data/openwebui/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # Metadata access for PushSecret (including root path)
+    path "secret/metadata/openwebui" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+    
+    # Metadata access for subpaths
+    path "secret/metadata/openwebui/*" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+  type: acl
+---
+# Kubernetes auth role for OpenWebUI namespace
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: openwebui
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    serviceAccount:
+      name: controller-manager
+  path: kubernetes
+  policies:
+    - openwebui
+    - external-secrets
+  targetServiceAccounts:
+    - openwebui
+  targetNamespaces:
+    targetNamespaces:
+      - openwebui

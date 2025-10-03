@@ -1,0 +1,22 @@
+# Bootstrap auth role for vault-config-operator controller-manager
+# This allows the operator to authenticate and manage other Vault resources
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: controller-manager
+  namespace: vault-config-operator
+spec:
+  # Use token auth for bootstrap (vault-admin-token)
+  authentication:
+    path: token
+    role: ""
+  path: kubernetes
+  policies:
+    - vault-admin
+  targetServiceAccounts:
+    - controller-manager
+  targetNamespaces:
+    targetNamespaces:
+      - vault-config-operator
+  tokenTTL: 86400
+  tokenMaxTTL: 86400

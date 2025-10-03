@@ -1,0 +1,11 @@
+apiVersion: operator.knative.dev/v1beta1
+kind: KnativeEventing
+metadata:
+  name: knative-eventing
+  namespace: knative-eventing
+spec:
+  # Basic eventing configuration
+  # Will be used for async inference if needed
+  # High availability
+  high-availability:
+    replicas: 2

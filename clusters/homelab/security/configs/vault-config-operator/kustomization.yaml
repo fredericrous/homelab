@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vault-config-operator
+resources:
+  # RBAC for vault-config-operator to read vault-admin-token
+  - vault-admin-rbac.yaml
+  # ClusterRoleBinding for token review permissions
+  - vault-tokenreview-binding.yaml
+  # Reflected secret for vault-admin-token
+  - vault-admin-token-reflected.yaml
+  # Setup job to create vault-admin policy and role
+  - vault-admin-setup-job.yaml
+  # Kubernetes auth mount and configuration
+  - kubernetes-auth-mount.yaml
+  - kubernetes-auth-config.yaml
+  # Bootstrap auth role for controller-manager
+  - controller-manager-auth-role.yaml
+  # Base policy for apps using External Secrets
+  - external-secrets-base-policy.yaml
+  # Policy for External Secrets Operator
+  - external-secrets-policy.yaml
+  # Kubernetes auth role for External Secrets
+  - external-secrets-auth-role.yaml
+  # Namespace-scoped policies and auth roles for applications
+  - lldap-policy.yaml
+  - authelia-policy.yaml
+  - nextcloud-policy.yaml
+  - harbor-policy.yaml
+  - stremio-policy.yaml
+  - plex-policy.yaml
+  - openwebui-policy.yaml

@@ -1,0 +1,66 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kyverno
+  namespace: flux-system
+spec:
+  targetNamespace: kyverno
+  interval: 30m
+  chart:
+    spec:
+      chart: kyverno
+      version: "3.3.1"
+      sourceRef:
+        kind: HelmRepository
+        name: kyverno
+        namespace: flux-system
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    replicaCount: 1
+    
+    # Resource limits for homelab environment
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 384Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+        
+    # Enable policy exceptions and mutations
+    config:
+      webhooks:
+        # Allow policy exceptions for specific namespaces
+        namespaceSelector:
+          matchExpressions:
+          - key: name
+            operator: NotIn
+            values: ["kube-system", "kube-public", "flux-system"]
+    
+    # Security configuration
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+        
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+        - ALL
+      seccompProfile:
+        type: RuntimeDefault
+        
+    # High availability in homelab - single replica is fine
+    antiAffinity:
+      enable: false

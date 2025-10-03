@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authelia
+  namespace: authelia
+  labels:
+    app: authelia
+  annotations:
+    # Auto-reload when secrets or config changes
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authelia
+  template:
+    metadata:
+      labels:
+        app: authelia
+        version: v1
+      annotations:
+        # Force restart to pick up configuration changes
+        kubectl.kubernetes.io/restartedAt: "2025-09-30T15:00:00Z"
+    spec:
+      serviceAccountName: authelia
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:17-alpine
+        command: ['sh', '-c']
+        args:
+          - |
+            until pg_isready -h postgres-apps-rw.postgres.svc.cluster.local -p 5432 -U authelia; do
+              echo "Waiting for PostgreSQL to be ready..."
+              sleep 2
+            done
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authelia-db-app
+              key: password
+      containers:
+      - name: authelia
+        image: authelia/authelia:4.38
+        command: ["authelia"]
+        args: ["--config=/config/configuration.yml"]
+        ports:
+        - containerPort: 9091
+        env:
+        - name: AUTHELIA_JWT_SECRET_FILE
+          value: /secrets/JWT_SECRET
+        - name: AUTHELIA_SESSION_SECRET_FILE
+          value: /secrets/SESSION_SECRET
+        - name: AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE
+          value: /secrets/POSTGRES_PASSWORD
+        - name: AUTHELIA_STORAGE_POSTGRES_HOST
+          value: postgres-apps-rw.postgres.svc.cluster.local
+        - name: AUTHELIA_STORAGE_POSTGRES_PORT
+          value: "5432"
+        - name: AUTHELIA_STORAGE_POSTGRES_DATABASE
+          value: authelia
+        - name: AUTHELIA_STORAGE_POSTGRES_USERNAME
+          value: authelia
+        - name: AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE
+          value: /secrets/STORAGE_ENCRYPTION_KEY
+        - name: AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE
+          value: /secrets/AUTHENTICATION_BACKEND_LDAP_PASSWORD
+        - name: SSL_CERT_FILE
+          value: /custom-ca/ca-bundle.crt
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: secrets
+          mountPath: /secrets
+          readOnly: true
+        - name: ca-certificates
+          mountPath: /custom-ca
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        # Temporarily disabled - readiness probe has issues with Istio ambient mode
+        # TODO: Re-enable once Istio ambient mode probe issue is resolved
+        # readinessProbe:
+        #   httpGet:
+        #     path: /api/health
+        #     port: 9091
+        #     scheme: HTTP
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 30
+        #   timeoutSeconds: 30
+      volumes:
+      - name: config
+        configMap:
+          name: authelia-config
+      - name: secrets
+        projected:
+          sources:
+          - secret:
+              name: authelia-secrets
+              items:
+              - key: AUTHELIA_JWT_SECRET
+                path: JWT_SECRET
+              - key: AUTHELIA_SESSION_SECRET
+                path: SESSION_SECRET
+              - key: AUTHELIA_STORAGE_ENCRYPTION_KEY
+                path: STORAGE_ENCRYPTION_KEY
+              - key: AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD
+                path: AUTHENTICATION_BACKEND_LDAP_PASSWORD
+          - secret:
+              name: authelia-db-app
+              items:
+              - key: password
+                path: POSTGRES_PASSWORD
+      - name: ca-certificates
+        secret:
+          secretName: ca-certificates

@@ -1,0 +1,111 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-apps
+  namespace: postgres
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+  
+  # Primary server configuration
+  primaryUpdateStrategy: unsupervised
+  
+  # PostgreSQL configuration
+  postgresql:
+    parameters:
+      # Performance tuning
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      max_connections: "200"
+      work_mem: "4MB"
+      maintenance_work_mem: "64MB"
+      # Replication
+      wal_level: "replica"
+      max_wal_size: "1GB"
+      min_wal_size: "80MB"
+      # Logging
+      log_statement: "all"
+      log_duration: "on"
+  
+  # Storage configuration
+  storage:
+    size: 10Gi
+    storageClass: rook-ceph-block
+  
+  # Resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "2"
+  
+  # Enable superuser access for database creation
+  enableSuperuserAccess: true
+  
+  # Declarative role management
+  # Integration pattern with External Secrets Operator:
+  # 1. Each app generates its own password using ESO Password generator
+  # 2. App creates a kubernetes.io/basic-auth secret with reflector annotations
+  # 3. Reflector copies the secret to postgres namespace automatically
+  # 4. CloudNativePG creates/manages the database role using the reflected secret
+  #
+  # This provides:
+  # - Decentralized password management (each app owns its credentials)
+  # - Automatic role creation when apps are deployed
+  # - Password rotation capability via ESO
+  # - No circular dependencies between infrastructure and apps
+  #
+  # See apps/{lldap,authelia,nextcloud,harbor}/password-generator.yaml for examples
+  managed:
+    roles:
+    # LLDAP application user
+    - name: lldap
+      ensure: present
+      comment: LLDAP lightweight directory service
+      login: true
+      passwordSecret:
+        name: lldap-db-credentials
+    
+    # Authelia application user  
+    - name: authelia
+      ensure: present
+      comment: Authelia authentication and authorization service
+      login: true
+      passwordSecret:
+        name: authelia-db-app
+    
+    # Nextcloud application user
+    - name: nextcloud
+      ensure: present
+      comment: Nextcloud file sharing and collaboration platform
+      login: true
+      passwordSecret:
+        name: nextcloud-db-app
+    
+    # Harbor application user
+    - name: harbor
+      ensure: present
+      comment: Harbor container registry
+      login: true
+      passwordSecret:
+        name: harbor-db-app
+  
+  # Backup configuration (commented out for now)
+  # backup:
+  #   retentionPolicy: "30d"
+  #   barmanObjectStore:
+  #     destinationPath: "s3://postgres-backups/postgres-apps"
+  #     s3Credentials:
+  #       accessKeyId:
+  #         name: postgres-backup-s3
+  #         key: ACCESS_KEY_ID
+  #       secretAccessKey:
+  #         name: postgres-backup-s3
+  #         key: SECRET_ACCESS_KEY
+  #     wal:
+  #       retention: "7d"
+  #     data:
+  #       retention: "7d"

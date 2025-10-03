@@ -1,0 +1,11 @@
+# Declarative database creation for Nextcloud
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: nextcloud
+  namespace: postgres
+spec:
+  name: nextcloud
+  owner: nextcloud
+  cluster:
+    name: postgres-apps

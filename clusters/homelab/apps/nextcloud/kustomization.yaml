@@ -1,0 +1,66 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: nextcloud
+
+# Use mTLS component to automatically sync client CA certificate
+components:
+  - ../../components/mtls-certificates
+
+# Client CA will be added via a separate secret that patches istio-ingress TLS secrets
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - certificates.yaml
+  - rbac.yaml  # RBAC for jobs and mTLS patch
+  - secret-store.yaml        # Namespace-scoped SecretStore with Nextcloud policy
+  - password-generator.yaml  # Generate passwords using ESO
+  - external-secrets.yaml    # Pull from Vault (after push)
+  - pvc.yaml
+  - pvc-nfs.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  # - ingress.yaml  # Replaced with Istio resources
+  # - ingress-mobile.yaml  # Replaced with Istio resources
+  # - gateway.yaml  # Using istio/gateway.yaml instead
+  # - virtualservice.yaml  # Replaced with istio/gateway.yaml
+  - peerauthentication.yaml
+  - post-install-job.yaml
+  - istio/gateway.yaml
+  # - istio/ca-secret.yaml  # Not needed - mtls-certificates component handles CA
+
+# Configuration for mTLS component
+configMapGenerator:
+- name: mtls-config
+  literals:
+  - serviceAccount=nextcloud
+
+patches:
+  # Add backup annotations
+  - target:
+      kind: Deployment
+      name: nextcloud
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: nextcloud
+      spec:
+        template:
+          metadata:
+            annotations:
+              backup.velero.io/backup-volumes: nextcloud-data
+  
+  # Security context patch
+  - path: patch-security-context.yaml
+    target:
+      kind: Deployment
+      name: nextcloud
+  
+  # NFS volumes patch
+  - path: patch-nfs-volumes.yaml
+    target:
+      kind: Deployment
+      name: nextcloud

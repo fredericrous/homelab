@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: authelia
+  namespace: authelia
+spec:
+  host: authelia-headless.authelia.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 2
+    # Disable outlier detection to prevent Istio from marking pods as unhealthy
+    outlierDetection:
+      splitExternalLocalOriginErrors: false
+      consecutive5xxErrors: 50
+      interval: 30s
+      baseEjectionTime: 30s
+      minHealthPercent: 0

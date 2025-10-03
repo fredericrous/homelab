@@ -1,0 +1,90 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: phi3-mini-instruct
+  namespace: text-generation
+spec:
+  predictor:
+    minReplicas: 0  # Scale to zero when not in use
+    maxReplicas: 1  # Only one GPU node available
+    # Container spec for vLLM with KV cache offloading
+    containers:
+      - name: kserve-container
+        image: vllm/vllm-openai:latest
+        args:
+          - "--model"
+          - "microsoft/Phi-3-mini-4k-instruct"
+          - "--port"
+          - "8080"
+          - "--trust-remote-code"
+          - "--max-model-len"
+          - "4096"
+          - "--gpu-memory-utilization"
+          - "0.95"
+          - "--kv-transfer-config"
+          - '{"kv_connector":"LMCacheConnectorV1", "kv_role":"kv_both"}'
+        env:
+          - name: HUGGING_FACE_HUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: cluster-vars
+                key: HUGGING_FACE_TOKEN
+          # TGI specific settings
+          - name: SHARDED
+            value: "false"
+          - name: DTYPE
+            value: "float16"
+          - name: CUDA_MEMORY_FRACTION
+            value: "0.95"
+          # LMCache configuration for KV cache offloading
+          - name: LMCACHE_USE_EXPERIMENTAL
+            value: "True"
+          - name: LMCACHE_REDIS_URL
+            value: "redis://redis-standalone.ot-operators.svc.cluster.local:6379"
+          - name: LMCACHE_REMOTE_BACKEND
+            value: "redis"
+          - name: LMCACHE_LOCAL_CPU
+            value: "True"
+          - name: LMCACHE_MAX_LOCAL_CPU_SIZE
+            value: "4.0"  # 4GB local cache
+        ports:
+          - containerPort: 8080
+            protocol: TCP
+        resources:
+          requests:
+            nvidia.com/gpu: 1
+            memory: 8Gi
+            cpu: 2
+          limits:
+            nvidia.com/gpu: 1
+            memory: 16Gi
+            cpu: 4
+        # Readiness probe for vLLM
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        # Liveness probe  
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+    # Node selector for GPU
+    nodeSelector:
+      gpu: nvidia-rtx-4060
+    # Tolerations for GPU node
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+    # Runtime class for GPU
+    runtimeClassName: nvidia
