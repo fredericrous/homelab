@@ -21,7 +21,5 @@ resources:
   - istio-sa-fix.yaml
   # Infrastructure core controllers
   - vault-pki-sync-externalsecret.yaml
-  - node-feature-discovery-repository.yaml
-  - node-feature-discovery-namespace.yaml
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
