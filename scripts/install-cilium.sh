@@ -148,8 +148,13 @@ EOF
 if helm list -n kube-system | grep -q cilium; then
   log_info "Cilium is already installed"
   # Skip waiting loop if already installed and running
-  running_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running 2>/dev/null | grep -c Running || echo "0")
-  running_count=$(echo "$running_count" | tr -d ' \n\r\t')
+  running_pods=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers 2>/dev/null || true)
+  if [ -z "$running_pods" ]; then
+    running_count=0
+  else
+    running_count=$(echo "$running_pods" | wc -l)
+    running_count=$(echo "$running_count" | tr -d ' \n\r\t')
+  fi
   total_nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
   total_nodes=$(echo "$total_nodes" | tr -d ' \n\r\t')
   if [ "$running_count" -eq "$total_nodes" ]; then
@@ -254,12 +259,21 @@ for i in {1..30}; do
 
   # Get running pods count, handle empty results gracefully
   # Note: immediately after helm install, pods might not exist yet
-  ready_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l || echo "0")
-  pending_count=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l || echo "0")
-
-  # Clean count values properly
-  ready_count=$(echo "$ready_count" | tr -d ' \n\r\t')
-  pending_count=$(echo "$pending_count" | tr -d ' \n\r\t')
+  ready_pods=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers 2>/dev/null || true)
+  if [ -z "$ready_pods" ]; then
+    ready_count=0
+  else
+    ready_count=$(echo "$ready_pods" | wc -l)
+    ready_count=$(echo "$ready_count" | tr -d ' \n\r\t')
+  fi
+  
+  pending_pods=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Pending --no-headers 2>/dev/null || true)
+  if [ -z "$pending_pods" ]; then
+    pending_count=0
+  else
+    pending_count=$(echo "$pending_pods" | wc -l)
+    pending_count=$(echo "$pending_count" | tr -d ' \n\r\t')
+  fi
 
   echo "  Cilium pods ready: $ready_count/$total_nodes (Running: $ready_count, Pending: $pending_count, attempt $i/30)"
 
