@@ -4,4 +4,4 @@ resources:
   - sources/
   - namespaces/
   - controllers/
-  - configs/
+  # configs/ is handled by knative-config.yaml Kustomization in controllers/
