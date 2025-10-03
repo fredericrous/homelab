@@ -9,3 +9,4 @@ resources:
   - cnpg-system.yaml
   - kyverno.yaml
   - postgres.yaml
+  - node-feature-discovery-namespace.yaml
