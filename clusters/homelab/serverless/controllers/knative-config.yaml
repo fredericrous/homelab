@@ -15,11 +15,3 @@ spec:
       kind: HelmRelease
       name: knative-operator
       namespace: flux-system
-    - apiVersion: operator.knative.dev/v1beta1
-      kind: KnativeServing
-      name: knative-serving
-      namespace: knative-serving
-    - apiVersion: operator.knative.dev/v1beta1
-      kind: KnativeEventing  
-      name: knative-eventing
-      namespace: knative-eventing
