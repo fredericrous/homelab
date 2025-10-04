@@ -3,10 +3,9 @@ kind: Kustomization
 resources:
   - cluster-config.yaml
   - client-ca-externalsecret.yaml
+  - cluster-vars-pushsecret.yaml
   - istio-cni-rbac-fix.yaml
   - kyverno/
-  # vault-minio-setup.yaml moved to data-storage layer as ExternalSecret + PushSecret
-  - vault-setup-job-template.yaml
   - vault-transit/
   - external-secrets/
   - rook-ceph-cluster/
