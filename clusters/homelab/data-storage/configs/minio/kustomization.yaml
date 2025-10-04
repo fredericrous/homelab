@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: minio
 
 resources:
+  - minio-credentials-generator.yaml
   - vault-admin-token-reflector.yaml
   - minio-standalone.yaml
   - minio-service.yaml
