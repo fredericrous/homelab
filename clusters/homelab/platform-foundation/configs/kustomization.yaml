@@ -8,7 +8,7 @@ resources:
   - kyverno/
   - vault-transit/
   - external-secrets/
-  - rook-ceph-cluster/
+  # rook-ceph-cluster/ managed by separate kustomization with healthChecks
   - cert-manager-setup.yaml
   - cert-manager-ovh-credentials-externalsecret.yaml
   - cert-manager/
