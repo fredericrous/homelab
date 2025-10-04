@@ -14,15 +14,15 @@ trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 echo "⏳ Waiting for infrastructure components to be ready..."
 
 # Wait for Flux to create the kustomizations first
-echo "Waiting for kustomizations to be created..."
-for i in {1..30}; do
-  if kubectl get kustomization platform-foundation -n flux-system >/dev/null 2>&1; then
-    echo "✓ platform-foundation kustomization found"
-    break
-  fi
-  echo "Waiting for platform-foundation kustomization... ($i/30)"
-  sleep 2
-done
+# echo "Waiting for kustomizations to be created..."
+# for i in {1..30}; do
+#   if kubectl get kustomization platform-foundation -n flux-system >/dev/null 2>&1; then
+#     echo "✓ platform-foundation kustomization found"
+#     break
+#   fi
+#   echo "Waiting for platform-foundation kustomization... ($i/30)"
+#   sleep 2
+# done
 
 # Wait for platform foundation first (includes Rook-Ceph, Vault, ESO, Istio)
 echo "Waiting for platform foundation components..."
@@ -55,13 +55,13 @@ for i in {1..120}; do
   running_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | grep -c "Running" || echo "0")
   running_mons=$(echo "$running_mons" | head -n1 | tr -d '\n\r ')
   total_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
-  
+
   if [ "$running_mons" -eq 3 ]; then
     echo "✅ All 3 Ceph monitors are running"
     break
   elif [ "$total_mons" -gt 0 ]; then
     echo "Waiting for monitors: $running_mons/3 running ($i/120)"
-    
+
     # Show monitor status every 30 iterations (2.5 minutes)
     if [ $((i % 30)) -eq 0 ]; then
       echo "Monitor status:"
@@ -72,7 +72,7 @@ for i in {1..120}; do
   else
     echo "Waiting for monitor pods to be created... ($i/120)"
   fi
-  
+
   sleep 5
 done
 
@@ -81,26 +81,26 @@ for i in {1..120}; do
   running_osds=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c "Running" || echo "0")
   running_osds=$(echo "$running_osds" | head -n1 | tr -d '\n\r ')
   total_osds=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
-  
+
   if [ "$running_osds" -gt 0 ]; then
     echo "✅ Found $running_osds running OSD(s)"
     break
   fi
-  
+
   echo "Waiting for OSDs: $running_osds/$total_osds running ($i/120)"
-  
+
   # Show OSD status every 30 iterations (2.5 minutes)
   if [ $((i % 30)) -eq 0 ] && [ "$total_osds" -gt 0 ]; then
     echo "OSD pod status:"
     kubectl get pods -n rook-ceph -l app=rook-ceph-osd -o wide 2>/dev/null || echo "  No OSD pods found"
-    
+
     # Check if OSD prepare jobs are still running
     prepare_jobs=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd-prepare --no-headers 2>/dev/null | grep -v "Completed" | wc -l | tr -d '\n\r ' || echo "0")
     if [ "$prepare_jobs" -gt 0 ]; then
       echo "  ⏳ $prepare_jobs OSD prepare job(s) still running"
     fi
   fi
-  
+
   sleep 5
 done
 
@@ -110,7 +110,7 @@ mgr_pod=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mgr --no-headers 2>/dev
 if [ -n "$mgr_pod" ]; then
   health_status=$(kubectl exec -n rook-ceph "$mgr_pod" -- ceph health 2>/dev/null || echo "UNKNOWN")
   echo "Ceph health: $health_status"
-  
+
   # Show more details if health is not OK
   if [[ ! "$health_status" =~ ^HEALTH_OK ]]; then
     echo "Ceph status details:"
@@ -156,13 +156,13 @@ for i in {1..60}; do  # 5 minutes total
     break
   fi
   echo "Testing storage provisioning: $pvc_status ($i/60)"
-  
+
   # Show more details every 20 iterations (100 seconds)
   if [ $((i % 20)) -eq 0 ] && [ "$i" -gt 1 ]; then
     echo "PVC events:"
     kubectl describe pvc test-rook-health -n default 2>/dev/null | tail -10 | grep -E "Events:|Normal|Warning" || echo "  No events found"
   fi
-  
+
   sleep 5
 done
 
