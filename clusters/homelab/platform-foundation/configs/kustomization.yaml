@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - cluster-config.yaml
   - client-ca-externalsecret.yaml
-  - authelia-certificate.yaml
   - istio-cni-rbac-fix.yaml
   - kyverno/
   # vault-minio-setup.yaml moved to data-storage layer as ExternalSecret + PushSecret
