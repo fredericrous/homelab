@@ -4,4 +4,5 @@ namespace: flux-system
 resources:
   - cluster-secret-store.yaml
   - vault-pki-sync-externalsecret.yaml
+  - cert-manager-ovh-credentials-externalsecret.yaml
   # Vault policy configuration is now managed by vault-config-operator
