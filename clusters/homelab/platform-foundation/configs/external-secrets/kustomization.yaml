@@ -5,4 +5,6 @@ resources:
   - cluster-secret-store.yaml
   - vault-pki-sync-externalsecret.yaml
   - cert-manager-ovh-credentials-externalsecret.yaml
+  - client-ca-externalsecret.yaml
+  - cluster-vars-pushsecret.yaml
   # Vault policy configuration is now managed by vault-config-operator
