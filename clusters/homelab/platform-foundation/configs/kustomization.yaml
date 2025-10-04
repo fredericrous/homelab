@@ -6,7 +6,7 @@ resources:
   - authelia-certificate.yaml
   - istio-cni-rbac-fix.yaml
   - kyverno/
-  - vault-minio-setup.yaml
+  # vault-minio-setup.yaml moved to data-storage layer as ExternalSecret + PushSecret
   - vault-setup-job-template.yaml
   - vault-transit/
   - external-secrets/
