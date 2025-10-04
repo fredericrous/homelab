@@ -15,4 +15,4 @@ spec:
       mode: SIMPLE
       credentialName: minio-tls
     hosts:
-    - minio.${PUBLIC_DOMAIN}
+    - minio.${ARGO_EXTERNAL_DOMAIN}
