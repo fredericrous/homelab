@@ -166,14 +166,14 @@ tasks:
         echo ""
 
         # Count ready nodes
-        total_nodes=$(kubectl get nodes --no-headers | wc -l)
-        ready_nodes=$(kubectl get nodes --no-headers | grep -w Ready | wc -l)
+        total_nodes=$(kubectl get nodes --no-headers | wc -l | tr -d ' \n\r\t')
+        ready_nodes=$(kubectl get nodes --no-headers | grep -w Ready | wc -l | tr -d ' \n\r\t')
 
         echo "📊 Cluster Health Summary:"
         echo "  Nodes: $ready_nodes/$total_nodes Ready"
 
         # Check Cilium
-        cilium_ready=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers | wc -l)
+        cilium_ready=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers | wc -l | tr -d ' \n\r\t')
         echo "  Cilium: $cilium_ready pods running"
 
         # Check DNS
