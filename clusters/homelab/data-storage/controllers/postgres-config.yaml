@@ -15,3 +15,7 @@ spec:
       kind: HelmRelease
       name: cloudnative-pg
       namespace: flux-system
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cnpg-controller-manager
+      namespace: cnpg-system
