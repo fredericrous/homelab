@@ -29,3 +29,13 @@ configMapGenerator:
 - name: mtls-config
   literals:
   - serviceAccount=harbor
+
+# Override namespace for HelmRepository to be in flux-system
+patches:
+- patch: |-
+    - op: replace
+      path: /metadata/namespace
+      value: flux-system
+  target:
+    kind: HelmRepository
+    name: harbor
