@@ -3,6 +3,10 @@ kind: Kustomization
 
 namespace: plex
 
+# Use mTLS component to automatically sync client CA certificate
+components:
+  - ../../components/mtls-certificates
+
 resources:
   - namespace.yaml
   - service-account.yaml
@@ -18,6 +22,12 @@ resources:
   - virtualservice.yaml
   - peerauthentication.yaml
   - plex-certificate.yaml
+
+# Configuration for mTLS component
+configMapGenerator:
+- name: mtls-config
+  literals:
+  - serviceAccount=plex
 
 patches:
   # Add backup annotations

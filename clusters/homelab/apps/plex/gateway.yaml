@@ -5,7 +5,7 @@ metadata:
   namespace: plex
 spec:
   selector:
-    istio: gateway
+    istio: ingress-istio-gateway
   servers:
   - port:
       number: 80

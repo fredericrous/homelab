@@ -7,7 +7,17 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
-  verbs: ["get", "list"]
+  verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: harbor-read-namespaces
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get"]
+  resourceNames: ["harbor"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -43,6 +53,19 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: harbor-patch-istio-secrets
+subjects:
+- kind: ServiceAccount
+  name: harbor
+  namespace: harbor
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: harbor-read-namespaces
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: harbor-read-namespaces
 subjects:
 - kind: ServiceAccount
   name: harbor
