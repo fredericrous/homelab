@@ -17,5 +17,5 @@ spec:
       namespace: flux-system
     - apiVersion: apps/v1
       kind: Deployment
-      name: cnpg-controller-manager
+      name: cnpg-system-cloudnative-pg
       namespace: cnpg-system
