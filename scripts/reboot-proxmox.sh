@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
+trap 'echo ""; echo "❌ reboot proxmox interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 # Script to reboot Proxmox host

@@ -4,7 +4,7 @@
 # Reads all variables from .env and creates a secret with each as a property
 
 set -euo pipefail
-trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
+trap 'echo ""; echo "❌ bootstrap cluster vars interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 # Check if .env file exists

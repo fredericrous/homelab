@@ -14,6 +14,11 @@ spec:
   dependsOn:
     - name: vault-transit-config
     - name: external-secrets-config
+  healthChecks:
+    - apiVersion: v1
+      kind: Secret
+      name: vault-admin-token
+      namespace: vault
   postBuild:
     substituteFrom:
       - kind: Secret

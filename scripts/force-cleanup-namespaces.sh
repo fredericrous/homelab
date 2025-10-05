@@ -1,7 +1,7 @@
 #!/bin/bash
 # Force cleanup stuck namespaces - use when destroy-flux.sh doesn't fully clean up
 set -euo pipefail
-trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
+trap 'echo ""; echo "❌ force cleanup namespaces interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 # Colors for output
