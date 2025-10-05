@@ -19,7 +19,7 @@ resources:
   - external-secrets.yaml           # Pull from Vault (after push)
   # - ingress.yaml  # Replaced with Istio Gateway
   - certificates.yaml
-  - harbor-helmrepository.yaml      # Harbor Helm repository
+  - harbor-helmrepository.yaml      # Harbor Helm repository (namespace override)
   - harbor-helmrelease.yaml
   - istio/gateway.yaml
   # - istio/ca-secret.yaml  # Not needed - mtls-certificates component handles CA
