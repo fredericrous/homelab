@@ -76,7 +76,7 @@ spec:
               name: nextcloud-admin
               key: password
         - name: NEXTCLOUD_TRUSTED_DOMAINS
-          value: "nextcloud.daddyshome.fr drive.daddyshome.fr"
+          value: "nextcloud.daddyshome.fr xdrive.daddyshome.fr"
         - name: NEXTCLOUD_UPDATE
           value: "1"
         - name: PHP_MEMORY_LIMIT

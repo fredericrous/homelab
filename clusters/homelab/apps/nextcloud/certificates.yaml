@@ -12,7 +12,7 @@ spec:
       reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "istio-ingress"
       reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
   dnsNames:
-    - drive.daddyshome.fr
+    - xdrive.daddyshome.fr
     - nextcloud.daddyshome.fr
   issuerRef:
     name: letsencrypt-ovh-webhook
@@ -32,7 +32,7 @@ spec:
       reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "istio-ingress"
       reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
   dnsNames:
-    - drive-mobile.daddyshome.fr
+    - xdrive-mobile.daddyshome.fr
   issuerRef:
     name: letsencrypt-ovh-webhook
     kind: ClusterIssuer
