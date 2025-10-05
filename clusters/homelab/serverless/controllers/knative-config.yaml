@@ -18,4 +18,4 @@ spec:
     - apiVersion: apps/v1
       kind: Deployment
       name: knative-operator
-      namespace: knative-operator
+      namespace: default
