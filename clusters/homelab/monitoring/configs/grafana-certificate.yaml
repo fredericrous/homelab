@@ -9,4 +9,4 @@ spec:
     name: letsencrypt-ovh-webhook
     kind: ClusterIssuer
   dnsNames:
-  - grafana.${PUBLIC_DOMAIN}
+  - grafana.daddyshome.fr

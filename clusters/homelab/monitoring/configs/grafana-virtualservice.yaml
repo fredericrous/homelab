@@ -5,7 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   hosts:
-  - grafana.${PUBLIC_DOMAIN}
+  - grafana.daddyshome.fr
   gateways:
   - grafana
   http:
