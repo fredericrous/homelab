@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: vault
+  namespace: vault
+spec:
+  hosts:
+  - vault.daddyshome.fr
+  gateways:
+  - vault
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: vault-vault-ui.vault.svc.cluster.local
+        port:
+          number: 8200

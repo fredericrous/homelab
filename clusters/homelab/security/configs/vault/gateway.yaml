@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: vault
+  namespace: vault
+spec:
+  selector:
+    istio: ingress-istio-gateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: MUTUAL
+      credentialName: vault-tls
+    hosts:
+    - vault.daddyshome.fr
