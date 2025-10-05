@@ -15,3 +15,7 @@ spec:
       kind: HelmRelease
       name: knative-operator
       namespace: flux-system
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: knative-operator
+      namespace: knative-operator
