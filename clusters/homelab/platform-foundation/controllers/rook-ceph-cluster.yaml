@@ -18,3 +18,7 @@ spec:
       kind: HelmRelease
       name: rook-ceph
       namespace: flux-system
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: rook-ceph-operator
+      namespace: rook-ceph
