@@ -4,6 +4,7 @@
 # Reads all variables from .env and creates a secret with each as a property
 
 set -euo pipefail
+trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 # Check if .env file exists
@@ -23,25 +24,25 @@ while IFS= read -r line; do
   if [[ -z "$line" || "$line" =~ ^[[:space:]]*# || ! "$line" =~ = ]]; then
     continue
   fi
-  
+
   # Extract key and value
   key="${line%%=*}"
   value="${line#*=}"
-  
+
   # Trim whitespace from key
   key="$(echo -n "$key" | xargs)"
-  
+
   # Remove quotes from value if present
   value="${value%\"}"
   value="${value#\"}"
   value="${value%\'}"
   value="${value#\'}"
-  
+
   # Skip if key or value is empty
   if [[ -z "$key" || -z "$value" ]]; then
     continue
   fi
-  
+
   # Add to kubectl command
   KUBECTL_CMD="$KUBECTL_CMD --from-literal=$key=\"$value\""
 done < .env

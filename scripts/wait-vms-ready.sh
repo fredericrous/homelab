@@ -1,5 +1,8 @@
 #!/bin/bash
 set -e
+
+# Handle interruption signals to exit cleanly
+trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 echo "🔍 Waiting for VMs to be ready..."

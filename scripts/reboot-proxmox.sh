@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 # Script to reboot Proxmox host
@@ -80,7 +81,7 @@ while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
         echo "The host will take 2-3 minutes to come back online."
         exit 0
     fi
-    
+
     echo -n "."
     sleep 1
     WAIT_COUNT=$((WAIT_COUNT + 1))

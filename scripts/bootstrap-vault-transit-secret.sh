@@ -3,6 +3,7 @@
 # This should be run once after cluster creation
 
 set -euo pipefail
+trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 # Use provided token or load from environment
@@ -21,7 +22,7 @@ if [ -z "$TRANSIT_TOKEN" ]; then
   echo "Please enter your Vault transit token:"
   read -s TRANSIT_TOKEN
   echo ""
-  
+
   # Verify token was entered
   if [ -z "$TRANSIT_TOKEN" ]; then
     echo "ERROR: No token provided"
