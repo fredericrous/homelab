@@ -3,6 +3,11 @@ kind: Certificate
 metadata:
   name: vault-tls
   namespace: vault
+  annotations:
+    # Reflect this certificate to istio-ingress namespace for Gateway
+    reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+    reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "istio-ingress"
+    reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
 spec:
   secretName: vault-tls
   issuerRef:
