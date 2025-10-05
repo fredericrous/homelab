@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  generateName: plex-vault-config-
+  name: plex-vault-config
   namespace: plex
 spec:
   ttlSecondsAfterFinished: 300
