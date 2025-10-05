@@ -18,8 +18,9 @@ spec:
     - apiVersion: v1
       kind: Secret
       name: vault-admin-token
-      namespace: vault
+      namespace: flux-system
   postBuild:
     substituteFrom:
       - kind: Secret
         name: vault-admin-token
+        namespace: flux-system
