@@ -1,6 +1,7 @@
 #!/bin/bash
 # Force cleanup stuck namespaces - use when destroy-flux.sh doesn't fully clean up
 set -euo pipefail
+trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 # Colors for output
@@ -27,13 +28,13 @@ log_error "Starting aggressive namespace cleanup..."
 force_delete_namespace() {
   local ns=$1
   echo "Force deleting namespace: $ns"
-  
+
   # Step 1: Delete all resources in the namespace
   log_warning "Deleting all resources in $ns..."
   kubectl api-resources --verbs=list --namespaced -o name | while read resource; do
     kubectl delete $resource --all -n $ns --force --grace-period=0 2>/dev/null || true
   done
-  
+
   # Step 2: Patch all resources to remove finalizers
   log_warning "Removing finalizers from all resources in $ns..."
   kubectl api-resources --verbs=list --namespaced -o name | while read resource; do
@@ -41,11 +42,11 @@ force_delete_namespace() {
       kubectl patch $item -n $ns --type='json' -p='[{"op": "remove", "path": "/metadata/finalizers"}]' 2>/dev/null || true
     done
   done
-  
+
   # Step 3: Remove namespace finalizers
   log_warning "Removing namespace finalizers..."
   kubectl patch namespace $ns -p '{"metadata":{"finalizers":null}}' --type=merge || true
-  
+
   # Step 4: Force finalize via API
   log_warning "Force finalizing namespace via API..."
   kubectl get namespace $ns -o json | \

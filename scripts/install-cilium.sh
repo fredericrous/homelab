@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+# Handle interruption signals to exit cleanly
+trap 'echo ""; echo "❌ Cilium installation interrupted by user"; exit 130' INT TERM
 # Add debug trap to see where script fails
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 

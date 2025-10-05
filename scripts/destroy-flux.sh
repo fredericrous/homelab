@@ -3,6 +3,7 @@
 # This is the inverse of the bootstrap operation
 
 set -euo pipefail
+trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 # Colors for output
@@ -76,25 +77,25 @@ if kubectl get ns rook-ceph >/dev/null 2>&1; then
   kubectl patch cephblockpool -n rook-ceph --all -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
   kubectl patch cephfilesystem -n rook-ceph --all -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
   kubectl patch cephobjectstore -n rook-ceph --all -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-  
+
   # Force delete dependent resources immediately
   kubectl delete cephblockpool -n rook-ceph --all --wait=false --force --grace-period=0 2>/dev/null || true
   kubectl delete cephfilesystem -n rook-ceph --all --wait=false --force --grace-period=0 2>/dev/null || true
   kubectl delete cephobjectstore -n rook-ceph --all --wait=false --force --grace-period=0 2>/dev/null || true
-  
+
   # Wait a moment for dependent resources to be removed
   sleep 5
-  
+
   # Now remove finalizers from the cluster itself and delete it
   log_warning "Removing finalizers from CephCluster..."
   kubectl patch cephcluster -n rook-ceph --all -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
   kubectl delete cephcluster -n rook-ceph --all --wait=false --force --grace-period=0 2>/dev/null || true
-  
+
   # Delete stuck OSD prepare jobs and pods
   log_warning "Cleaning up stuck OSD prepare jobs..."
   kubectl delete jobs -n rook-ceph --all --force --grace-period=0 2>/dev/null || true
   kubectl delete pods -n rook-ceph -l app=rook-ceph-osd-prepare --force --grace-period=0 2>/dev/null || true
-  
+
   # Clean up all remaining Ceph resources
   log_warning "Cleaning up remaining Ceph resources..."
   for crd in $(kubectl get crd -o name | grep ceph.rook.io); do
@@ -110,17 +111,17 @@ fi
 log_error "Cleaning up resources in all namespaces..."
 for ns in $(kubectl get ns -o name | grep -v -E "(kube-system|kube-public|kube-node-lease|default)" | cut -d/ -f2); do
   echo "  Cleaning namespace $ns..."
-  
+
   # Force delete stuck pods first
   kubectl delete pods -n $ns --all --force --grace-period=0 2>/dev/null || true
-  
+
   # Delete all resources in the namespace dynamically (suppress "No resources found" messages)
   kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 -I {} sh -c "kubectl delete {} -n $ns --all --wait=false 2>&1 | grep -v 'No resources found' || true"
-  
+
   # Remove finalizers from all resources in the namespace that have them
   # This is a generic approach that will handle any resource with finalizers
   echo "    Removing finalizers from all resources in namespace $ns..."
-  
+
   # Get all resource types that support deletion
   for resource_type in $(kubectl api-resources --verbs=list,delete --namespaced -o name 2>/dev/null); do
     # Get all resources of this type with finalizers
@@ -131,7 +132,7 @@ for ns in $(kubectl get ns -o name | grep -v -E "(kube-system|kube-public|kube-n
         kubectl patch $resource -n $ns -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
       done
   done
-  
+
   # Remove finalizers from PVCs
   kubectl get pvc -n $ns -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n $ns -p '{"metadata":{"finalizers":[]}}' --type=merge || true
 done
@@ -165,18 +166,18 @@ kubectl get pv -o json | jq -r '.items[] | select(.status.phase=="Released" or .
 log_error "Force cleaning stuck namespaces..."
 for ns in $(kubectl get ns -o json | jq -r '.items[] | select(.status.phase=="Terminating") | .metadata.name'); do
   echo "  Force cleaning namespace $ns..."
-  
+
   # First, delete all remaining resources in the namespace
   kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 -I {} sh -c "kubectl delete {} -n $ns --all --force --grace-period=0 2>&1 | grep -v 'No resources found' || true"
-  
+
   # Remove all finalizers from all resources in the namespace
   for resource_type in $(kubectl api-resources --verbs=list --namespaced -o name 2>/dev/null); do
     kubectl get $resource_type -n $ns -o name 2>/dev/null | xargs -r -I {} kubectl patch {} -n $ns --type='json' -p='[{"op": "remove", "path": "/metadata/finalizers"}]' 2>/dev/null || true
   done
-  
+
   # Remove the kubernetes finalizer
   kubectl patch namespace $ns -p '{"metadata":{"finalizers":[]}}' --type=merge || true
-  
+
   # If still stuck, use the API directly to remove finalizers
   kubectl get namespace $ns -o json | jq '.spec = {} | .status = {} | .metadata.finalizers = []' | kubectl replace --raw "/api/v1/namespaces/$ns/finalize" -f - 2>/dev/null || true
 done
@@ -190,16 +191,16 @@ kubectl get crd -o name | grep -v -E "(k8s.io|kubernetes.io|metrics.k8s.io|apire
 log_error "Final cleanup check for flux-system namespace..."
 if kubectl get ns flux-system >/dev/null 2>&1; then
   echo "  flux-system namespace still exists, forcing removal..."
-  
+
   # Delete all resources in flux-system namespace with force
   kubectl delete all --all -n flux-system --force --grace-period=0 2>/dev/null || true
-  
+
   # Remove finalizers from the namespace
   kubectl patch namespace flux-system -p '{"metadata":{"finalizers":null}}' --type=merge || true
-  
+
   # Force finalize using the API
   kubectl get namespace flux-system -o json | jq '.spec = {} | .status = {} | .metadata.finalizers = []' | kubectl replace --raw "/api/v1/namespaces/flux-system/finalize" -f - 2>/dev/null || true
-  
+
   # Wait a moment and check again
   sleep 2
   if kubectl get ns flux-system >/dev/null 2>&1; then
