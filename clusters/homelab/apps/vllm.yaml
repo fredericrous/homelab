@@ -22,5 +22,5 @@ spec:
     - name: data-storage
   postBuild:
     substituteFrom:
-      - kind: ConfigMap
-        name: cluster-config
+      - kind: Secret
+        name: cluster-vars
