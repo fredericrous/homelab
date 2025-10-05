@@ -31,11 +31,13 @@ configMapGenerator:
   - serviceAccount=harbor
 
 # Override namespace for HelmRepository to be in flux-system
-patches:
-- patch: |-
+patchesJson6902:
+- target:
+    version: v1beta2
+    group: source.toolkit.fluxcd.io
+    kind: HelmRepository
+    name: harbor
+  patch: |-
     - op: replace
       path: /metadata/namespace
       value: flux-system
-  target:
-    kind: HelmRepository
-    name: harbor
