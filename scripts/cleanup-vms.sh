@@ -3,7 +3,7 @@
 # Reads configuration from terraform.tfvars
 # Note: Script continues on errors since VMs might already be deleted
 
-trap 'echo ""; echo "❌ VM readiness check interrupted by user"; exit 130' INT TERM
+trap 'echo ""; echo "❌ cleanup VMs interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
 echo "=== Proxmox VM Cleanup Script ==="
