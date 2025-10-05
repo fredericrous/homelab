@@ -18,7 +18,6 @@ rules:
   resources: ["secrets"]
   verbs: ["get", "list", "patch"]
   resourceNames: ["stremio-tls"]
-  namespaces: ["istio-ingress"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
