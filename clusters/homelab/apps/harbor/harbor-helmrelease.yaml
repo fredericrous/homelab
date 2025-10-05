@@ -55,7 +55,8 @@ spec:
         host: postgres-apps-rw.postgres.svc.cluster.local
         port: "5432"
         username: harbor
-        existingSecret: harbor-database
+        database: registry
+        existingSecret: harbor-db-app
         sslmode: disable
     
     redis:
