@@ -1,13 +1,13 @@
-# Declarative database creation for Harbor
+---
 apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
-  name: harbor
+  name: harbor-registry
   namespace: postgres
 spec:
-  name: harbor
-  owner: harbor
   cluster:
     name: postgres-apps
+  name: registry
+  owner: harbor
   ensure: present
   databaseReclaimPolicy: retain

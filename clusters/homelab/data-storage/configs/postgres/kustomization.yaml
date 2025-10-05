@@ -4,7 +4,8 @@ namespace: postgres
 
 resources:
   - postgres-apps-cluster.yaml
-  - lldap-database.yaml      # Database must be in same namespace as Cluster
-  - authelia-database.yaml   # Database must be in same namespace as Cluster
-  - nextcloud-database.yaml  # Database must be in same namespace as Cluster
-  - harbor-database.yaml     # Database must be in same namespace as Cluster
+  - lldap-database.yaml            # Database must be in same namespace as Cluster
+  - authelia-database.yaml         # Database must be in same namespace as Cluster
+  - nextcloud-database.yaml        # Database must be in same namespace as Cluster
+  - harbor-database.yaml           # Database must be in same namespace as Cluster
+  - harbor-registry-database.yaml  # Registry database for Harbor (default expected name)
