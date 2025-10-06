@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: authelia
   namespace: authelia
+  annotations:
+    istio.io/ingress-mtls: "true"
 spec:
   selector:
     app: authelia

@@ -3,27 +3,15 @@ kind: Kustomization
 
 namespace: plex
 
-# Use mTLS component to automatically sync client CA certificate
-components:
-  - ../../components/mtls-certificates
-
 resources:
   - namespace.yaml
   - service-account.yaml
-  - rbac.yaml
   - helm-repository.yaml
   - vault-config-job.yaml
   - external-secrets.yaml
   - pvc.yaml
   - pre-install-hook.yaml
   - helm-release.yaml
-  - gateway.yaml
-  - virtualservice.yaml
   - peerauthentication.yaml
-  - certificate.yaml
-
-# Configuration for mTLS component
-configMapGenerator:
-- name: mtls-config
-  literals:
-  - serviceAccount=plex
+  # Manual mTLS configuration replaced by Kyverno ingress-mtls-automation policy
+  # Resources automatically generated when service has annotation: istio.io/ingress-mtls: "true"

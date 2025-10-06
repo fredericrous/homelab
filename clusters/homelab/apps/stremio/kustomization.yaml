@@ -3,15 +3,9 @@ kind: Kustomization
 
 namespace: stremio
 
-# Use mTLS component to automatically sync client CA certificate
-components:
-  - ../../components/mtls-certificates
-
 resources:
   - namespace.yaml
   - service-account.yaml
-  - rbac.yaml
-  - certificate.yaml
   - secret-store.yaml     # Namespace-scoped SecretStore
   - external-secrets.yaml
   - pvc.yaml
@@ -23,15 +17,9 @@ resources:
   - deployment-web.yaml
   - service.yaml
   - peerauthentication.yaml
-  - gateway.yaml
-  - virtualservice.yaml
   - stremio-ca-secret.yaml
-
-# Configuration for mTLS component
-configMapGenerator:
-- name: mtls-config
-  literals:
-  - serviceAccount=stremio
+  # Manual mTLS configuration replaced by Kyverno ingress-mtls-automation policy
+  # Resources automatically generated when service has annotation: istio.io/ingress-mtls: "true"
 
 patches:
   # Add backup annotations
