@@ -21,6 +21,10 @@ resources:
   - external-secrets-policy.yaml
   # Kubernetes auth role for External Secrets
   - external-secrets-auth-role.yaml
+  # PKI secrets engine and configuration
+  - pki-mount.yaml
+  - pki-intermediate-ca.yaml
+  - pki-egress-client-role.yaml
   # Namespace-scoped policies and auth roles for applications
   - lldap-policy.yaml
   - authelia-policy.yaml

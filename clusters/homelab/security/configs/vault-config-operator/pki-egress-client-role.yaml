@@ -1,0 +1,29 @@
+---
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: PKIRole
+metadata:
+  name: egress-client
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: vault-config-operator
+    serviceAccount:
+      name: vault-config-operator
+  path: pki
+  name: egress-client
+  allowedDomains:
+    - "daddyshome.fr"
+  allowBareDomains: false
+  allowSubdomains: true
+  allowLocalhost: false
+  allowIPSANs: false
+  keyType: rsa
+  keyBits: 2048
+  keyUsage:
+    - "digital_signature"
+    - "key_encipherment"
+  extKeyUsage:
+    - "client_auth"
+  ttl: 24h
+  maxTTL: 168h # 1 week
