@@ -37,6 +37,9 @@ rules:
 - apiGroups: ["rbac.authorization.k8s.io"]
   resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
 ---
 # Additional ClusterRole to allow Kyverno admission controller to read Istio Gateways
 apiVersion: rbac.authorization.k8s.io/v1
