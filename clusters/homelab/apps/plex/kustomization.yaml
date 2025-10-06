@@ -10,6 +10,5 @@ resources:
   - vault-config-job.yaml
   - external-secrets.yaml
   - pvc.yaml
-  - pre-install-hook.yaml
   - helm-release.yaml
   - peerauthentication.yaml
