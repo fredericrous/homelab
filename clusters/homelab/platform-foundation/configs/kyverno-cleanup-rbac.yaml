@@ -12,3 +12,19 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list", "delete"]
+---
+# Additional ClusterRole to allow Kyverno background controller to manage PushSecrets and read Secrets
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno-pushsecret-access
+  labels:
+    # This label makes it aggregate into the main background controller role
+    rbac.kyverno.io/aggregate-to-background-controller: "true"
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["external-secrets.io"]
+  resources: ["pushsecrets"]
+  verbs: ["get", "list", "create", "update", "patch"]
