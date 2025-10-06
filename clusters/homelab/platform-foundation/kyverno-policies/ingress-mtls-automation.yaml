@@ -1,0 +1,461 @@
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: ingress-mtls-automation
+  annotations:
+    policies.kyverno.io/title: Automatic Ingress mTLS Setup
+    policies.kyverno.io/category: Security, Networking
+    policies.kyverno.io/subject: Service, Certificate, Gateway, VirtualService, Role, RoleBinding, Job
+    policies.kyverno.io/description: >-
+      Automatically generates Istio ingress mTLS configuration for Services
+      annotated with 'istio.io/ingress-mtls: "true"'. Creates Certificate, 
+      Gateway, VirtualService, RBAC, and mTLS patch job resources.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+
+    # Validate: Service must have ingress-mtls annotation
+    - name: validate-ingress-mtls-annotation
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      validate:
+        message: "Service with istio.io/ingress-mtls annotation must be valid."
+        pattern:
+          metadata:
+            annotations:
+              istio.io/ingress-mtls: "true"
+
+    # Generate: Certificate for TLS
+    - name: generate-certificate
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.operation }}"
+            operator: In
+            value: ["CREATE","UPDATE"]
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "{{ request.object.metadata.name }}-tls"
+        synchronize: true
+        data:
+          apiVersion: cert-manager.io/v1
+          kind: Certificate
+          metadata:
+            name: "{{ request.object.metadata.name }}-tls"
+            namespace: "{{ request.object.metadata.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+            annotations:
+              reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+              reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: istio-ingress
+              reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+          spec:
+            dnsNames:
+              - "{{ request.object.metadata.name }}.daddyshome.fr"
+            issuerRef:
+              kind: ClusterIssuer
+              name: letsencrypt-ovh-webhook
+            secretName: "{{ request.object.metadata.name }}-tls"
+
+    # Generate: Istio Gateway
+    - name: generate-gateway
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: networking.istio.io/v1beta1
+        kind: Gateway
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "{{ request.object.metadata.name }}-gateway"
+        synchronize: true
+        data:
+          apiVersion: networking.istio.io/v1beta1
+          kind: Gateway
+          metadata:
+            name: "{{ request.object.metadata.name }}-gateway"
+            namespace: "{{ request.object.metadata.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+          spec:
+            selector:
+              istio: ingress-istio-gateway
+            servers:
+            # HTTP redirect to HTTPS
+            - port:
+                number: 80
+                name: http
+                protocol: HTTP
+              hosts:
+              - "{{ request.object.metadata.name }}.daddyshome.fr"
+            # HTTPS with mTLS client certificate authentication
+            - port:
+                number: 443
+                name: https
+                protocol: HTTPS
+              tls:
+                mode: MUTUAL
+                credentialName: "{{ request.object.metadata.name }}-tls"
+              hosts:
+              - "{{ request.object.metadata.name }}.daddyshome.fr"
+
+    # Generate: VirtualService for HTTP redirect
+    - name: generate-virtualservice-redirect
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: networking.istio.io/v1beta1
+        kind: VirtualService
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "{{ request.object.metadata.name }}-redirect"
+        synchronize: true
+        data:
+          apiVersion: networking.istio.io/v1beta1
+          kind: VirtualService
+          metadata:
+            name: "{{ request.object.metadata.name }}-redirect"
+            namespace: "{{ request.object.metadata.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+          spec:
+            hosts:
+            - "{{ request.object.metadata.name }}.daddyshome.fr"
+            gateways:
+            - "{{ request.object.metadata.name }}-gateway"
+            http:
+            # HTTP to HTTPS redirect for port 80
+            - match:
+              - port: 80
+              redirect:
+                scheme: https
+                redirectCode: 301
+
+    # Generate: VirtualService for HTTPS traffic
+    - name: generate-virtualservice-https
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: networking.istio.io/v1beta1
+        kind: VirtualService
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "{{ request.object.metadata.name }}-https"
+        synchronize: true
+        data:
+          apiVersion: networking.istio.io/v1beta1
+          kind: VirtualService
+          metadata:
+            name: "{{ request.object.metadata.name }}-https"
+            namespace: "{{ request.object.metadata.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+          spec:
+            hosts:
+            - "{{ request.object.metadata.name }}.daddyshome.fr"
+            gateways:
+            - "{{ request.object.metadata.name }}-gateway"
+            http:
+            # HTTPS traffic to service (port 443)
+            - match:
+              - port: 443
+              route:
+              - destination:
+                  host: "{{ request.object.metadata.name }}.{{ request.object.metadata.namespace }}.svc.cluster.local"
+                  port:
+                    number: "{{ request.object.spec.ports[0].port }}"
+
+    # Generate: ExternalSecret for client CA certificate
+    - name: generate-client-ca-externalsecret
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: external-secrets.io/v1beta1
+        kind: ExternalSecret
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "client-ca-cert"
+        synchronize: true
+        data:
+          apiVersion: external-secrets.io/v1beta1
+          kind: ExternalSecret
+          metadata:
+            name: "client-ca-cert"
+            namespace: "{{ request.object.metadata.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+          spec:
+            refreshInterval: 24h
+            secretStoreRef:
+              kind: ClusterSecretStore
+              name: vault-backend
+            target:
+              name: client-ca-cert
+              creationPolicy: Owner
+              template:
+                type: Opaque
+                data:
+                  ca.crt: '{{ .ca | toString }}'
+            data:
+            - secretKey: ca
+              remoteRef:
+                key: secret/data/pki/ca
+                property: ca.crt
+
+    # Generate: RBAC Role for secret patching
+    - name: generate-rbac-role
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: Role
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "{{ request.object.metadata.name }}-patch-secrets"
+        synchronize: true
+        data:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: "{{ request.object.metadata.name }}-patch-secrets"
+            namespace: "{{ request.object.metadata.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+          rules:
+          - apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get", "list", "patch"]
+          - apiGroups: [""]
+            resources: ["namespaces"]
+            verbs: ["get"]
+
+    # Generate: RBAC RoleBinding
+    - name: generate-rbac-rolebinding
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "{{ request.object.metadata.name }}-patch-secrets"
+        synchronize: true
+        data:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: "{{ request.object.metadata.name }}-patch-secrets"
+            namespace: "{{ request.object.metadata.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: "{{ request.object.metadata.name }}-patch-secrets"
+          subjects:
+          - kind: ServiceAccount
+            name: "{{ request.object.metadata.name }}"
+            namespace: "{{ request.object.metadata.namespace }}"
+
+    # Generate: RBAC ClusterRole for istio-ingress secret patching
+    - name: generate-rbac-clusterrole
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        namespace: ""
+        name: "{{ request.object.metadata.name }}-{{ request.object.metadata.namespace }}-patch-istio-secrets"
+        synchronize: true
+        data:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: "{{ request.object.metadata.name }}-{{ request.object.metadata.namespace }}-patch-istio-secrets"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+              istio.io/source-namespace: "{{ request.object.metadata.namespace }}"
+          rules:
+          - apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get", "list", "patch"]
+            resourceNames: ["{{ request.object.metadata.name }}-tls"]
+
+    # Generate: RBAC ClusterRoleBinding for istio-ingress
+    - name: generate-rbac-clusterrolebinding
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        namespace: ""
+        name: "{{ request.object.metadata.name }}-{{ request.object.metadata.namespace }}-patch-istio-secrets"
+        synchronize: true
+        data:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: "{{ request.object.metadata.name }}-{{ request.object.metadata.namespace }}-patch-istio-secrets"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+              istio.io/source-namespace: "{{ request.object.metadata.namespace }}"
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: "{{ request.object.metadata.name }}-{{ request.object.metadata.namespace }}-patch-istio-secrets"
+          subjects:
+          - kind: ServiceAccount
+            name: "{{ request.object.metadata.name }}"
+            namespace: "{{ request.object.metadata.namespace }}"
+
+    # Generate: Job to patch TLS secrets with client CA certificate
+    - name: generate-mtls-patch-job
+      match: 
+        any: 
+        - resources: 
+            kinds: ["Service"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"istio.io/ingress-mtls\" || '' }}"
+            operator: Equals
+            value: "true"
+      generate:
+        apiVersion: batch/v1
+        kind: Job
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "patch-{{ request.object.metadata.name }}-tls-cacert"
+        synchronize: true
+        data:
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: "patch-{{ request.object.metadata.name }}-tls-cacert"
+            namespace: "{{ request.object.metadata.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
+              istio.io/source-service: "{{ request.object.metadata.name }}"
+            annotations:
+              argocd.argoproj.io/hook: PostSync
+              argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+          spec:
+            template:
+              spec:
+                serviceAccountName: "{{ request.object.metadata.name }}"
+                restartPolicy: Never
+                containers:
+                - name: patcher
+                  image: alpine/kubectl:1.34.1
+                  command: ["/bin/sh", "-c"]
+                  env:
+                  - name: NAMESPACE
+                    value: "{{ request.object.metadata.namespace }}"
+                  - name: TLS_SECRET_NAME
+                    value: "{{ request.object.metadata.name }}-tls"
+                  args:
+                  - |
+                    echo "Configuration:"
+                    echo "  Namespace: $NAMESPACE"
+                    echo "  TLS Secret: $TLS_SECRET_NAME"
+                    
+                    # Wait for the TLS secret to exist (created by cert-manager)
+                    echo "Waiting for TLS secret..."
+                    while ! kubectl get secret "$TLS_SECRET_NAME" -n "$NAMESPACE" 2>/dev/null; do
+                      echo "Waiting for $TLS_SECRET_NAME to be created by cert-manager..."
+                      sleep 5
+                    done
+                    
+                    echo "Getting client CA certificate..."
+                    CA_CERT=$(kubectl get secret client-ca-cert -n "$NAMESPACE" -o jsonpath='{.data.ca\.crt}')
+                    
+                    if [ -z "$CA_CERT" ]; then
+                      echo "ERROR: Could not find CA certificate at client-ca-cert/ca.crt in namespace $NAMESPACE"
+                      exit 1
+                    fi
+                    
+                    echo "Checking if cacert already exists in source secret..."
+                    if kubectl get secret "$TLS_SECRET_NAME" -n "$NAMESPACE" -o jsonpath='{.data.cacert}' 2>/dev/null | grep -q .; then
+                      echo "cacert key already exists in TLS secret"
+                      exit 0
+                    fi
+                    
+                    echo "Adding cacert key to TLS secret in source namespace..."
+                    kubectl patch secret "$TLS_SECRET_NAME" -n "$NAMESPACE" --type='json' \
+                      -p="[{\"op\": \"add\", \"path\": \"/data/cacert\", \"value\": \"$CA_CERT\"}]"
+                    
+                    echo "TLS secret patched successfully. Reflector will propagate it to istio-ingress."
+            backoffLimit: 3

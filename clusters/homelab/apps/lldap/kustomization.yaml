@@ -20,7 +20,7 @@ resources:
   # - ingress.yaml  # Replaced with Istio Gateway
   - certificates.yaml
   - client-ca-reflector.yaml # Override mtls-certificates ExternalSecret with reflector
-  - istio/gateway.yaml
+  - gateway.yaml
   # - istio/ca-secret.yaml  # Not needed - mtls-certificates component handles CA
 
 # Configuration for mTLS component
