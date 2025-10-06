@@ -25,7 +25,7 @@ rules:
 
 # Additional RBAC permissions
 - apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["clusterroles", "clusterrolebindings"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
   verbs: ["create", "update", "patch", "delete", "get", "list", "watch"]
 
 # Job permissions

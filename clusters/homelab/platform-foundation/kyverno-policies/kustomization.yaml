@@ -6,3 +6,4 @@ resources:
   - cluster-vars-auto-sync.yaml
   - ingress-mtls-automation.yaml
   - ingress-mtls-rbac.yaml
+  - admission-controller-rbac.yaml
