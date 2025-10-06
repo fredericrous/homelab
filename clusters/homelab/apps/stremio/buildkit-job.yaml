@@ -22,18 +22,18 @@ spec:
           # Install git and other dependencies
           apk add --no-cache git
           
-          # Clone Stremio Web repository
-          git clone https://github.com/Stremio/stremio-web.git /workspace
-          cd /workspace
+          # Connect to cluster-wide BuildKit daemon
+          export BUILDKIT_HOST=tcp://buildkitd.buildkit.svc.cluster.local:1234
           
-          # Connect to BuildKit daemon and build
-          export BUILDKIT_HOST=tcp://buildkitd.stremio.svc.cluster.local:1234
-          
-          # Wait for BuildKit daemon to be available
+          # Wait for BuildKit daemon to be ready
           while ! buildctl debug workers; do
             echo "Waiting for BuildKit daemon..."
             sleep 5
           done
+          
+          # Clone Stremio Web repository
+          git clone https://github.com/Stremio/stremio-web.git /workspace
+          cd /workspace
           
           # Build and push the image
           buildctl build \
