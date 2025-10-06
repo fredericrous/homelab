@@ -32,7 +32,7 @@ rules:
   resources: ["certificates"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 - apiGroups: ["networking.istio.io"]
-  resources: ["gateways"]
+  resources: ["gateways", "virtualservices"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 ---
 # Additional ClusterRole to allow Kyverno admission controller to read Istio Gateways
