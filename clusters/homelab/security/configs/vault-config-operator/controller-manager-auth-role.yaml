@@ -6,12 +6,12 @@ metadata:
   name: controller-manager
   namespace: vault-config-operator
 spec:
-  # Use token auth with vault-admin-token secret
+  # Use kubernetes auth with existing controller-manager role
   authentication:
-    path: token
-    role: ""
+    path: kubernetes
+    role: controller-manager
     serviceAccount:
-      name: vault-config-operator
+      name: controller-manager
   path: kubernetes
   policies:
     - vault-admin
