@@ -74,6 +74,11 @@ spec:
               kind: ClusterIssuer
               name: letsencrypt-ovh-webhook
             secretName: "{{ request.object.metadata.name }}-tls"
+            secretTemplate:
+              annotations:
+                reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+                reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: istio-ingress
+                reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
 
     # Generate: Istio Gateway
     - name: generate-gateway
@@ -201,7 +206,7 @@ spec:
               - destination:
                   host: "{{ request.object.metadata.name }}.{{ request.object.metadata.namespace }}.svc.cluster.local"
                   port:
-                    number: "{{ request.object.spec.ports[0].port }}"
+                    number: "{{ request.object.spec.ports[-1].port }}"
 
     # Generate: ExternalSecret for client CA certificate
     - name: generate-client-ca-externalsecret
