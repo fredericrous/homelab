@@ -215,13 +215,13 @@ spec:
             operator: Equals
             value: "true"
       generate:
-        apiVersion: external-secrets.io/v1beta1
+        apiVersion: external-secrets.io/v1
         kind: ExternalSecret
         namespace: "{{ request.object.metadata.namespace }}"
         name: "client-ca-cert"
         synchronize: true
         data:
-          apiVersion: external-secrets.io/v1beta1
+          apiVersion: external-secrets.io/v1
           kind: ExternalSecret
           metadata:
             name: "client-ca-cert"
