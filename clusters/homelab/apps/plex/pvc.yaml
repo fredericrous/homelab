@@ -20,13 +20,13 @@ metadata:
   name: plex-media-pv-v2
 spec:
   capacity:
-    storage: 10Ti
+    storage: 1000Gi
   accessModes:
-    - ReadWriteMany
+    - ReadOnlyMany
   persistentVolumeReclaimPolicy: Retain
   nfs:
     server: 192.168.1.42
-    path: /share/CACHEDEV1_DATA/Multimedia
+    path: /Media
   mountOptions:
     - vers=3
     - nolock
