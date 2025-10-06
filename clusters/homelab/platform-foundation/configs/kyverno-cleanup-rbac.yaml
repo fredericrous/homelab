@@ -47,3 +47,6 @@ rules:
 - apiGroups: ["networking.istio.io"]
   resources: ["gateways", "virtualservices"]
   verbs: ["get", "list"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles"]
+  verbs: ["get", "list"]
