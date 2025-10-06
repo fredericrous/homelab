@@ -3,16 +3,20 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: stremio-web-build
-  namespace: stremio
+  namespace: buildkit
 spec:
   ttlSecondsAfterFinished: 86400  # Keep job for 24 hours
   template:
     spec:
-      serviceAccountName: stremio
+      serviceAccountName: buildkit
       restartPolicy: Never
       containers:
       - name: build-stremio
         image: moby/buildkit:latest
+        volumeMounts:
+        - name: harbor-credentials
+          mountPath: /var/secrets/harbor
+          readOnly: true
         command:
         - sh
         - -c
@@ -35,13 +39,23 @@ spec:
           git clone https://github.com/Stremio/stremio-web.git /workspace
           cd /workspace
           
-          # Build and push the image
+          # Get Harbor credentials
+          HARBOR_USERNAME=$(cat /var/secrets/harbor/username)
+          HARBOR_PASSWORD=$(cat /var/secrets/harbor/password)
+          
+          # Create Docker config for BuildKit authentication
+          mkdir -p ~/.docker
+          echo "{\"auths\":{\"harbor-registry.harbor.svc.cluster.local:5000\":{\"auth\":\"$(echo -n $HARBOR_USERNAME:$HARBOR_PASSWORD | base64)\"}}}" > ~/.docker/config.json
+          
+          # Build and push the image with authentication
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=. \
             --local dockerfile=. \
-            --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest,push=true,registry.insecure=true \
-            --export-cache type=inline \
-            --import-cache type=registry,ref=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:cache,registry.insecure=true || true
+            --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest,push=true,registry.insecure=true,ocistore=false
           
           echo "✅ Stremio web image built and pushed successfully!"
+      volumes:
+      - name: harbor-credentials
+        secret:
+          secretName: harbor-registry-user

@@ -165,6 +165,19 @@ tasks:
         kubectl get endpoints -n kube-system kube-dns
         echo ""
 
+        # Wait for DNS endpoints to be ready
+        echo "⏳ Waiting for DNS endpoints to be ready..."
+        for i in {1..30}; do
+          dns_endpoints=$(kubectl get endpoints -n kube-system kube-dns -o jsonpath='{.subsets[0].addresses[*].ip}' 2>/dev/null | wc -w)
+          if [ "$dns_endpoints" -gt 0 ]; then
+            echo "✅ DNS endpoints are ready ($dns_endpoints endpoints)"
+            break
+          fi
+          echo "  Waiting for DNS endpoints... ($i/30)"
+          sleep 2
+        done
+        echo ""
+
         # Count ready nodes
         total_nodes=$(kubectl get nodes --no-headers | wc -l | tr -d ' \n\r\t')
         ready_nodes=$(kubectl get nodes --no-headers | grep -w Ready | wc -l | tr -d ' \n\r\t')
