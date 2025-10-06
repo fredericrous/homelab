@@ -1,0 +1,76 @@
+---
+# Role to manage secrets for pre-install hook
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: plex-manage-secrets
+  namespace: plex
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "create", "update", "patch"]
+---
+# RoleBinding to allow plex service account to manage secrets
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: plex-manage-secrets
+  namespace: plex
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: plex-manage-secrets
+subjects:
+- kind: ServiceAccount
+  name: plex
+  namespace: plex
+---
+# Role to manage secrets for mTLS configuration
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: plex-patch-secrets
+  namespace: plex
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "patch"]
+---
+# ClusterRole to read namespace annotations for mTLS configuration
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: plex-read-namespace
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get"]
+---
+# RoleBinding to allow plex service account to patch secrets for mTLS
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: plex-patch-secrets
+  namespace: plex
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: plex-patch-secrets
+subjects:
+- kind: ServiceAccount
+  name: plex
+  namespace: plex
+---
+# ClusterRoleBinding to allow plex service account to read namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: plex-read-namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: plex-read-namespace
+subjects:
+- kind: ServiceAccount
+  name: plex
+  namespace: plex

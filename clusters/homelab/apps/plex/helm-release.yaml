@@ -1,0 +1,119 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: plex-media-server
+  namespace: plex
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: plex-media-server
+      version: "1.1.2"
+      sourceRef:
+        kind: HelmRepository
+        name: plex-media-server
+        namespace: plex
+      interval: 12h
+  
+  # Wait for dependencies
+  dependsOn:
+    - name: plex-fetch-claim
+      namespace: plex
+  
+  values:
+    # Image configuration
+    image:
+      repository: plexinc/pms-docker
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    
+    # Service Account
+    serviceAccount:
+      create: false
+      name: plex
+    
+    # Environment variables
+    env:
+      TZ:
+        valueFrom:
+          secretKeyRef:
+            name: plex-config
+            key: timezone
+      PLEX_CLAIM:
+        valueFrom:
+          secretKeyRef:
+            name: plex-claim
+            key: PLEX_CLAIM
+      ADVERTISE_IP: "https://plex.daddyshome.fr/"
+      # GPU support
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
+    
+    # Security context for GPU access
+    securityContext:
+      privileged: true
+    
+    # Resource limits with GPU
+    resources:
+      limits:
+        memory: 4Gi
+        nvidia.com/gpu: 1
+      requests:
+        memory: 2Gi
+        cpu: 1000m
+    
+    # Storage configuration
+    persistence:
+      config:
+        enabled: true
+        existingClaim: plex-config
+        mountPath: /config
+      media:
+        enabled: true
+        existingClaim: plex-media
+        mountPath: /media
+      # Transcode on tmpfs for better performance
+      transcode:
+        enabled: true
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 4Gi
+        mountPath: /transcode
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 32400
+    
+    # Node selector and tolerations for GPU node
+    nodeSelector: {}
+    # Uncomment when GPU node is ready:
+    # nodeSelector:
+    #   nvidia.com/gpu.present: "true"
+    
+    # Runtime class for GPU support
+    runtimeClassName: nvidia
+    
+    # Probes
+    livenessProbe:
+      httpGet:
+        path: /identity
+        port: 32400
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 10
+      failureThreshold: 3
+    
+    readinessProbe:
+      httpGet:
+        path: /identity
+        port: 32400
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    
+    # Additional annotations for backup
+    podAnnotations:
+      backup.velero.io/backup-volumes: config

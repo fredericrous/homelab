@@ -1,0 +1,55 @@
+---
+# Job to fetch fresh claim token from Plex.tv using X_PLEX_TOKEN
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: plex-fetch-claim
+  namespace: plex
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: plex
+      restartPolicy: Never
+      containers:
+      - name: fetch
+        image: curlimages/curl:8.10.1
+        env:
+        - name: X_PLEX_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: plex-account
+              key: X_PLEX_TOKEN
+        command: ["/bin/sh","-c"]
+        args:
+          - |
+            set -euo pipefail
+            echo "Fetching fresh claim token from Plex.tv..."
+            CLAIM_JSON="$(curl -fsSL "https://plex.tv/api/claim/token?X-Plex-Token=${X_PLEX_TOKEN}")"
+            # Works for both XML and JSON responses; grab the token value
+            CLAIM="$(printf "%s" "$CLAIM_JSON" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+            if [ -z "$CLAIM" ]; then
+              # try XML fallback
+              CLAIM="$(printf "%s" "$CLAIM_JSON" | sed -n 's/.*token="\([^"]*\)".*/\1/p')"
+            fi
+            [ -n "$CLAIM" ] || { echo "Could not parse claim token"; exit 1; }
+            
+            echo "Successfully obtained claim token: ${CLAIM:0:10}..."
+
+            # Create/replace a Secret 'plex-claim' with the fresh token
+            cat <<EOF | kubectl apply -f -
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: plex-claim
+              namespace: plex
+            type: Opaque
+            stringData:
+              PLEX_CLAIM: "$CLAIM"
+            EOF
+            
+            echo "✅ Claim token secret created successfully"

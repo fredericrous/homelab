@@ -1,0 +1,71 @@
+---
+# Event-driven "force-sync" on Secret change
+# This policy updates the PushSecret whenever the cluster-vars Secret changes
+# to trigger immediate synchronization to Vault
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: pushsecret-on-secret-change
+spec:
+  generateExisting: true
+  rules:
+    - name: force-sync-pushsecret-when-cluster-vars-changes
+      match:
+        any:
+          - resources:
+              kinds: ["Secret"]
+              namespaces: ["flux-system"]
+              names: ["cluster-vars"]
+      generate:
+        synchronize: false   # we are only "touching" metadata, not owning the resource
+        apiVersion: external-secrets.io/v1alpha1
+        kind: PushSecret
+        name: cluster-vars-to-vault
+        namespace: flux-system
+        data:
+          metadata:
+            annotations:
+              # record both a timestamp and the source Secret's resourceVersion
+              external-secrets.io/force-sync: "{{ request.time | to_string(@) }}"
+              homelab.fredericrous.io/source-rv: "{{ request.object.metadata.resourceVersion }}"
+---
+# Safe cleanup once synced
+# This policy deletes the source Secret only after confirming the PushSecret 
+# has successfully synced to Vault and a grace period has elapsed
+apiVersion: kyverno.io/v2
+kind: CleanupPolicy
+metadata:
+  name: delete-cluster-vars-after-push
+  namespace: flux-system
+spec:
+  match:
+    any:
+      - resources:
+          kinds: ["Secret"]
+          names: ["cluster-vars"]
+  schedule: "*/1 * * * *"      # every minute
+  context:
+    - name: psReady
+      apiCall:
+        urlPath: "/apis/external-secrets.io/v1alpha1/namespaces/flux-system/pushsecrets/cluster-vars-to-vault"
+        jmesPath: "status.conditions[?type=='Ready']|[0].status"
+        default: "False"
+    - name: psSourceRV
+      apiCall:
+        urlPath: "/apis/external-secrets.io/v1alpha1/namespaces/flux-system/pushsecrets/cluster-vars-to-vault"
+        jmesPath: "metadata.annotations.\"homelab.fredericrous.io/source-rv\""
+        default: ""
+  conditions:
+    all:
+      # ESO controller says the PushSecret is Ready
+      - key: "{{ psReady }}"
+        operator: Equals
+        value: "True"
+      # The PushSecret was "forced" for THIS Secret version
+      - key: "{{ request.object.metadata.resourceVersion }}"
+        operator: Equals
+        value: "{{ psSourceRV }}"
+      # Optional: only delete if Secret is at least 2 minutes old (grace period)
+      - key: "{{ (time_since(request.object.metadata.creationTimestamp)) }}"
+        operator: GreaterThanOrEquals
+        value: "2m"

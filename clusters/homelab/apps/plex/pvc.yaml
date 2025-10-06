@@ -1,0 +1,52 @@
+---
+# PVC for Plex configuration
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-config
+  namespace: plex
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: ceph-block
+---
+# PV for media stored on NFS
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: plex-media-pv-v2
+spec:
+  capacity:
+    storage: 10Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    server: 192.168.1.42
+    path: /share/CACHEDEV1_DATA/Multimedia
+  mountOptions:
+    - vers=3
+    - nolock
+    - proto=tcp
+    - rsize=1048576
+    - wsize=1048576
+    - hard
+    - intr
+    - timeo=600
+---
+# PVC for media
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-media
+  namespace: plex
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Ti
+  volumeName: plex-media-pv-v2
