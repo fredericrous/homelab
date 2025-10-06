@@ -3,5 +3,6 @@ kind: Kustomization
 resources:
   - istio-cni-rbac-fix.yaml
   - kyverno/
+  - kyverno-cleanup-rbac.yaml
   - cert-manager-setup.yaml
   - cert-manager/
