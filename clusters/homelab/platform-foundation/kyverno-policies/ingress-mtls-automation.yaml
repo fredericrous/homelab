@@ -237,12 +237,8 @@ spec:
             target:
               name: client-ca-cert
               creationPolicy: Owner
-              template:
-                type: Opaque
-                data:
-                  ca.crt: '{{ .ca }}'
             data:
-            - secretKey: ca
+            - secretKey: ca.crt
               remoteRef:
                 key: secret/data/pki/ca
                 property: ca.crt
