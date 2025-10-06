@@ -5,6 +5,7 @@ metadata:
   name: kyverno-ingress-mtls-access
   labels:
     rbac.kyverno.io/aggregate-to-background-controller: "true"
+    rbac.kyverno.io/aggregate-to-admission-controller: "true"
     app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
 rules:
 # cert-manager permissions
