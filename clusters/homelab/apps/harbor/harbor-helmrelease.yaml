@@ -18,6 +18,9 @@ spec:
       type: clusterIP
       tls:
         enabled: false
+      clusterIP:
+        annotations:
+          istio.io/ingress-mtls: "true"
       ingress:
         hosts:
           core: harbor.daddyshome.fr

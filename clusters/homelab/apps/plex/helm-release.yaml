@@ -85,6 +85,8 @@ spec:
     service:
       type: ClusterIP
       port: 32400
+      annotations:
+        istio.io/ingress-mtls: "true"
     
     # Node selector and tolerations for GPU node
     nodeSelector: {}
