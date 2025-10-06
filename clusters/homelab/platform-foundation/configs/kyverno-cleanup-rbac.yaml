@@ -51,5 +51,5 @@ rules:
   resources: ["gateways", "virtualservices"]
   verbs: ["get", "list"]
 - apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["roles", "rolebindings", "clusterroles"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
   verbs: ["get", "list"]
