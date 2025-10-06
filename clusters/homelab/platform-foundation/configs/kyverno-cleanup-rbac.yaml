@@ -35,7 +35,7 @@ rules:
   resources: ["gateways", "virtualservices"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 - apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["roles", "rolebindings"]
+  resources: ["roles", "rolebindings", "clusterroles"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 ---
 # Additional ClusterRole to allow Kyverno admission controller to read Istio Gateways
