@@ -10,8 +10,8 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
-  storageClassName: ceph-block
+      storage: 10Gi
+  storageClassName: rook-ceph-block
 ---
 # PV for media stored on NFS
 apiVersion: v1
@@ -45,8 +45,9 @@ metadata:
   namespace: plex
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadOnlyMany
   resources:
     requests:
-      storage: 10Ti
+      storage: 1000Gi
+  storageClassName: nfs
   volumeName: plex-media-pv-v2
