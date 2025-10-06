@@ -1,0 +1,78 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: setup-pki-intermediate-ca
+  namespace: vault-config-operator
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      serviceAccountName: vault-config-operator
+      restartPolicy: Never
+      containers:
+      - name: setup-pki
+        image: hashicorp/vault:1.17.2
+        command: ["/bin/sh", "-c"]
+        env:
+        - name: VAULT_ADDR
+          value: "https://vault.daddyshome.fr"
+        - name: NAS_VAULT_ADDR
+          value: "http://192.168.1.42:61200"
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-admin-token
+              key: token
+        - name: NAS_VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: nas-vault-root-token
+              key: token
+        args:
+        - |
+          # Wait for PKI mount to be available
+          echo "Waiting for PKI mount..."
+          while ! vault secrets list | grep -q "^pki/"; do
+            echo "PKI mount not ready, waiting..."
+            sleep 5
+          done
+          
+          # Check if intermediate CA already exists
+          if vault read pki/cert/ca >/dev/null 2>&1; then
+            echo "✅ Intermediate CA already exists"
+            exit 0
+          fi
+          
+          echo "🔗 Setting up intermediate CA..."
+          
+          # Generate intermediate CSR
+          CSR_RESPONSE=$(vault write -format=json pki/intermediate/generate/internal \
+            common_name="DaddysHome Intermediate CA" \
+            ttl=8760h)
+          
+          CSR=$(echo "$CSR_RESPONSE" | jq -r '.data.csr')
+          
+          # Sign CSR with NAS Vault root CA
+          export VAULT_ADDR="$NAS_VAULT_ADDR"
+          export VAULT_TOKEN="$NAS_VAULT_TOKEN"
+          
+          SIGNED_CERT=$(vault write -format=json pki/root/sign-intermediate \
+            csr="$CSR" \
+            ttl=8760h | jq -r '.data.certificate')
+          
+          # Set intermediate certificate in cluster vault
+          export VAULT_ADDR="https://vault.daddyshome.fr"
+          export VAULT_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token | vault write -field=token auth/kubernetes/login role=vault-config-operator jwt=-)"
+          
+          vault write pki/intermediate/set-signed certificate="$SIGNED_CERT"
+          
+          # Configure URLs
+          vault write pki/config/urls \
+            issuing_certificates="https://vault.daddyshome.fr/v1/pki/ca" \
+            crl_distribution_points="https://vault.daddyshome.fr/v1/pki/crl"
+          
+          echo "✅ Intermediate CA configured successfully"
+  backoffLimit: 3

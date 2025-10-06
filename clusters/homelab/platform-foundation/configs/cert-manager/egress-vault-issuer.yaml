@@ -4,7 +4,7 @@ kind: ClusterIssuer
 metadata:
   name: egress-vault-issuer
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "2"  # After vault-config-operator
 spec:
   vault:
     server: https://vault.daddyshome.fr
@@ -13,6 +13,3 @@ spec:
       kubernetes:
         mountPath: kubernetes
         role: cert-manager
-        secretRef:
-          name: cert-manager-vault-token
-          key: token

@@ -1,13 +1,13 @@
 #!/bin/bash
 # PKI generation script for NAS cluster
-# Generates CA and client certificates, stores in Vault
+# Sets up proper PKI engine with root CA and client certificate issuing
 
 set -e
 
 # Configuration
 VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"
-CA_VALIDITY_DAYS=3650  # 10 years
-CLIENT_VALIDITY_DAYS=365  # 1 year
+CA_VALIDITY_HOURS=87600  # 10 years
+CLIENT_VALIDITY_HOURS=8760  # 1 year
 
 echo "🔐 Initializing PKI in NAS Vault..."
 
@@ -18,47 +18,63 @@ if ! vault token lookup &>/dev/null 2>&1; then
     exit 1
 fi
 
-# Function to check if secret exists
-secret_exists() {
-    vault kv get "$1" >/dev/null 2>&1
-}
-
 # Ensure KV v2 is enabled at secret/
 if ! vault secrets list | grep -q "^secret/"; then
     echo "📦 Enabling KV v2 secrets engine..."
     vault secrets enable -path=secret kv-v2
 fi
 
-# Check if CA already exists
-if secret_exists "secret/pki/ca"; then
-    echo "✅ CA already exists in Vault"
+# Enable PKI engine for proper certificate issuing
+if ! vault secrets list | grep -q "^pki/"; then
+    echo "🔐 Enabling PKI secrets engine..."
+    vault secrets enable -path=pki pki
+    vault secrets tune -max-lease-ttl=${CA_VALIDITY_HOURS}h pki
+fi
+
+# Check if root CA already exists in PKI
+if vault read pki/cert/ca >/dev/null 2>&1; then
+    echo "✅ Root CA already exists in PKI engine"
     CA_EXISTS=true
 else
-    echo "🆕 Generating new CA..."
+    echo "🆕 Generating root CA in PKI engine..."
     
-    # Generate CA key
-    CA_KEY_FILE=$(mktemp)
-    openssl genrsa -out "$CA_KEY_FILE" 4096 2>/dev/null
+    # Generate root CA
+    vault write pki/root/generate/internal \
+        common_name="DaddysHome Root CA" \
+        country="FR" \
+        locality="Home" \
+        organization="DaddysHome" \
+        ou="IT" \
+        ttl=${CA_VALIDITY_HOURS}h
     
-    # Generate CA certificate
-    CA_CERT_FILE=$(mktemp)
-    openssl req -new -x509 -days $CA_VALIDITY_DAYS -key "$CA_KEY_FILE" -out "$CA_CERT_FILE" \
-        -subj "/C=FR/ST=France/L=Home/O=DaddysHome/OU=IT/CN=DaddysHome CA" 2>/dev/null
-    
-    # Read files
-    CA_KEY=$(cat "$CA_KEY_FILE")
-    CA_CERT=$(cat "$CA_CERT_FILE")
-    
-    # Store in Vault
-    vault kv put secret/pki/ca \
-        "ca.key=$CA_KEY" \
-        "ca.crt=$CA_CERT"
-    
-    # Cleanup temp files
-    rm -f "$CA_KEY_FILE" "$CA_CERT_FILE"
-    
-    echo "✅ CA generated and stored in Vault"
+    echo "✅ Root CA generated in PKI engine"
+    CA_EXISTS=false
 fi
+
+# Configure PKI URLs
+vault write pki/config/urls \
+    issuing_certificates="$VAULT_ADDR/v1/pki/ca" \
+    crl_distribution_points="$VAULT_ADDR/v1/pki/crl"
+
+# Sync CA certificate to secret/ for ESO compatibility
+echo "📋 Syncing CA certificate to secret/pki/ca for ESO..."
+CA_CERT=$(vault read -field=certificate pki/cert/ca)
+vault kv put secret/pki/ca "ca.crt=$CA_CERT"
+
+# Create PKI role for client certificates
+echo "🎭 Creating PKI role for client certificates..."
+vault write pki/roles/client-cert \
+    allowed_domains="daddyshome.fr" \
+    allow_subdomains=true \
+    allow_bare_domains=false \
+    allow_localhost=false \
+    allow_ip_sans=false \
+    key_type=rsa \
+    key_bits=2048 \
+    key_usage="digital_signature,key_encipherment" \
+    ext_key_usage="client_auth" \
+    ttl=${CLIENT_VALIDITY_HOURS}h \
+    max_ttl=${CLIENT_VALIDITY_HOURS}h
 
 # Create policy for External Secrets Operator
 echo "📝 Creating policy for ESO access..."
@@ -93,69 +109,61 @@ vault kv put secret/tokens/eso-pki token="$ESO_TOKEN"
 
 echo "✅ ESO token created and stored at secret/tokens/eso-pki"
 
-# Function to generate client certificate
+# Function to generate client certificate using PKI engine
 generate_client_cert() {
     local username=$1
     local email=$2
     
-    if secret_exists "secret/pki/clients/$username"; then
+    if vault kv get secret/pki/clients/$username >/dev/null 2>&1; then
         echo "⚠️  Certificate for $username already exists"
         return 0
     fi
     
     echo "🔑 Generating certificate for $username ($email)..."
     
-    # Get CA from Vault
-    CA_KEY=$(vault kv get -field=ca.key secret/pki/ca)
-    CA_CERT=$(vault kv get -field=ca.crt secret/pki/ca)
+    # Issue certificate from PKI engine
+    CERT_RESPONSE=$(vault write -format=json pki/issue/client-cert \
+        common_name="$email" \
+        ttl=${CLIENT_VALIDITY_HOURS}h)
     
-    # Create temp files
-    CA_KEY_FILE=$(mktemp)
-    CA_CERT_FILE=$(mktemp)
-    echo "$CA_KEY" > "$CA_KEY_FILE"
-    echo "$CA_CERT" > "$CA_CERT_FILE"
+    # Extract certificate data
+    CLIENT_CERT=$(echo "$CERT_RESPONSE" | jq -r '.data.certificate')
+    CLIENT_KEY=$(echo "$CERT_RESPONSE" | jq -r '.data.private_key')
+    ISSUING_CA=$(echo "$CERT_RESPONSE" | jq -r '.data.issuing_ca')
+    SERIAL_NUMBER=$(echo "$CERT_RESPONSE" | jq -r '.data.serial_number')
     
-    # Generate client key
-    CLIENT_KEY_FILE=$(mktemp)
-    openssl genrsa -out "$CLIENT_KEY_FILE" 2048 2>/dev/null
-    
-    # Generate CSR
-    CLIENT_CSR_FILE=$(mktemp)
-    openssl req -new -key "$CLIENT_KEY_FILE" -out "$CLIENT_CSR_FILE" \
-        -subj "/C=FR/ST=France/L=Home/O=DaddysHome/OU=Users/CN=$email" 2>/dev/null
-    
-    # Sign certificate
+    # Create PKCS12 file
     CLIENT_CERT_FILE=$(mktemp)
-    openssl x509 -req -days $CLIENT_VALIDITY_DAYS \
-        -in "$CLIENT_CSR_FILE" \
-        -CA "$CA_CERT_FILE" -CAkey "$CA_KEY_FILE" \
-        -CAcreateserial -out "$CLIENT_CERT_FILE" 2>/dev/null
+    CLIENT_KEY_FILE=$(mktemp)
+    CA_CERT_FILE=$(mktemp)
+    CLIENT_P12_FILE=$(mktemp)
+    
+    echo "$CLIENT_CERT" > "$CLIENT_CERT_FILE"
+    echo "$CLIENT_KEY" > "$CLIENT_KEY_FILE"
+    echo "$ISSUING_CA" > "$CA_CERT_FILE"
     
     # Create PKCS12
-    CLIENT_P12_FILE=$(mktemp)
     openssl pkcs12 -export -password pass: \
         -in "$CLIENT_CERT_FILE" \
         -inkey "$CLIENT_KEY_FILE" \
         -certfile "$CA_CERT_FILE" \
         -out "$CLIENT_P12_FILE" 2>/dev/null
     
-    # Read files and encode
-    CLIENT_KEY=$(cat "$CLIENT_KEY_FILE")
-    CLIENT_CERT=$(cat "$CLIENT_CERT_FILE")
     CLIENT_P12=$(base64 < "$CLIENT_P12_FILE")
     
-    # Store in Vault
+    # Store in Vault for backward compatibility with existing sync
     vault kv put secret/pki/clients/$username \
         cert="$CLIENT_CERT" \
         key="$CLIENT_KEY" \
         p12="$CLIENT_P12" \
         email="$email" \
+        serial="$SERIAL_NUMBER" \
         created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     
     # Cleanup
-    rm -f "$CA_KEY_FILE" "$CA_CERT_FILE" "$CLIENT_KEY_FILE" "$CLIENT_CSR_FILE" "$CLIENT_CERT_FILE" "$CLIENT_P12_FILE"
+    rm -f "$CLIENT_CERT_FILE" "$CLIENT_KEY_FILE" "$CA_CERT_FILE" "$CLIENT_P12_FILE"
     
-    echo "✅ Certificate for $username stored in Vault"
+    echo "✅ Certificate for $username issued via PKI and stored in Vault"
 }
 
 # Functions are defined above and will be available when this script is sourced
