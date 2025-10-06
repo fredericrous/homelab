@@ -240,7 +240,7 @@ spec:
               template:
                 type: Opaque
                 data:
-                  ca.crt: '{{ .ca | toString }}'
+                  ca.crt: '{{ .ca }}'
             data:
             - secretKey: ca
               remoteRef:
