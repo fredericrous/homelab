@@ -17,7 +17,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: fetch
-        image: curlimages/curl:8.10.1
+        image: alpine/kubectl:latest
         env:
         - name: X_PLEX_TOKEN
           valueFrom:
@@ -28,6 +28,7 @@ spec:
         args:
           - |
             set -euo pipefail
+            apk add --no-cache curl
             echo "Fetching fresh claim token from Plex.tv..."
             CLAIM_JSON="$(curl -fsSL "https://plex.tv/api/claim/token?X-Plex-Token=${X_PLEX_TOKEN}")"
             # Works for both XML and JSON responses; grab the token value
