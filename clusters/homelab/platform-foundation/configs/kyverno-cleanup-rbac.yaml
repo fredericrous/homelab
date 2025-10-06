@@ -31,3 +31,16 @@ rules:
 - apiGroups: ["cert-manager.io"]
   resources: ["certificates"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+# Additional ClusterRole to allow Kyverno admission controller to read Istio Gateways
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno-gateway-access
+  labels:
+    # This label makes it aggregate into the main admission controller role
+    rbac.kyverno.io/aggregate-to-admission-controller: "true"
+rules:
+- apiGroups: ["networking.istio.io"]
+  resources: ["gateways"]
+  verbs: ["get", "list"]
