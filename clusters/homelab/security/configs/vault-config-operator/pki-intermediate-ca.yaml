@@ -65,7 +65,7 @@ spec:
           
           # Set intermediate certificate in cluster vault
           export VAULT_ADDR="http://vault-vault.vault.svc.cluster.local:8200"
-          export VAULT_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token | vault write -field=token auth/kubernetes/login role=vault-config-operator jwt=-)"
+          export VAULT_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token | vault write -field=token auth/kubernetes/login role=controller-manager jwt=-)"
           
           vault write pki/intermediate/set-signed certificate="$SIGNED_CERT"
           
