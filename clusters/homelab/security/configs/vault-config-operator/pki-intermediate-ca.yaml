@@ -33,6 +33,9 @@ spec:
               key: token
         args:
         - |
+          # Install jq for JSON parsing
+          apk add --no-cache jq
+          
           # Wait for PKI mount to be available
           echo "Waiting for PKI mount..."
           while ! vault secrets list | grep -q "^pki/"; do
