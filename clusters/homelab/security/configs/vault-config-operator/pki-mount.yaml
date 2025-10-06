@@ -13,5 +13,5 @@ spec:
   path: pki
   type: pki
   config:
-    default_lease_ttl: 24h
-    max_lease_ttl: 8760h # 1 year
+    defaultLeaseTTL: 24h
+    maxLeaseTTL: 8760h # 1 year
