@@ -28,3 +28,6 @@ rules:
 - apiGroups: ["external-secrets.io"]
   resources: ["pushsecrets"]
   verbs: ["get", "list", "create", "update", "patch"]
+- apiGroups: ["cert-manager.io"]
+  resources: ["certificates"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
