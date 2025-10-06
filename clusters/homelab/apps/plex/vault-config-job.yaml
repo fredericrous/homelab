@@ -1,7 +1,8 @@
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: plex-vault-config
+  name: plex-vault-setup
   namespace: plex
 spec:
   ttlSecondsAfterFinished: 300
@@ -19,11 +20,11 @@ spec:
         env:
         - name: VAULT_ADDR
           value: "http://vault-vault.vault.svc.cluster.local:8200"
-        - name: PLEX_CLAIM
+        - name: X_PLEX_TOKEN
           valueFrom:
             secretKeyRef:
               name: cluster-vars
-              key: PLEX_CLAIM_TOKEN
+              key: X_PLEX_TOKEN
         volumeMounts:
         - name: vault-admin-token
           mountPath: /vault/token
@@ -33,15 +34,12 @@ spec:
         - |
           export VAULT_TOKEN=$(cat /vault/token/token)
           
-          # Check if secret already exists
-          if vault kv get secret/plex/config >/dev/null 2>&1; then
-            echo "✅ Plex config already exists in Vault"
-            exit 0
-          fi
+          # Create Plex account config in Vault (X_PLEX_TOKEN)
+          vault kv put secret/plex/account \
+            X_PLEX_TOKEN="$X_PLEX_TOKEN"
           
           # Create Plex config in Vault
           vault kv put secret/plex/config \
-            timezone="Europe/Paris" \
-            claim="$PLEX_CLAIM"
+            timezone="Europe/Paris"
           
-          echo "✅ Plex config created in Vault"
+          echo "✅ Plex secrets configured in Vault"
