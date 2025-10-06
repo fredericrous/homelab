@@ -4,3 +4,4 @@ resources:
   # ovh-credentials-secret.yaml moved to parent directory with reflector annotations
   - ovh-webhook-helm-release.yaml
   - ovh-webhook-rbac.yaml
+  - egress-vault-issuer.yaml

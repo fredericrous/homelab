@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - cleanup-rbac.yaml
   - cluster-vars-auto-sync.yaml
+  - egress-mtls-automation.yaml
