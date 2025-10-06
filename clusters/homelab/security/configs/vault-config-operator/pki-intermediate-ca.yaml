@@ -10,7 +10,7 @@ metadata:
 spec:
   template:
     spec:
-      serviceAccountName: vault-config-operator
+      serviceAccountName: controller-manager
       restartPolicy: Never
       containers:
       - name: setup-pki
