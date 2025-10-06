@@ -6,8 +6,8 @@ metadata:
   namespace: vault-config-operator
 spec:
   authentication:
-    path: kubernetes
-    role: controller-manager
+    path: token
+    role: ""
     serviceAccount:
       name: vault-config-operator
   path: pki
