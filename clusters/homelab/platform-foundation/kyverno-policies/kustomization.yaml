@@ -5,3 +5,4 @@ resources:
   - cleanup-rbac.yaml
   - cluster-vars-auto-sync.yaml
   - ingress-mtls-automation.yaml
+  - ingress-mtls-rbac.yaml
