@@ -1,0 +1,50 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildkitd
+  namespace: stremio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildkitd
+  template:
+    metadata:
+      labels:
+        app: buildkitd
+    spec:
+      serviceAccountName: stremio
+      containers:
+      - name: buildkitd
+        image: moby/buildkit:latest
+        args:
+        - --addr
+        - tcp://0.0.0.0:1234
+        - --oci-worker-no-process-sandbox
+        - --allow-insecure-entitlement
+        - security.insecure
+        ports:
+        - containerPort: 1234
+          name: buildkit
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: buildkit-cache
+          mountPath: /var/lib/buildkit
+      volumes:
+      - name: buildkit-cache
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildkitd
+  namespace: stremio
+spec:
+  selector:
+    app: buildkitd
+  ports:
+  - port: 1234
+    targetPort: 1234
+    name: buildkit

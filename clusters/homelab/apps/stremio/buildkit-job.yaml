@@ -1,0 +1,47 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stremio-web-build
+  namespace: stremio
+spec:
+  ttlSecondsAfterFinished: 86400  # Keep job for 24 hours
+  template:
+    spec:
+      serviceAccountName: stremio
+      restartPolicy: Never
+      containers:
+      - name: build-stremio
+        image: moby/buildkit:latest
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          
+          # Install git and other dependencies
+          apk add --no-cache git
+          
+          # Clone Stremio Web repository
+          git clone https://github.com/Stremio/stremio-web.git /workspace
+          cd /workspace
+          
+          # Connect to BuildKit daemon and build
+          export BUILDKIT_HOST=tcp://buildkitd.stremio.svc.cluster.local:1234
+          
+          # Wait for BuildKit daemon to be available
+          while ! buildctl debug workers; do
+            echo "Waiting for BuildKit daemon..."
+            sleep 5
+          done
+          
+          # Build and push the image
+          buildctl build \
+            --frontend dockerfile.v0 \
+            --local context=. \
+            --local dockerfile=. \
+            --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest,push=true,registry.insecure=true \
+            --export-cache type=inline \
+            --import-cache type=registry,ref=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:cache,registry.insecure=true || true
+          
+          echo "✅ Stremio web image built and pushed successfully!"
