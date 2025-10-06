@@ -5,4 +5,3 @@ resources:
   - namespaces
   - controllers
   - configs
-  - kyverno-policies

@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   - vault/
   - vault-config-operator-configs.yaml
+  - kyverno-policies/
   # vault-config-operator/ resources are applied by vault-config-operator-configs.yaml Kustomization

@@ -7,10 +7,3 @@ machine:
       "192.168.1.90:5000":
         tls:
           insecureSkipVerify: true
-    mirrors:
-      "harbor-registry.harbor.svc.cluster.local:5000":
-        endpoints:
-          - "http://192.168.1.90:5000"
-      "192.168.1.90:5000":
-        endpoints:
-          - "http://192.168.1.90:5000"
