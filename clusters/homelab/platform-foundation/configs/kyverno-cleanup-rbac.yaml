@@ -45,5 +45,5 @@ metadata:
     rbac.kyverno.io/aggregate-to-admission-controller: "true"
 rules:
 - apiGroups: ["networking.istio.io"]
-  resources: ["gateways"]
+  resources: ["gateways", "virtualservices"]
   verbs: ["get", "list"]
