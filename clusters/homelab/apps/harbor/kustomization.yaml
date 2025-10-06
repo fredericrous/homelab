@@ -14,8 +14,6 @@ resources:
   - external-secrets.yaml           # Pull from Vault (after push)
   - harbor-helmrepository.yaml      # Harbor Helm repository (namespace override)
   - harbor-helmrelease.yaml
-  # Manual mTLS configuration replaced by Kyverno ingress-mtls-automation policy
-  # Resources automatically generated when service has annotation: istio.io/ingress-mtls: "true"
 
 # Override namespace for HelmRepository to be in flux-system
 patchesJson6902:

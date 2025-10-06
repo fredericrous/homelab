@@ -8,9 +8,6 @@ resources:
   - secret-store.yaml        # Namespace-scoped SecretStore with LLDAP policy
   - password-generator.yaml  # Generate passwords using ESO
   - external-secret.yaml     # Pull from Vault (after push)
-  # - database.yaml  # MOVED: to data-storage/configs/postgres/ (must be in same namespace as Cluster)
   - pvc.yaml
   - deployment.yaml
   - service.yaml
-  # Manual mTLS configuration replaced by Kyverno ingress-mtls-automation policy
-  # Resources automatically generated when service has annotation: istio.io/ingress-mtls: "true"

@@ -16,8 +16,6 @@ resources:
   - service.yaml
   - peerauthentication.yaml
   - post-install-job.yaml
-  # Manual mTLS configuration replaced by Kyverno ingress-mtls-automation policy
-  # Resources automatically generated when service has annotation: istio.io/ingress-mtls: "true"
 
 patches:
   # Add backup annotations
@@ -34,13 +32,13 @@ patches:
           metadata:
             annotations:
               backup.velero.io/backup-volumes: nextcloud-data
-  
+
   # Security context patch
   - path: patch-security-context.yaml
     target:
       kind: Deployment
       name: nextcloud
-  
+
   # NFS volumes patch
   - path: patch-nfs-volumes.yaml
     target:

@@ -13,5 +13,3 @@ resources:
   - pre-install-hook.yaml
   - helm-release.yaml
   - peerauthentication.yaml
-  # Manual mTLS configuration replaced by Kyverno ingress-mtls-automation policy
-  # Resources automatically generated when service has annotation: istio.io/ingress-mtls: "true"
