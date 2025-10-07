@@ -8,5 +8,6 @@ spec:
   issuerRef:
     name: letsencrypt-ovh-webhook
     kind: ClusterIssuer
+    group: cert-manager.io
   dnsNames:
   - grafana.daddyshome.fr

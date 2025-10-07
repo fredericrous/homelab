@@ -11,7 +11,8 @@ metadata:
 spec:
   secretName: stremio-tls
   issuerRef:
-    name: letsencrypt-production
+    name: letsencrypt-ovh-webhook
     kind: ClusterIssuer
+    group: cert-manager.io
   dnsNames:
     - stremio.daddyshome.fr
