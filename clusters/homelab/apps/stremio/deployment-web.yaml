@@ -19,6 +19,49 @@ spec:
       imagePullSecrets:
       - name: harbor-registry-creds
       initContainers:
+      - name: wait-for-image
+        image: alpine/curl
+        command: ['sh', '-c']
+        args:
+        - |
+          set -e
+          MAX_ATTEMPTS=60
+          ATTEMPT=0
+          
+          echo "🔍 Checking for image availability: ${IMAGE_REGISTRY}/v2/${IMAGE_NAME}/manifests/latest"
+          
+          until [ $ATTEMPT -eq $MAX_ATTEMPTS ]; do
+            echo "⏳ Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS: Checking image availability..."
+            
+            # Check if image manifest exists
+            if curl -f -s -I --connect-timeout 10 --max-time 30 \
+               "http://${IMAGE_REGISTRY}/v2/${IMAGE_NAME}/manifests/latest" >/dev/null 2>&1; then
+              echo "✅ Image is available! Proceeding with deployment."
+              exit 0
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "❌ Image not ready yet, waiting 30 seconds..."
+              sleep 30
+            fi
+          done
+          
+          echo "❌ Image not available after $MAX_ATTEMPTS attempts (30 minutes total)"
+          echo "🔧 Check if build job completed: kubectl get job -n stremio"
+          exit 1
+        env:
+        - name: IMAGE_REGISTRY
+          value: "harbor-registry.harbor.svc.cluster.local:5000"
+        - name: IMAGE_NAME
+          value: "library/stremio-web"
+        resources:
+          requests:
+            memory: 16Mi
+            cpu: 10m
+          limits:
+            memory: 32Mi
+            cpu: 50m
       - name: copy-build
         image: harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest
         imagePullPolicy: Always
