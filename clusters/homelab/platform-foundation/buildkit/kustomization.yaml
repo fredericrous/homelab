@@ -7,3 +7,4 @@ resources:
   - namespace.yaml
   - rbac.yaml
   - buildkit-daemon.yaml
+  - buildkit-job.yaml

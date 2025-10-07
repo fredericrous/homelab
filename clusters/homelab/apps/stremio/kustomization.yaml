@@ -18,7 +18,6 @@ resources:
   - service.yaml
   - peerauthentication.yaml
   - stremio-ca-secret.yaml
-  - buildkit-job.yaml
 
 patches:
   # Add backup annotations
