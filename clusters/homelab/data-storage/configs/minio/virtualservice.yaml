@@ -5,7 +5,7 @@ metadata:
   namespace: minio
 spec:
   hosts:
-  - minio.${ARGO_EXTERNAL_DOMAIN}
+  - minio.daddyshome.fr
   gateways:
   - istio-system/minio
   http:
