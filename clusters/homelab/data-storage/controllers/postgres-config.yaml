@@ -5,6 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
+  timeout: 15m
   path: "./clusters/homelab/data-storage/configs/postgres"
   prune: true
   sourceRef:
