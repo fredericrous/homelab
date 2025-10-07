@@ -6,6 +6,7 @@ metadata:
   namespace: plex
 spec:
   interval: 30m
+  timeout: 15m
   chart:
     spec:
       chart: plex-media-server
@@ -125,11 +126,6 @@ spec:
       annotations:
         istio.io/ingress-mtls: "true"
     
-    # Node selector and tolerations for GPU node
-    nodeSelector: {}
-    # Uncomment when GPU node is ready:
-    # nodeSelector:
-    #   nvidia.com/gpu.present: "true"
     
     # Runtime class for GPU support
     runtimeClassName: nvidia
@@ -153,10 +149,15 @@ spec:
       timeoutSeconds: 5
       failureThreshold: 3
     
-    # GPU configuration
-    gpu:
-      nvidia:
-        enabled: true
+    # Node selector for GPU node
+    nodeSelector:
+      gpu: nvidia-rtx-4060
+    
+    # Tolerations for GPU node
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
     
     # Additional annotations for backup
     podAnnotations:
