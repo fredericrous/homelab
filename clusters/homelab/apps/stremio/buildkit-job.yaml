@@ -10,6 +10,18 @@ spec:
     spec:
       serviceAccountName: stremio-build
       restartPolicy: Never
+      initContainers:
+      - name: wait-for-secret
+        image: alpine/kubectl
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Waiting for harbor-admin secret to be available..."
+          while ! kubectl get secret harbor-admin -n stremio >/dev/null 2>&1; do
+            echo "Secret not found, waiting 5 seconds..."
+            sleep 5
+          done
+          echo "✅ Secret harbor-admin is available, proceeding with build"
       containers:
       - name: build-stremio
         image: moby/buildkit:latest

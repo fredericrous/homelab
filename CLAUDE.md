@@ -136,8 +136,6 @@ kubectl apply -k manifests/vault/
 
 ## Known Issues
 
-### GPU Node
-- GPU patches commented out until fixed
 
 ## Vault Token and Keys
 Vault is automatically initialized by the `job-vault-init.yaml` job, which stores:
