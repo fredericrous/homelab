@@ -3,12 +3,12 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: stremio-web-build
-  namespace: buildkit
+  namespace: stremio
 spec:
   ttlSecondsAfterFinished: 86400  # Keep job for 24 hours
   template:
     spec:
-      serviceAccountName: buildkit
+      serviceAccountName: stremio-build
       restartPolicy: Never
       containers:
       - name: build-stremio
