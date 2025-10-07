@@ -8,5 +8,6 @@ spec:
   owner: lldap
   cluster:
     name: postgres-apps
-  # Ensure the database is created after the role
-  # The role must be defined in the Cluster's spec.managed.roles
+  # CloudNativePG GitOps Pattern:
+  # The role 'lldap' must be defined in the Cluster's spec.managed.roles
+  # CloudNativePG operator reconciles managed roles before database creation
