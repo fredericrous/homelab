@@ -6,4 +6,4 @@ metadata:
   namespace: plex
 spec:
   interval: 24h
-  url: https://raw.githubusercontent.com/plexinc/pms-docker/master/charts
+  url: https://raw.githubusercontent.com/plexinc/pms-docker/gh-pages

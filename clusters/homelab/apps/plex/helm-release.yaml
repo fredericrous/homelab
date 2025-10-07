@@ -153,6 +153,11 @@ spec:
       timeoutSeconds: 5
       failureThreshold: 3
     
+    # GPU configuration
+    gpu:
+      nvidia:
+        enabled: true
+    
     # Additional annotations for backup
     podAnnotations:
       backup.velero.io/backup-volumes: config
