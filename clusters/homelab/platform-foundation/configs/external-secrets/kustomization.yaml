@@ -8,5 +8,4 @@ resources:
   - cert-manager-ovh-credentials-externalsecret.yaml
   - client-ca-externalsecret.yaml
   - cluster-vars-pushsecret.yaml
-  - nas-vault-token-vault-config-externalsecret.yaml
   # Vault policy configuration is now managed by vault-config-operator

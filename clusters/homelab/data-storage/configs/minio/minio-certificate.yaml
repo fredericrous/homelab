@@ -9,4 +9,4 @@ spec:
     name: letsencrypt-ovh-webhook
     kind: ClusterIssuer
   dnsNames:
-  - minio.${ARGO_EXTERNAL_DOMAIN}
+  - minio.daddyshome.fr

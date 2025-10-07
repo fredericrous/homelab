@@ -15,4 +15,4 @@ spec:
       mode: SIMPLE
       credentialName: minio-tls
     hosts:
-    - minio.${ARGO_EXTERNAL_DOMAIN}
+    - minio.daddyshome.fr
