@@ -20,7 +20,3 @@ spec:
       kind: Deployment
       name: cnpg-system-cloudnative-pg
       namespace: cnpg-system
-    - apiVersion: postgresql.cnpg.io/v1
-      kind: Cluster
-      name: postgres-apps
-      namespace: postgres
