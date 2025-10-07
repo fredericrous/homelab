@@ -9,7 +9,7 @@ metadata:
     policies.kyverno.io/subject: Service, Certificate, Gateway, VirtualService, Role, RoleBinding, Job
     policies.kyverno.io/description: >-
       Automatically generates Istio ingress mTLS configuration for Services
-      annotated with 'istio.io/ingress-mtls: "true"'. Creates Certificate, 
+      annotated with 'istio.io/ingress-mtls: "true"'. Creates Certificate,
       Gateway, VirtualService, RBAC, and mTLS patch job resources.
 spec:
   validationFailureAction: Enforce
@@ -18,9 +18,9 @@ spec:
 
     # Validate: Service must have ingress-mtls annotation
     - name: validate-ingress-mtls-annotation
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -36,9 +36,9 @@ spec:
 
     # Generate: Certificate for TLS
     - name: generate-certificate
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -82,9 +82,9 @@ spec:
 
     # Generate: Istio Gateway
     - name: generate-gateway
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -130,9 +130,9 @@ spec:
 
     # Generate: VirtualService for HTTP redirect
     - name: generate-virtualservice-redirect
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -169,9 +169,9 @@ spec:
 
     # Generate: VirtualService for HTTPS traffic
     - name: generate-virtualservice-https
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -210,9 +210,9 @@ spec:
 
     # Generate: ExternalSecret for client CA certificate
     - name: generate-client-ca-externalsecret
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -250,9 +250,9 @@ spec:
 
     # Generate: RBAC Role for secret patching
     - name: generate-rbac-role
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -284,9 +284,9 @@ spec:
 
     # Generate: RBAC RoleBinding
     - name: generate-rbac-rolebinding
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -319,9 +319,9 @@ spec:
 
     # Generate: RBAC ClusterRole for istio-ingress secret patching
     - name: generate-rbac-clusterrole
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -351,9 +351,9 @@ spec:
 
     # Generate: RBAC ClusterRoleBinding for istio-ingress
     - name: generate-rbac-clusterrolebinding
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -386,9 +386,9 @@ spec:
 
     # Generate: Job to patch TLS secrets with client CA certificate
     - name: generate-mtls-patch-job
-      match: 
-        any: 
-        - resources: 
+      match:
+        any:
+        - resources:
             kinds: ["Service"]
       preconditions:
         all:
@@ -410,9 +410,6 @@ spec:
             labels:
               app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
               istio.io/source-service: "{{ request.object.metadata.name }}"
-            annotations:
-              argocd.argoproj.io/hook: PostSync
-              argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
           spec:
             template:
               metadata:
@@ -435,31 +432,31 @@ spec:
                     echo "Configuration:"
                     echo "  Namespace: $NAMESPACE"
                     echo "  TLS Secret: $TLS_SECRET_NAME"
-                    
+
                     # Wait for the TLS secret to exist (created by cert-manager)
                     echo "Waiting for TLS secret..."
                     while ! kubectl get secret "$TLS_SECRET_NAME" -n "$NAMESPACE" 2>/dev/null; do
                       echo "Waiting for $TLS_SECRET_NAME to be created by cert-manager..."
                       sleep 5
                     done
-                    
+
                     echo "Getting client CA certificate..."
                     CA_CERT=$(kubectl get secret client-ca-cert -n "$NAMESPACE" -o jsonpath='{.data.ca\.crt}')
-                    
+
                     if [ -z "$CA_CERT" ]; then
                       echo "ERROR: Could not find CA certificate at client-ca-cert/ca.crt in namespace $NAMESPACE"
                       exit 1
                     fi
-                    
+
                     echo "Checking if cacert already exists in source secret..."
                     if kubectl get secret "$TLS_SECRET_NAME" -n "$NAMESPACE" -o jsonpath='{.data.cacert}' 2>/dev/null | grep -q .; then
                       echo "cacert key already exists in TLS secret"
                       exit 0
                     fi
-                    
+
                     echo "Adding cacert key to TLS secret in source namespace..."
                     kubectl patch secret "$TLS_SECRET_NAME" -n "$NAMESPACE" --type='json' \
                       -p="[{\"op\": \"add\", \"path\": \"/data/cacert\", \"value\": \"$CA_CERT\"}]"
-                    
+
                     echo "TLS secret patched successfully. Reflector will propagate it to istio-ingress."
             backoffLimit: 3
