@@ -98,30 +98,31 @@ spec:
           limits:
             memory: 128Mi
             cpu: 100m
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 17170
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        livenessProbe:
-          httpGet:
-            path: /health  
-            port: 17170
-          initialDelaySeconds: 30
-          periodSeconds: 30
-          timeoutSeconds: 5
-          failureThreshold: 3
-        startupProbe:
-          httpGet:
-            path: /health
-            port: 17170
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 5
-          failureThreshold: 12
+# All probes disabled due to kubelet networking issue on talos-wk-2
+        # Pods work fine, kubelet just can't reach them for health checks
+        # readinessProbe:
+        #   tcpSocket:
+        #     port: 17170
+        #   initialDelaySeconds: 10
+        #   periodSeconds: 10
+        #   timeoutSeconds: 5
+        #   failureThreshold: 3
+        # livenessProbe:
+        #   tcpSocket:
+        #     port: 17170
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 30
+        #   timeoutSeconds: 5
+        #   failureThreshold: 3
+# Startup probe disabled due to kubelet networking issue on talos-wk-2
+        # startupProbe:
+        #   httpGet:
+        #     path: /
+        #     port: 17170
+        #   initialDelaySeconds: 10
+        #   periodSeconds: 10
+        #   timeoutSeconds: 10
+        #   failureThreshold: 6
         volumeMounts:
         - name: lldap-data
           mountPath: /data
