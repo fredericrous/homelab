@@ -64,7 +64,7 @@ spec:
             --frontend dockerfile.v0 \
             --local context=. \
             --local dockerfile=. \
-            --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest,push=true,registry.insecure=true,ocistore=false
+            --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/admin/stremio-web:latest,push=true,registry.insecure=true,ocistore=false
           
           echo "✅ Stremio web image built and pushed successfully!"
       volumes:
