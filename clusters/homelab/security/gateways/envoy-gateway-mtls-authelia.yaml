@@ -41,9 +41,6 @@ spec:
       - kind: Secret
         name: client-ca-bundle
         namespace: envoy-gateway-system
-      - kind: ConfigMap
-        name: client-ca-bundle
-        namespace: envoy-gateway-system
     optional: false
 
 ---
