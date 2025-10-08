@@ -6,6 +6,7 @@ resources:
   - authelia.yaml
   - gitea.yaml
   - stalwart.yaml
+  - code-server.yaml
   - stremio.yaml
   - plex.yaml
   - nextcloud.yaml

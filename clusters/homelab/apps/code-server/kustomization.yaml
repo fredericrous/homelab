@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: code-server
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - secret-store.yaml
+  - vault-auth.yaml
+  - vault-secret.yaml
+  - vault-admin-token-reflector.yaml
+  - vault-config-job.yaml
+  - password-generator.yaml
+  - rbac.yaml
+  - helm-repository.yaml
+  - helm-release.yaml
+
+commonLabels:
+  app.kubernetes.io/name: code-server
+  app.kubernetes.io/instance: code-server

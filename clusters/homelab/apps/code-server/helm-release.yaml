@@ -1,0 +1,98 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: code-server
+  namespace: code-server
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: code-server
+      version: '1.x'
+      sourceRef:
+        kind: HelmRepository
+        name: code-server
+        namespace: code-server
+      interval: 12h
+  dependsOn:
+    - name: code-server-vault-setup
+      namespace: code-server
+  values:
+    image:
+      repository: codercom/code-server
+      tag: "4.23.1"
+      pullPolicy: IfNotPresent
+
+    nameOverride: "code-server"
+    fullnameOverride: "code-server"
+
+    serviceAccount:
+      create: false
+      name: code-server
+
+    replicaCount: 1
+
+    service:
+      type: ClusterIP
+      port: 8080
+      annotations:
+        istio.io/ingress-mtls: "true"
+
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "ceph-block"
+      accessMode: ReadWriteOnce
+
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+    # Configure VS Code extensions to pre-install
+    extraInitContainers: |
+      - name: install-extensions
+        image: codercom/code-server:4.23.1
+        command:
+          - sh
+          - -c
+          - |
+            echo "Installing VS Code extensions..."
+            code-server --install-extension ms-python.python
+            code-server --install-extension golang.Go
+            code-server --install-extension ms-vscode.vscode-typescript-next
+            code-server --install-extension ms-vscode.vscode-json
+            code-server --install-extension ms-kubernetes-tools.vscode-kubernetes-tools
+            code-server --install-extension ms-vscode.docker
+            code-server --install-extension GitLab.gitlab-workflow
+            code-server --install-extension hashicorp.terraform
+            echo "Extensions installed successfully"
+        volumeMounts:
+          - name: data
+            mountPath: /home/coder
+
+    extraArgs:
+      - --auth=password
+      - --disable-telemetry
+      - --disable-update-check
+
+    extraEnvs:
+      - name: PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: code-server-vault-creds
+            key: password
+
+    extraVolumeMounts:
+      - name: data
+        mountPath: /home/coder
+        subPath: ""
+
+    extraVolumes: []
+
+    affinity: {}
+    nodeSelector: {}
+    tolerations: []
