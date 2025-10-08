@@ -1,0 +1,51 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: code-server-vault-setup
+  namespace: code-server
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: code-server
+      volumes:
+      - name: vault-admin-token
+        secret:
+          secretName: vault-admin-token
+      - name: generated-password
+        secret:
+          secretName: code-server-password
+      containers:
+      - name: vault
+        image: hashicorp/vault:1.16
+        env:
+        - name: VAULT_ADDR
+          value: "http://vault-vault.vault.svc.cluster.local:8200"
+        volumeMounts:
+        - name: vault-admin-token
+          mountPath: /vault/token
+        - name: generated-password
+          mountPath: /passwords
+        command:
+        - /bin/sh
+        - -c
+        - |
+          export VAULT_TOKEN=$(cat /vault/token/token)
+          
+          # Check if secrets already exist
+          if vault kv get secret/code-server >/dev/null 2>&1; then
+            echo "✅ Code-server secrets already exist in Vault"
+            exit 0
+          fi
+          
+          # Get generated password
+          PASSWORD=$(cat /passwords/password)
+          
+          # Create Code-server credentials in Vault
+          vault kv put secret/code-server \
+            password="$PASSWORD"
+          
+          echo "✅ Code-server secrets configured in Vault"
+          echo "Password: $PASSWORD"
