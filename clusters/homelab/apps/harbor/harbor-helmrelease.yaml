@@ -63,6 +63,7 @@ spec:
         username: harbor
         database: registry
         existingSecret: harbor-db-app
+        existingSecretKey: password
         sslmode: disable
     
     redis:
