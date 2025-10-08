@@ -18,6 +18,7 @@ resources:
   - harbor-helmrelease.yaml
 
 # Override namespace for HelmRepository to be in flux-system
+# Override namespace for Database resources to be in postgres
 patchesJson6902:
 - target:
     version: v1beta2
@@ -28,3 +29,21 @@ patchesJson6902:
     - op: replace
       path: /metadata/namespace
       value: flux-system
+- target:
+    version: v1
+    group: postgresql.cnpg.io
+    kind: Database
+    name: harbor
+  patch: |-
+    - op: replace
+      path: /metadata/namespace
+      value: postgres
+- target:
+    version: v1
+    group: postgresql.cnpg.io
+    kind: Database
+    name: harbor-registry
+  patch: |-
+    - op: replace
+      path: /metadata/namespace
+      value: postgres
