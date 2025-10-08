@@ -35,5 +35,7 @@ spec:
   policies:
     - gitea
   targetServiceAccounts:
-    - name: gitea
-      namespace: gitea
+    - gitea
+  targetNamespaces:
+    targetNamespaces:
+      - gitea
