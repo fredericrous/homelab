@@ -41,9 +41,6 @@ spec:
       - kind: Secret
         name: client-ca-bundle
         namespace: envoy-gateway-system
-      - kind: ConfigMap
-        name: client-ca-bundle
-        namespace: envoy-gateway-system
     # Optional client certificate validation
     optional: false  # Require client certificates
 
@@ -85,24 +82,3 @@ spec:
         key: pki/cert/ca
         property: certificate
 
----
-# External Secret to pull client CA from Vault PKI as ConfigMap
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: client-ca-bundle-configmap
-  namespace: envoy-gateway-system
-spec:
-  refreshInterval: 24h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: vault-backend
-  target:
-    name: client-ca-bundle
-    creationPolicy: Owner
-    type: configMap
-  data:
-    - secretKey: ca-bundle.crt
-      remoteRef:
-        key: pki/cert/ca
-        property: certificate
