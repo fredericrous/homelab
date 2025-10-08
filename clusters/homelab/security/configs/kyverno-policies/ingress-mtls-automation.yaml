@@ -69,7 +69,7 @@ spec:
               reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
           spec:
             dnsNames:
-              - "{{ request.object.metadata.name }}.daddyshome.fr"
+              - "{{ request.object.metadata.name }}x.daddyshome.fr"
             issuerRef:
               kind: ClusterIssuer
               name: letsencrypt-ovh-webhook
@@ -116,7 +116,7 @@ spec:
                 name: http
                 protocol: HTTP
               hosts:
-              - "{{ request.object.metadata.name }}.daddyshome.fr"
+              - "{{ request.object.metadata.name }}x.daddyshome.fr"
             # HTTPS with mTLS client certificate authentication
             - port:
                 number: 443
@@ -126,7 +126,7 @@ spec:
                 mode: MUTUAL
                 credentialName: "{{ request.object.metadata.name }}-tls"
               hosts:
-              - "{{ request.object.metadata.name }}.daddyshome.fr"
+              - "{{ request.object.metadata.name }}x.daddyshome.fr"
 
     # Generate: VirtualService for HTTP redirect
     - name: generate-virtualservice-redirect
@@ -156,7 +156,7 @@ spec:
               istio.io/source-service: "{{ request.object.metadata.name }}"
           spec:
             hosts:
-            - "{{ request.object.metadata.name }}.daddyshome.fr"
+            - "{{ request.object.metadata.name }}x.daddyshome.fr"
             gateways:
             - "{{ request.object.metadata.name }}-gateway"
             http:
@@ -195,7 +195,7 @@ spec:
               istio.io/source-service: "{{ request.object.metadata.name }}"
           spec:
             hosts:
-            - "{{ request.object.metadata.name }}.daddyshome.fr"
+            - "{{ request.object.metadata.name }}x.daddyshome.fr"
             gateways:
             - "{{ request.object.metadata.name }}-gateway"
             http:

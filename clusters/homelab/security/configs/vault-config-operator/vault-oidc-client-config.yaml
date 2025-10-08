@@ -17,8 +17,8 @@ data:
       require_pkce: true
       pkce_challenge_method: S256
       redirect_uris:
-        - https://vault.daddyshome.fr/ui/vault/auth/oidc/oidc/callback
-        - https://vault.daddyshome.fr/oidc/callback
+        - https://vaultx.daddyshome.fr/ui/vault/auth/oidc/oidc/callback
+        - https://vaultx.daddyshome.fr/oidc/callback
       scopes:
         - openid
         - profile

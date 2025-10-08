@@ -13,6 +13,7 @@ resources:
   - vault-config-job.yaml
   - external-secret.yaml
   - password-generator.yaml
+  - smtp-password-generator.yaml
   - configmap.yaml
   - rbac.yaml
   - pvc.yaml

@@ -11,7 +11,7 @@ data:
     max_input_time=3600
     max_execution_time=3600
     memory_limit=512M
-    
+
   # Apache configuration
   apache-pretty-urls.conf: |
     <IfModule mod_rewrite.c>
@@ -21,14 +21,14 @@ data:
       RewriteRule ^\.well-known/webfinger /index.php/.well-known/webfinger [R=301,L]
       RewriteRule ^\.well-known/nodeinfo /index.php/.well-known/nodeinfo [R=301,L]
     </IfModule>
-    
+
   # Nextcloud configuration
   custom.config.php: |
     <?php
     $CONFIG = array (
       'memcache.local' => '\\OC\\Memcache\\APCu',
       'overwriteprotocol' => 'https',
-      'overwrite.cli.url' => 'https://nextcloud.daddyshome.fr',
+      'overwrite.cli.url' => 'https://nextcloudx.daddyshome.fr',
       'htaccess.RewriteBase' => '/',
       'default_phone_region' => 'FR',
       'log_type' => 'file',

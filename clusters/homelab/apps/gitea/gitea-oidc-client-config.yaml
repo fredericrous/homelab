@@ -15,7 +15,7 @@ data:
       public: false
       authorization_policy: two_factor
       redirect_uris:
-        - https://gitea.daddyshome.fr/user/oauth2/authelia/callback
+        - https://giteax.daddyshome.fr/user/oauth2/authelia/callback
       scopes:
         - openid
         - profile

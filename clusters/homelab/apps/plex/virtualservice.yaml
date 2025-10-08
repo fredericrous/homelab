@@ -5,7 +5,7 @@ metadata:
   namespace: plex
 spec:
   hosts:
-  - plex.daddyshome.fr
+  - plexx.daddyshome.fr
   gateways:
   - plex-gateway
   http:
@@ -24,12 +24,12 @@ metadata:
   namespace: plex
 spec:
   hosts:
-  - plex.daddyshome.fr
+  - plexx.daddyshome.fr
   gateways:
   - plex-gateway
   http:
   - match:
     - port: 80
     redirect:
-      uri: https://plex.daddyshome.fr
+      uri: https://plexx.daddyshome.fr
       redirectCode: 301

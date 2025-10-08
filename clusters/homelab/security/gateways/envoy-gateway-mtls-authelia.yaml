@@ -1,0 +1,102 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: homelab-mtls-authelia-gateway
+  namespace: envoy-gateway-system
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  gatewayClassName: envoy-gateway
+  listeners:
+  - name: https
+    port: 444  # Different port to avoid conflicts
+    protocol: HTTPS
+    hostname: "streaming.daddyshome.fr"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: streaming-daddyshome-fr-tls
+        namespace: envoy-gateway-system
+    allowedRoutes:
+      namespaces:
+        from: All
+
+---
+# ClientTrafficPolicy for mTLS
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: mtls-authelia-policy
+  namespace: envoy-gateway-system
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: homelab-mtls-authelia-gateway
+  tls:
+    clientValidation:
+      caCertificateRefs:
+      - kind: Secret
+        name: client-ca-bundle
+        namespace: envoy-gateway-system
+      - kind: ConfigMap
+        name: client-ca-bundle
+        namespace: envoy-gateway-system
+    optional: false
+
+---
+# SecurityPolicy for Authelia integration
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: authelia-external-auth
+  namespace: envoy-gateway-system
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: homelab-mtls-authelia-gateway
+  extAuth:
+    http:
+      service:
+        name: authelia
+        namespace: authelia
+        port: 9091
+      path: "/api/authz/ext-authz"
+      headersToBackend:
+      - "Authorization"
+      - "Proxy-Authorization"
+      - "Accept"
+      - "Cookie"
+      - "X-Forwarded-Proto"
+      - "X-Forwarded-Host"
+      - "X-Forwarded-Uri"
+      - "X-Forwarded-For"
+      headersToUpstream:
+      - "Authorization"
+      - "Proxy-Authorization"
+      - "X-Forwarded-Proto"
+      - "X-Forwarded-Host"
+      - "X-Forwarded-Uri"
+      - "X-Forwarded-For"
+      - "Remote-User"
+      - "Remote-Name"
+      - "Remote-Email"
+      - "Remote-Groups"
+
+---
+# Certificate for streaming subdomain
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: streaming-daddyshome-fr
+  namespace: envoy-gateway-system
+spec:
+  secretName: streaming-daddyshome-fr-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - "streaming.daddyshome.fr"

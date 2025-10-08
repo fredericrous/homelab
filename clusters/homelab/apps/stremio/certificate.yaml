@@ -15,4 +15,4 @@ spec:
     kind: ClusterIssuer
     group: cert-manager.io
   dnsNames:
-    - stremio.daddyshome.fr
+    - stremiox.daddyshome.fr

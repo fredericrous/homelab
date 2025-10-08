@@ -15,8 +15,8 @@ spec:
     # Domain configuration for services
     domain:
       # Default domain
-      "kserve.daddyshome.fr": ""
-    # Deployment configuration  
+      "kservex.daddyshome.fr": ""
+    # Deployment configuration
     deployment:
       # Increase progress deadline for large model downloads
       progress-deadline: "1200s"

@@ -13,7 +13,7 @@ spec:
       name: http
       protocol: HTTP
     hosts:
-    - lldap.daddyshome.fr
+    - lldapx.daddyshome.fr
   # HTTPS with mTLS client certificate authentication
   - port:
       number: 443
@@ -23,7 +23,7 @@ spec:
       mode: MUTUAL
       credentialName: lldap-tls
     hosts:
-    - lldap.daddyshome.fr
+    - lldapx.daddyshome.fr
 ---
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
@@ -32,7 +32,7 @@ metadata:
   namespace: flux-system
 spec:
   hosts:
-  - lldap.daddyshome.fr
+  - lldapx.daddyshome.fr
   gateways:
   - lldap-gateway
   http:
@@ -50,7 +50,7 @@ metadata:
   namespace: flux-system
 spec:
   hosts:
-  - lldap.daddyshome.fr
+  - lldapx.daddyshome.fr
   gateways:
   - lldap-gateway
   http:

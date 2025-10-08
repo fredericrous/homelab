@@ -20,7 +20,7 @@ spec:
       repository: gitea/gitea
       tag: "1.22.3"
       pullPolicy: Always
-    
+
     # Service configuration
     service:
       http:
@@ -29,39 +29,39 @@ spec:
       ssh:
         type: ClusterIP
         port: 22
-    
+
     # Ingress disabled - we'll use Istio Gateway
     ingress:
       enabled: false
-    
+
     # Storage
     persistence:
       enabled: true
       storageClass: "rook-ceph-block"
       size: 50Gi
       accessMode: ReadWriteOnce
-    
+
     # Database configuration - external PostgreSQL
     postgresql-ha:
       enabled: false
-    
+
     postgresql:
       enabled: false
-    
+
     # Gitea configuration
     gitea:
       admin:
         existingSecret: gitea-admin
-        
+
       config:
         APP_NAME: "Gitea: Homelab Git & Registry"
-        
+
         server:
           PROTOCOL: http
-          DOMAIN: gitea.daddyshome.fr
-          ROOT_URL: https://gitea.daddyshome.fr
+          DOMAIN: giteax.daddyshome.fr
+          ROOT_URL: https://giteax.daddyshome.fr
           HTTP_PORT: 3000
-          
+
         database:
           DB_TYPE: postgres
           HOST: postgres-apps-rw.postgres.svc.cluster.local:5432
@@ -72,36 +72,36 @@ spec:
               secretKeyRef:
                 name: gitea-db-app
                 key: password
-          
+
         cache:
           ENABLED: true
           ADAPTER: redis
           HOST: redis-standalone.ot-operators.svc.cluster.local:6379
-          
+
         session:
           PROVIDER: redis
           PROVIDER_CONFIG: redis-standalone.ot-operators.svc.cluster.local:6379
-          
+
         queue:
           TYPE: redis
           CONN_STR: redis://redis-standalone.ot-operators.svc.cluster.local:6379
-          
+
         packages:
           ENABLED: true
           CHUNKED_UPLOAD_PATH: /tmp/packages
-          
+
         # Enable container registry
         packages.registry:
           ENABLED: true
-          
+
         service:
           DISABLE_REGISTRATION: true  # Only LDAP/OIDC users can register
           REQUIRE_SIGNIN_VIEW: false
           ENABLE_NOTIFY_MAIL: false
-          
+
         security:
           INSTALL_LOCK: true
-          
+
         # LDAP configuration for LLDAP integration (for service accounts and direct LDAP auth)
         ldap:
           ENABLE_LDAP: true
@@ -127,7 +127,7 @@ spec:
           LDAP_GROUP_ATTRIBUTE_CONTAIN_USERS: "member"
           LDAP_USER_ATTRIBUTE_IN_GROUP: "dn"
           LDAP_SKIP_TLS_VERIFY: true
-          
+
         # OAuth2/OIDC configuration for Authelia integration (for web UI convenience)
         oauth2_client:
           REGISTER_EMAIL_CONFIRM: false
@@ -136,26 +136,26 @@ spec:
           USERNAME: preferred_username
           EMAIL: email
           NAME: name
-          
+
         # Additional OAuth2 settings
         oauth2:
           JWT_SIGNING_ALGORITHM: "RS256"
-          
+
         log:
           LEVEL: Info
           MODE: console
-    
+
     # ServiceAccount
     serviceAccount:
       create: false
       name: gitea
-    
+
     # Security context
     securityContext:
       runAsUser: 1000
       runAsGroup: 1000
       fsGroup: 1000
-    
+
     # Health checks
     livenessProbe:
       enabled: true
@@ -167,7 +167,7 @@ spec:
       periodSeconds: 10
       successThreshold: 1
       failureThreshold: 10
-    
+
     readinessProbe:
       enabled: true
       httpGet:
@@ -178,7 +178,7 @@ spec:
       periodSeconds: 10
       successThreshold: 1
       failureThreshold: 3
-    
+
     # Resources
     resources:
       requests:

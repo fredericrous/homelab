@@ -17,9 +17,9 @@ data:
       require_pkce: true
       pkce_challenge_method: S256
       redirect_uris:
-        - https://drive.daddyshome.fr/apps/oidc_login/oidc
-        - https://drive.daddyshome.fr/apps/user_oidc/code
-        - https://drive.daddyshome.fr/apps/sociallogin/custom_oidc/Authelia
+        - https://drivex.daddyshome.fr/apps/oidc_login/oidc
+        - https://drivex.daddyshome.fr/apps/user_oidc/code
+        - https://drivex.daddyshome.fr/apps/sociallogin/custom_oidc/Authelia
       scopes:
         - openid
         - profile

@@ -81,7 +81,7 @@ This guide covers deploying the new centralized mTLS certificate management syst
 2. **User downloads certificate**:
    ```bash
    # User runs this locally
-   export VAULT_ADDR=http://nas-vault.daddyshome.fr:8200
+   export VAULT_ADDR=http://nas-vaultx.daddyshome.fr:8200
    vault login  # Use user token or LDAP
    vault kv get -field=p12 secret/pki/clients/username | base64 -d > username.p12
    ```

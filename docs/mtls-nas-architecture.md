@@ -222,7 +222,7 @@ openssl x509 -in client.crt -text -noout
 
 # Test with curl
 curl --cert client.crt --key client.key --cacert ca.crt \
-  https://argocd.daddyshome.fr
+  https://argocdx.daddyshome.fr
 ```
 
 ## Future Enhancements

@@ -5,8 +5,8 @@ metadata:
   namespace: nextcloud
 spec:
   hosts:
-  - nextcloud.daddyshome.fr
-  - xdrive.daddyshome.fr
+  - nextcloudx.daddyshome.fr
+  - xdrivex.daddyshome.fr
   gateways:
   - nextcloud-gateway
   http:
@@ -25,15 +25,15 @@ metadata:
   namespace: nextcloud
 spec:
   hosts:
-  - nextcloud.daddyshome.fr
-  - xdrive.daddyshome.fr
+  - nextcloudx.daddyshome.fr
+  - xdrivex.daddyshome.fr
   gateways:
   - nextcloud-gateway
   http:
   - match:
     - port: 80
     redirect:
-      uri: https://xdrive.daddyshome.fr
+      uri: https://xdrivex.daddyshome.fr
       redirectCode: 301
 ---
 # Mobile access virtual services
@@ -44,7 +44,7 @@ metadata:
   namespace: nextcloud
 spec:
   hosts:
-  - xdrive-mobile.daddyshome.fr
+  - xdrive-mobilex.daddyshome.fr
   gateways:
   - nextcloud-mobile-gateway
   http:
@@ -63,12 +63,12 @@ metadata:
   namespace: nextcloud
 spec:
   hosts:
-  - xdrive-mobile.daddyshome.fr
+  - xdrive-mobilex.daddyshome.fr
   gateways:
   - nextcloud-mobile-gateway
   http:
   - match:
     - port: 80
     redirect:
-      uri: https://xdrive-mobile.daddyshome.fr
+      uri: https://xdrive-mobilex.daddyshome.fr
       redirectCode: 301

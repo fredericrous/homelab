@@ -10,4 +10,4 @@ spec:
     kind: ClusterIssuer
     group: cert-manager.io
   dnsNames:
-  - grafana.daddyshome.fr
+  - grafanax.daddyshome.fr

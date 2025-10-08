@@ -12,8 +12,8 @@ spec:
       name: http
       protocol: HTTP
     hosts:
-    - nextcloud.daddyshome.fr
-    - xdrive.daddyshome.fr
+    - nextcloudx.daddyshome.fr
+    - xdrivex.daddyshome.fr
   - port:
       number: 443
       name: https
@@ -22,8 +22,8 @@ spec:
       mode: MUTUAL
       credentialName: nextcloud-tls
     hosts:
-    - nextcloud.daddyshome.fr
-    - xdrive.daddyshome.fr
+    - nextcloudx.daddyshome.fr
+    - xdrivex.daddyshome.fr
 ---
 # Separate gateway for mobile access without mTLS
 apiVersion: networking.istio.io/v1beta1
@@ -40,7 +40,7 @@ spec:
       name: http
       protocol: HTTP
     hosts:
-    - xdrive-mobile.daddyshome.fr
+    - xdrive-mobilex.daddyshome.fr
   - port:
       number: 443
       name: https
@@ -49,4 +49,4 @@ spec:
       mode: SIMPLE  # No client certificate required for mobile
       credentialName: nextcloud-mobile-tls
     hosts:
-    - xdrive-mobile.daddyshome.fr
+    - xdrive-mobilex.daddyshome.fr

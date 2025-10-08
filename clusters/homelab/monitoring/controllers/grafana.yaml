@@ -25,7 +25,7 @@ spec:
       size: 1Gi
     env:
       GF_EXPLORE_ENABLED: true
-      GF_SERVER_ROOT_URL: "https://grafana.daddyshome.fr"
+      GF_SERVER_ROOT_URL: "https://grafanax.daddyshome.fr"
     adminPassword: admin
     datasources:
       datasources.yaml:

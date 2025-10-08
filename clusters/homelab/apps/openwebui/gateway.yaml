@@ -11,7 +11,7 @@ spec:
       name: http
       protocol: HTTP
     hosts:
-    - ai.daddyshome.fr
+    - aix.daddyshome.fr
   - port:
       number: 443
       name: https
@@ -20,4 +20,4 @@ spec:
       mode: MUTUAL
       credentialName: openwebui-tls
     hosts:
-    - ai.daddyshome.fr
+    - aix.daddyshome.fr

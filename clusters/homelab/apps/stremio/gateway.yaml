@@ -16,4 +16,4 @@ spec:
       mode: MUTUAL
       credentialName: stremio-tls
     hosts:
-    - stremio.daddyshome.fr
+    - stremiox.daddyshome.fr

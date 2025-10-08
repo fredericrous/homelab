@@ -17,6 +17,9 @@ spec:
       - name: generated-password
         secret:
           secretName: stalwart-admin-password
+      - name: smtp-password
+        secret:
+          secretName: stalwart-smtp-password
       containers:
       - name: vault
         image: hashicorp/vault:1.16
@@ -28,6 +31,8 @@ spec:
           mountPath: /vault/token
         - name: generated-password
           mountPath: /passwords
+        - name: smtp-password
+          mountPath: /smtp-passwords
         command:
         - /bin/sh
         - -c
@@ -40,14 +45,17 @@ spec:
             exit 0
           fi
           
-          # Get generated admin password
+          # Get generated passwords
           ADMIN_PASSWORD=$(cat /passwords/password)
+          SMTP_PASSWORD=$(cat /smtp-passwords/password)
           
           # Create Stalwart admin credentials in Vault
           vault kv put secret/stalwart \
             admin-password="$ADMIN_PASSWORD" \
             admin-username="admin" \
-            domain="daddyshome.fr"
+            domain="daddyshome.fr" \
+            smtp-username="noreply@daddyshome.fr" \
+            smtp-password="$SMTP_PASSWORD"
           
           echo "✅ Stalwart secrets configured in Vault"
           echo "Admin password: $ADMIN_PASSWORD"

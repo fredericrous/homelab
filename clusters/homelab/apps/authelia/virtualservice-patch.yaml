@@ -7,7 +7,7 @@ spec:
   gateways:
   - authelia-gateway
   hosts:
-  - auth.daddyshome.fr
+  - authx.daddyshome.fr
   http:
   - match:
     - port: 443
