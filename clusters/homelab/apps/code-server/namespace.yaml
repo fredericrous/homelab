@@ -4,4 +4,4 @@ metadata:
   name: code-server
   labels:
     name: code-server
-    istio-injection: enabled
+    istio-injection: disabled
