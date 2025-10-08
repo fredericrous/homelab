@@ -75,7 +75,6 @@ spec:
   target:
     name: client-ca-bundle
     creationPolicy: Owner
-    type: Opaque
   data:
     - secretKey: ca-bundle.crt
       remoteRef:
