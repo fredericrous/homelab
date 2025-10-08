@@ -1,0 +1,56 @@
+# Namespace-scoped policy for Code-server to read/write its own secrets
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: code-server
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    serviceAccount:
+      name: controller-manager
+  policy: |
+    # Code-server can read/write its own secrets
+    path "secret/data/code-server" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # Code-server can read/write for PushSecret
+    path "secret/data/code-server/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    
+    # Metadata access for PushSecret
+    path "secret/metadata/code-server" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+    
+    # Metadata access for subpaths
+    path "secret/metadata/code-server/*" {
+      capabilities = ["read", "list", "create", "update", "delete"]
+    }
+  type: acl
+---
+# Kubernetes auth role for Code-server namespace
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: code-server
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: controller-manager
+    serviceAccount:
+      name: controller-manager
+  path: kubernetes
+  policies:
+    - code-server
+    - external-secrets
+  targetServiceAccounts:
+    - default
+    - code-server
+  targetNamespaces:
+    targetNamespaces:
+      - code-server
