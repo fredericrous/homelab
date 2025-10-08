@@ -10,14 +10,14 @@ spec:
   gatewayClassName: envoy-gateway
   listeners:
   - name: https
-    port: 444  # Different port to avoid conflicts
+    port: 443
     protocol: HTTPS
-    hostname: "streaming.daddyshome.fr"
+    hostname: "*.daddyshome.fr"
     tls:
       mode: Terminate
       certificateRefs:
       - kind: Secret
-        name: streaming-daddyshome-fr-tls
+        name: wildcard-daddyshome-fr-tls
         namespace: envoy-gateway-system
     allowedRoutes:
       namespaces:
@@ -87,16 +87,5 @@ spec:
       - "Remote-Groups"
 
 ---
-# Certificate for streaming subdomain
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: streaming-daddyshome-fr
-  namespace: envoy-gateway-system
-spec:
-  secretName: streaming-daddyshome-fr-tls
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  dnsNames:
-  - "streaming.daddyshome.fr"
+# Note: Uses the same wildcard certificate as the main gateway
+# No need for a separate certificate since both gateways use *.daddyshome.fr
