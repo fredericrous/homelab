@@ -10,6 +10,8 @@ resources:
   - password-generators.yaml         # Password generators
   - external-secrets-generated.yaml  # Generated secrets
   - harbor-db-credentials.yaml      # Database credentials for CloudNativePG
+  - harbor-database.yaml            # Harbor main database
+  - harbor-registry-database.yaml   # Harbor registry database
   - push-secrets.yaml               # Push generated secrets to Vault
   - external-secrets.yaml           # Pull from Vault (after push)
   - harbor-helmrepository.yaml      # Harbor Helm repository (namespace override)
