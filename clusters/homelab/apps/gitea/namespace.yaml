@@ -2,3 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: gitea
+  annotations:
+    # PostgreSQL database generation
+    postgres.cnpg.io/database-name: "gitea"
+    postgres.cnpg.io/database-owner: "gitea"
+    postgres.cnpg.io/cluster-name: "postgres-apps"

@@ -7,3 +7,4 @@ resources:
   - ingress-mtls-automation.yaml
   - ingress-mtls-rbac.yaml
   - admission-controller-rbac.yaml
+  - postgres-database-generator.yaml

@@ -13,3 +13,7 @@ metadata:
   annotations:
     # mTLS component configuration
     mtls/tls-secret-name: "lldap-tls"
+    # PostgreSQL database generation
+    postgres.cnpg.io/database-name: "lldap"
+    postgres.cnpg.io/database-owner: "lldap"
+    postgres.cnpg.io/cluster-name: "postgres-apps"
