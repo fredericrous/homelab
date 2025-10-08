@@ -17,7 +17,7 @@ spec:
     spec:
       serviceAccountName: stremio
       imagePullSecrets:
-      - name: harbor-registry-creds
+      - name: gitea-registry-creds
       initContainers:
       - name: wait-for-image
         image: alpine/curl
@@ -52,9 +52,9 @@ spec:
           exit 1
         env:
         - name: IMAGE_REGISTRY
-          value: "harbor-registry.harbor.svc.cluster.local:5000"
+          value: "gitea.gitea.svc.cluster.local:3000"
         - name: IMAGE_NAME
-          value: "library/stremio-web"
+          value: "admin/stremio-web"
         resources:
           requests:
             memory: 16Mi
@@ -63,7 +63,7 @@ spec:
             memory: 32Mi
             cpu: 50m
       - name: copy-build
-        image: harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest
+        image: gitea.gitea.svc.cluster.local:3000/admin/stremio-web:latest
         imagePullPolicy: Always
         command: ["sh", "-c", "cp -r /var/www/stremio-web/build/* /build-output/"]
         volumeMounts:

@@ -1,0 +1,11 @@
+---
+# Pulls gitea-admin secret from gitea namespace using modular reflector pattern
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea-admin
+  namespace: stremio
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflects: "gitea/gitea-admin"
+type: Opaque
+data: {}

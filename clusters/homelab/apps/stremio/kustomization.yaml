@@ -8,8 +8,7 @@ resources:
   - service-account.yaml
   - secret-store.yaml     # Namespace-scoped SecretStore
   - external-secrets.yaml
-  - harbor-admin-reflector.yaml    # Pull harbor-admin secret from harbor namespace
-  - harbor-registry-reflector.yaml # Pull harbor-registry secret from harbor namespace
+  - gitea-admin-reflector.yaml     # Pull gitea-admin secret from gitea namespace
   - pvc.yaml
   - nginx-config.yaml
   - server-nginx-proxy-config.yaml

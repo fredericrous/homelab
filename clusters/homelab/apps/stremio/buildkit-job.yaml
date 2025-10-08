@@ -16,18 +16,18 @@ spec:
         command: ['sh', '-c']
         args:
         - |
-          echo "Waiting for harbor-admin secret to be available..."
-          while ! kubectl get secret harbor-admin -n stremio >/dev/null 2>&1; do
+          echo "Waiting for gitea-admin secret to be available..."
+          while ! kubectl get secret gitea-admin -n stremio >/dev/null 2>&1; do
             echo "Secret not found, waiting 5 seconds..."
             sleep 5
           done
-          echo "✅ Secret harbor-admin is available, proceeding with build"
+          echo "✅ Secret gitea-admin is available, proceeding with build"
       containers:
       - name: build-stremio
         image: moby/buildkit:latest
         volumeMounts:
-        - name: harbor-credentials
-          mountPath: /var/secrets/harbor
+        - name: gitea-credentials
+          mountPath: /var/secrets/gitea
           readOnly: true
         command:
         - sh
@@ -51,23 +51,23 @@ spec:
           git clone https://github.com/Stremio/stremio-web.git /workspace
           cd /workspace
           
-          # Get Harbor credentials
-          HARBOR_USERNAME=$(cat /var/secrets/harbor/username)
-          HARBOR_PASSWORD=$(cat /var/secrets/harbor/password)
+          # Get Gitea credentials
+          GITEA_USERNAME=$(cat /var/secrets/gitea/username)
+          GITEA_PASSWORD=$(cat /var/secrets/gitea/password)
           
           # Create Docker config for BuildKit authentication
           mkdir -p ~/.docker
-          echo "{\"auths\":{\"harbor-registry.harbor.svc.cluster.local:5000\":{\"auth\":\"$(echo -n $HARBOR_USERNAME:$HARBOR_PASSWORD | base64)\"}}}" > ~/.docker/config.json
+          echo "{\"auths\":{\"gitea.gitea.svc.cluster.local:3000\":{\"auth\":\"$(echo -n $GITEA_USERNAME:$GITEA_PASSWORD | base64)\"}}}" > ~/.docker/config.json
           
           # Build and push the image with authentication
           buildctl build \
             --frontend dockerfile.v0 \
             --local context=. \
             --local dockerfile=. \
-            --output type=image,name=harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest,push=true,registry.insecure=true,ocistore=false
+            --output type=image,name=gitea.gitea.svc.cluster.local:3000/admin/stremio-web:latest,push=true,registry.insecure=true,ocistore=false
           
           echo "✅ Stremio web image built and pushed successfully!"
       volumes:
-      - name: harbor-credentials
+      - name: gitea-credentials
         secret:
-          secretName: harbor-admin
+          secretName: gitea-admin
