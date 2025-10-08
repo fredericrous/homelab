@@ -15,4 +15,4 @@ spec:
       mode: MUTUAL
       credentialName: vault-tls
     hosts:
-    - vault.daddyshome.fr
+    - xvault.daddyshome.fr

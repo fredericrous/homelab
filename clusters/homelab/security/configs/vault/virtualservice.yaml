@@ -5,7 +5,7 @@ metadata:
   namespace: vault
 spec:
   hosts:
-  - vault.daddyshome.fr
+  - xvault.daddyshome.fr
   gateways:
   - vault
   http:
