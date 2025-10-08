@@ -34,6 +34,7 @@ resources:
   - openwebui-policy.yaml
   - code-server-policy.yaml
   # OIDC authentication configuration
+  - vault-oidc-password-simple.yaml
   - vault-oidc-secret.yaml
   - oidc-auth-config.yaml
   # Vault OIDC client configuration for Authelia
