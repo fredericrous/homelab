@@ -11,9 +11,10 @@ spec:
   path: ./clusters/homelab/data-storage
   prune: true
   wait: true
-  dependsOn:
-    - name: security
-      namespace: flux-system
+  # Temporarily removing dependency to break circular dependency
+  # dependsOn:
+  #   - name: security
+  #     namespace: flux-system
   postBuild:
     substituteFrom:
       - kind: Secret
