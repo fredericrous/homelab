@@ -1,0 +1,121 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: authelia-oidc-config-assembler
+  namespace: authelia
+  annotations:
+    # This CronJob can be triggered manually with:
+    # kubectl create job --from=cronjob/authelia-oidc-config-assembler manual-oidc-assembly -n authelia
+spec:
+  schedule: "@yearly"  # Set to yearly so it doesn't run automatically, only when triggered manually
+  suspend: false
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 300
+      template:
+        spec:
+          serviceAccountName: authelia
+          restartPolicy: OnFailure
+          containers:
+          - name: config-assembler
+            image: alpine:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              echo "🔧 Assembling Authelia OIDC configuration from app-specific ConfigMaps..."
+              
+              # Install kubectl and yq
+              apk add --no-cache curl
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl
+              mv kubectl /usr/local/bin/
+              
+              # Install yq for YAML processing
+              wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+              chmod +x /usr/bin/yq
+              
+              echo "📋 Gathering OIDC client configurations..."
+              
+              # Get all ConfigMaps with OIDC client configs
+              OIDC_CONFIGMAPS=$(kubectl get configmaps -n authelia -l app.kubernetes.io/component=oidc-client -o name 2>/dev/null || true)
+              
+              if [ -z "$OIDC_CONFIGMAPS" ]; then
+                echo "❌ No OIDC client ConfigMaps found with label app.kubernetes.io/component=oidc-client"
+                exit 1
+              fi
+              
+              echo "📦 Found OIDC client ConfigMaps: $OIDC_CONFIGMAPS"
+              
+              # Start building the clients array
+              echo "[]" > /tmp/clients.yaml
+              
+              # Process each ConfigMap
+              for cm in $OIDC_CONFIGMAPS; do
+                echo "🔍 Processing $cm..."
+                
+                # Extract ConfigMap name without prefix
+                CM_NAME=$(echo $cm | sed 's/configmap\///')
+                
+                # Get all keys from the ConfigMap and process each one
+                kubectl get configmap $CM_NAME -n authelia -o go-template='{{range $key, $value := .data}}{{$key}}{{"\n"}}{{end}}' | while read -r key; do
+                  if [ -n "$key" ] && [ "$key" != "null" ]; then
+                    echo "  📄 Processing key: $key from ConfigMap: $CM_NAME"
+                    
+                    # Get the client configuration
+                    kubectl get configmap $CM_NAME -n authelia -o jsonpath="{.data.$key}" > /tmp/client_config.yaml
+                    
+                    # Merge with existing clients array
+                    yq eval-all '. as $item ireduce ({}; . + $item)' /tmp/clients.yaml /tmp/client_config.yaml > /tmp/merged_clients.yaml
+                    mv /tmp/merged_clients.yaml /tmp/clients.yaml
+                  fi
+                done
+              done
+              
+              echo "📝 Final assembled clients configuration:"
+              cat /tmp/clients.yaml
+              
+              # Create/update the assembled configuration ConfigMap
+              kubectl create configmap authelia-oidc-clients-assembled \
+                --from-file=clients.yaml=/tmp/clients.yaml \
+                --dry-run=client -o yaml | kubectl apply -f -
+              
+              echo "✅ Assembled OIDC clients configuration stored in configmap: authelia-oidc-clients-assembled"
+              
+              # Trigger Authelia restart by updating deployment annotation
+              echo "🔄 Restarting Authelia to pick up new OIDC configuration..."
+              
+              kubectl patch deployment authelia -n authelia \
+                -p '{"spec":{"template":{"metadata":{"annotations":{"oidc-config/restarted-at":"'$(date -Iseconds)'"}}}}}'
+              
+              if [ $? -eq 0 ]; then
+                echo "✅ Authelia deployment restart triggered successfully"
+              else
+                echo "❌ Failed to restart Authelia deployment"
+                exit 1
+              fi
+              
+              # Wait for rollout to complete
+              echo "⏳ Waiting for Authelia rollout to complete..."
+              kubectl rollout status deployment/authelia -n authelia --timeout=300s
+              
+              if [ $? -eq 0 ]; then
+                echo "🎉 Authelia rollout completed successfully!"
+                echo "🔗 OIDC configuration has been updated and Authelia is ready"
+              else
+                echo "⚠️  Authelia rollout may have timed out or failed"
+                exit 1
+              fi
+              
+            resources:
+              requests:
+                memory: 64Mi
+                cpu: 100m
+              limits:
+                memory: 128Mi
+                cpu: 200m

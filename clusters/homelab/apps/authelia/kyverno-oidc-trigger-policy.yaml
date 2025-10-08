@@ -1,0 +1,227 @@
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: trigger-oidc-assembly-on-config-change
+  annotations:
+    policies.kyverno.io/title: Trigger OIDC Assembly on Config Change
+    policies.kyverno.io/category: Automation
+    policies.kyverno.io/subject: ConfigMap,Job
+    policies.kyverno.io/description: >-
+      This policy watches for changes to OIDC client ConfigMaps and automatically
+      triggers the Authelia OIDC configuration assembly job to update and restart
+      Authelia with the new configuration.
+spec:
+  admission: false
+  background: true
+  schemaValidation: false
+  validationFailureAction: Audit
+  rules:
+  - name: trigger-oidc-assembly-on-create-update
+    match:
+      any:
+      - resources:
+          kinds:
+          - ConfigMap
+          names:
+          - "*-oidc-client-config"
+          namespaces:
+          - authelia
+      - resources:
+          kinds:
+          - ConfigMap
+          namespaces:
+          - authelia
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: oidc-client
+    exclude:
+      any:
+      - resources:
+          names:
+          - "authelia-oidc-clients-assembled"  # Don't trigger on our own output
+          - "trigger-oidc-assembly-script"     # Don't trigger on helper scripts
+    mutate:
+      targets:
+      - apiVersion: batch/v1
+        kind: Job
+        namespace: authelia
+      patchStrategicMerge:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: "auto-oidc-assembly-{{ random('[0-9a-z]{8}') }}"
+          namespace: authelia
+          labels:
+            app.kubernetes.io/name: authelia-oidc-assembler
+            app.kubernetes.io/instance: "{{ request.object.metadata.name }}"
+            app.kubernetes.io/managed-by: kyverno
+            triggered-by: "configmap-{{ request.object.metadata.name }}"
+          annotations:
+            kyverno.io/created-by: "trigger-oidc-assembly-on-config-change"
+            source-configmap: "{{ request.object.metadata.namespace }}/{{ request.object.metadata.name }}"
+            trigger-reason: "OIDC client configuration changed"
+            trigger-timestamp: "{{ time_now_utc() }}"
+        spec:
+          ttlSecondsAfterFinished: 300
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/name: authelia-oidc-assembler
+                app.kubernetes.io/managed-by: kyverno
+            spec:
+              serviceAccountName: authelia
+              restartPolicy: OnFailure
+              containers:
+              - name: config-assembler
+                image: alpine:latest
+                command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  
+                  echo "🤖 [KYVERNO TRIGGERED] Assembling Authelia OIDC configuration..."
+                  echo "📋 Triggered by ConfigMap: {{ request.object.metadata.namespace }}/{{ request.object.metadata.name }}"
+                  echo "⏰ Trigger time: {{ time_now_utc() }}"
+                  
+                  # Install kubectl and yq
+                  apk add --no-cache curl
+                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                  chmod +x kubectl
+                  mv kubectl /usr/local/bin/
+                  
+                  # Install yq for YAML processing
+                  wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+                  chmod +x /usr/bin/yq
+                  
+                  echo "🔍 Gathering all OIDC client configurations..."
+                  
+                  # Get all ConfigMaps with OIDC client configs
+                  OIDC_CONFIGMAPS=$(kubectl get configmaps -n authelia -l app.kubernetes.io/component=oidc-client -o name 2>/dev/null || true)
+                  
+                  if [ -z "$OIDC_CONFIGMAPS" ]; then
+                    echo "❌ No OIDC client ConfigMaps found with label app.kubernetes.io/component=oidc-client"
+                    exit 1
+                  fi
+                  
+                  echo "📦 Found OIDC client ConfigMaps: $OIDC_CONFIGMAPS"
+                  
+                  # Start building the clients array
+                  echo "[]" > /tmp/clients.yaml
+                  
+                  # Process each ConfigMap
+                  for cm in $OIDC_CONFIGMAPS; do
+                    echo "🔧 Processing $cm..."
+                    
+                    # Extract ConfigMap name without prefix
+                    CM_NAME=$(echo $cm | sed 's/configmap\///')
+                    
+                    # Get all keys from the ConfigMap and process each one
+                    kubectl get configmap $CM_NAME -n authelia -o go-template='{{range $key, $value := .data}}{{$key}}{{"\n"}}{{end}}' | while read -r key; do
+                      if [ -n "$key" ] && [ "$key" != "null" ]; then
+                        echo "  📄 Processing key: $key from ConfigMap: $CM_NAME"
+                        
+                        # Get the client configuration
+                        kubectl get configmap $CM_NAME -n authelia -o jsonpath="{.data.$key}" > /tmp/client_config.yaml
+                        
+                        # Merge with existing clients array
+                        yq eval-all '. as $item ireduce ({}; . + $item)' /tmp/clients.yaml /tmp/client_config.yaml > /tmp/merged_clients.yaml
+                        mv /tmp/merged_clients.yaml /tmp/clients.yaml
+                      fi
+                    done
+                  done
+                  
+                  echo "📝 Final assembled clients configuration:"
+                  cat /tmp/clients.yaml
+                  
+                  # Create/update the assembled configuration ConfigMap
+                  kubectl create configmap authelia-oidc-clients-assembled \
+                    --from-file=clients.yaml=/tmp/clients.yaml \
+                    --dry-run=client -o yaml | kubectl apply -f -
+                  
+                  echo "✅ Assembled OIDC clients configuration updated"
+                  
+                  # Trigger Authelia restart
+                  echo "🔄 Restarting Authelia to pick up new OIDC configuration..."
+                  
+                  kubectl patch deployment authelia -n authelia \
+                    -p '{"spec":{"template":{"metadata":{"annotations":{"oidc-config/restarted-at":"'$(date -Iseconds)'","oidc-config/triggered-by":"kyverno-{{ request.object.metadata.name }}"}}}}}'
+                  
+                  if [ $? -eq 0 ]; then
+                    echo "✅ Authelia deployment restart triggered successfully"
+                  else
+                    echo "❌ Failed to restart Authelia deployment"
+                    exit 1
+                  fi
+                  
+                  # Wait for rollout to complete
+                  echo "⏳ Waiting for Authelia rollout to complete..."
+                  kubectl rollout status deployment/authelia -n authelia --timeout=300s
+                  
+                  if [ $? -eq 0 ]; then
+                    echo "🎉 Authelia rollout completed successfully!"
+                    echo "🤖 Kyverno automation completed - OIDC config updated and Authelia restarted"
+                  else
+                    echo "⚠️  Authelia rollout may have timed out or failed"
+                    exit 1
+                  fi
+                  
+                resources:
+                  requests:
+                    memory: 64Mi
+                    cpu: 100m
+                  limits:
+                    memory: 128Mi
+                    cpu: 200m
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: cleanup-old-oidc-assembly-jobs
+  annotations:
+    policies.kyverno.io/title: Cleanup Old OIDC Assembly Jobs
+    policies.kyverno.io/category: Automation
+    policies.kyverno.io/subject: Job
+    policies.kyverno.io/description: >-
+      This policy cleans up old OIDC assembly jobs to prevent accumulation.
+      It removes jobs older than 1 hour that were created by the OIDC trigger policy.
+spec:
+  admission: false
+  background: true
+  schemaValidation: false
+  validationFailureAction: Audit
+  rules:
+  - name: cleanup-old-assembly-jobs
+    match:
+      any:
+      - resources:
+          kinds:
+          - Job
+          namespaces:
+          - authelia
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: authelia-oidc-assembler
+              app.kubernetes.io/managed-by: kyverno
+    preconditions:
+      any:
+      - key: "{{ time_since(request.object.metadata.creationTimestamp, '', 'PT1H') }}"
+        operator: GreaterThan
+        value: "0"
+      - key: "{{ request.object.status.completionTime || '' }}"
+        operator: NotEquals
+        value: ""
+    mutate:
+      targets:
+      - apiVersion: batch/v1
+        kind: Job
+        namespace: "{{ request.object.metadata.namespace }}"
+        name: "{{ request.object.metadata.name }}"
+      patchStrategicMerge:
+        metadata:
+          annotations:
+            kyverno.io/delete-after: "{{ time_add(request.object.metadata.creationTimestamp, 'PT2H') }}"
+        spec:
+          ttlSecondsAfterFinished: 60  # Clean up completed jobs after 1 minute

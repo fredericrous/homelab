@@ -9,6 +9,17 @@ resources:
   - secret-store.yaml         # Namespace-scoped SecretStore with Authelia policy
   - password-generator.yaml   # Generate passwords using ESO
   - external-secret.yaml      # Pull from Vault (after push)
+  - oidc-secrets.yaml         # OIDC secrets for Vault integration
+  - oidc-password-generators.yaml  # Generate OIDC secrets using ESO
+  - oidc-cert-generator-job.yaml   # Generate OIDC certificate and private key
+  - oidc-cert-push-secret.yaml     # Push certificate to Vault
+  - oidc-hash-generator-job.yaml   # Generate hashed client secret for Authelia
+  - oidc-config-assembler-job.yaml # Assemble OIDC client configs from apps
+  - oidc-config-assembler-cronjob.yaml # CronJob for repeated OIDC config assembly
+  - oidc-assembler-rbac.yaml       # RBAC for assembler job to restart Authelia
+  - trigger-oidc-assembly.yaml     # Script to trigger OIDC assembly manually
+  - kyverno-oidc-trigger-policy.yaml # Kyverno policy to auto-trigger on config changes
+  - kyverno-oidc-content-watcher.yaml # Advanced content change detection with hashing
   - configmap.yaml
   - ca-configmap.yaml
   - ca-certificates-secret.yaml

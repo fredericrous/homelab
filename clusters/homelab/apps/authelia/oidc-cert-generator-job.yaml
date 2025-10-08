@@ -1,0 +1,58 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: authelia-oidc-cert-generator
+  namespace: authelia
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: authelia
+      restartPolicy: OnFailure
+      containers:
+      - name: cert-generator
+        image: alpine/openssl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "Generating OIDC certificate and private key for Authelia..."
+          
+          # Install kubectl
+          apk add --no-cache curl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          mv kubectl /usr/local/bin/
+          
+          # Generate private key
+          openssl genpkey -algorithm RSA -out oidc-private-key.pem -pkcs8 -v
+          
+          # Generate certificate signing request
+          openssl req -new -key oidc-private-key.pem -out oidc.csr -subj "/C=FR/ST=France/L=Home/O=Homelab/OU=Authelia/CN=auth.daddyshome.fr"
+          
+          # Generate self-signed certificate (valid for 10 years)
+          openssl x509 -req -in oidc.csr -signkey oidc-private-key.pem -out oidc-certificate.pem -days 3650 -sha256
+          
+          # Verify certificate
+          openssl x509 -in oidc-certificate.pem -text -noout
+          
+          echo "Certificate and private key generated successfully"
+          
+          # Create temporary secret with certificate and private key
+          kubectl create secret generic authelia-oidc-cert-temp \
+            --from-file=private_key=oidc-private-key.pem \
+            --from-file=certificate=oidc-certificate.pem \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "✅ OIDC certificate and private key stored in temporary secret"
+          
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 100m
+          limits:
+            memory: 128Mi
+            cpu: 200m

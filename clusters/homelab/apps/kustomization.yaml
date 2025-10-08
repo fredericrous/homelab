@@ -5,6 +5,7 @@ resources:
   - lldap.yaml
   - authelia.yaml
   - gitea.yaml
+  - stalwart.yaml
   - stremio.yaml
   - plex.yaml
   - nextcloud.yaml

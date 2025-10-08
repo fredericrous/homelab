@@ -1,0 +1,14 @@
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: oidc-auth-mount
+  namespace: vault-config-operator
+spec:
+  method: jwt
+  mount: oidc
+  vaultConnectionRef: vault-connection
+  jwt:
+    role: vault-admin
+    serviceAccount: vault-config-operator
+    tokenExpirationSeconds: 7200

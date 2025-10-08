@@ -9,6 +9,9 @@ resources:
   - secret-store.yaml        # Namespace-scoped SecretStore with Nextcloud policy
   - password-generator.yaml  # Generate passwords using ESO
   - external-secrets.yaml    # Pull from Vault (after push)
+  - nextcloud-oidc-password-generator.yaml
+  - nextcloud-oidc-hash-generator-job.yaml
+  - nextcloud-oidc-client-config.yaml
   - pvc.yaml
   - pvc-nfs.yaml
   - configmap.yaml

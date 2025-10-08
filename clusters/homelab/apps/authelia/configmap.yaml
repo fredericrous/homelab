@@ -99,3 +99,18 @@ data:
         disable_require_tls: false
         disable_html_emails: false
         
+    identity_providers:
+      oidc:
+        # HMAC secret, private key, and certificate chain are loaded from files
+        # mounted from the authelia-oidc-secrets secret
+        # 
+        # OIDC clients are dynamically assembled from individual app ConfigMaps
+        # Each app defines its own OIDC client configuration in a ConfigMap
+        # The oidc-config-assembler-job combines them into the final configuration
+        #
+        # To add a new OIDC client:
+        # 1. Create a ConfigMap with label app.kubernetes.io/component=oidc-client
+        # 2. Run the oidc-config-assembler-job to regenerate the configuration
+        # 3. Restart Authelia to pick up the new configuration
+        clients: []  # This will be populated by the config assembler job
+        

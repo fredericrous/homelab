@@ -1,0 +1,248 @@
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: oidc-config-content-change-detector
+  annotations:
+    policies.kyverno.io/title: OIDC Config Content Change Detector
+    policies.kyverno.io/category: Automation
+    policies.kyverno.io/subject: ConfigMap
+    policies.kyverno.io/description: >-
+      This policy detects actual content changes in OIDC client ConfigMaps
+      by comparing checksums and triggering assembly only when content actually changes.
+spec:
+  admission: false
+  background: true
+  schemaValidation: false
+  validationFailureAction: Audit
+  rules:
+  - name: track-oidc-config-changes
+    match:
+      any:
+      - resources:
+          kinds:
+          - ConfigMap
+          namespaces:
+          - authelia
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: oidc-client
+    exclude:
+      any:
+      - resources:
+          names:
+          - "authelia-oidc-clients-assembled"
+          - "trigger-oidc-assembly-script"
+    mutate:
+      patchStrategicMerge:
+        metadata:
+          annotations:
+            oidc-config/content-hash: "{{ request.object.data | to_string | sha256sum }}"
+            oidc-config/last-updated: "{{ time_now_utc() }}"
+            oidc-config/auto-assembly: "enabled"
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy  
+metadata:
+  name: trigger-assembly-on-content-change
+  annotations:
+    policies.kyverno.io/title: Trigger Assembly on Content Change
+    policies.kyverno.io/category: Automation
+    policies.kyverno.io/subject: ConfigMap,Job
+    policies.kyverno.io/description: >-
+      This policy triggers OIDC assembly when the content hash changes,
+      indicating actual configuration content has been modified.
+spec:
+  admission: false
+  background: true
+  schemaValidation: false
+  validationFailureAction: Audit
+  rules:
+  - name: create-assembly-job-on-hash-change
+    match:
+      any:
+      - resources:
+          kinds:
+          - ConfigMap
+          namespaces:
+          - authelia
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: oidc-client
+    exclude:
+      any:
+      - resources:
+          names:
+          - "authelia-oidc-clients-assembled"
+          - "trigger-oidc-assembly-script"
+    preconditions:
+      any:
+      - key: "{{ request.object.metadata.annotations.\"oidc-config/content-hash\" || '' }}"
+        operator: NotEquals
+        value: "{{ request.oldObject.metadata.annotations.\"oidc-config/content-hash\" || '' }}"
+      - key: "{{ request.operation }}"
+        operator: Equals
+        value: "CREATE"
+    generate:
+      apiVersion: batch/v1
+      kind: Job
+      name: "oidc-assembly-{{ request.object.metadata.name | truncate('10') }}-{{ random('[0-9a-z]{6}') }}"
+      namespace: authelia
+      synchronize: false
+      data:
+        metadata:
+          labels:
+            app.kubernetes.io/name: authelia-oidc-assembler
+            app.kubernetes.io/instance: "{{ request.object.metadata.name }}"
+            app.kubernetes.io/managed-by: kyverno
+            triggered-by: "configmap-{{ request.object.metadata.name }}"
+            kyverno.io/generated-by-kind: ConfigMap
+            kyverno.io/generated-by-name: "{{ request.object.metadata.name }}"
+            kyverno.io/generated-by-namespace: "{{ request.object.metadata.namespace }}"
+          annotations:
+            kyverno.io/created-by: "trigger-assembly-on-content-change"
+            source-configmap: "{{ request.object.metadata.namespace }}/{{ request.object.metadata.name }}"
+            content-hash: "{{ request.object.metadata.annotations.\"oidc-config/content-hash\" }}"
+            trigger-reason: "OIDC client configuration content changed"
+            trigger-timestamp: "{{ time_now_utc() }}"
+        spec:
+          ttlSecondsAfterFinished: 600  # Keep for 10 minutes for debugging
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/name: authelia-oidc-assembler
+                app.kubernetes.io/managed-by: kyverno
+            spec:
+              serviceAccountName: authelia
+              restartPolicy: OnFailure
+              containers:
+              - name: config-assembler
+                image: alpine:latest
+                env:
+                - name: TRIGGER_SOURCE
+                  value: "kyverno-content-change"
+                - name: SOURCE_CONFIGMAP
+                  value: "{{ request.object.metadata.namespace }}/{{ request.object.metadata.name }}"
+                - name: CONTENT_HASH
+                  value: "{{ request.object.metadata.annotations.\"oidc-config/content-hash\" }}"
+                command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  
+                  echo "🤖 [KYVERNO CONTENT WATCHER] Assembling Authelia OIDC configuration..."
+                  echo "📋 Triggered by ConfigMap: $SOURCE_CONFIGMAP"
+                  echo "🔐 Content hash: $CONTENT_HASH"
+                  echo "⏰ Trigger time: {{ time_now_utc() }}"
+                  
+                  # Install kubectl and yq
+                  apk add --no-cache curl
+                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                  chmod +x kubectl
+                  mv kubectl /usr/local/bin/
+                  
+                  # Install yq for YAML processing
+                  wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+                  chmod +x /usr/bin/yq
+                  
+                  echo "🔍 Gathering all OIDC client configurations..."
+                  
+                  # Get all ConfigMaps with OIDC client configs
+                  OIDC_CONFIGMAPS=$(kubectl get configmaps -n authelia -l app.kubernetes.io/component=oidc-client -o name 2>/dev/null || true)
+                  
+                  if [ -z "$OIDC_CONFIGMAPS" ]; then
+                    echo "❌ No OIDC client ConfigMaps found"
+                    exit 1
+                  fi
+                  
+                  echo "📦 Found OIDC client ConfigMaps: $OIDC_CONFIGMAPS"
+                  
+                  # Start building the clients array
+                  echo "[]" > /tmp/clients.yaml
+                  
+                  # Process each ConfigMap
+                  for cm in $OIDC_CONFIGMAPS; do
+                    CM_NAME=$(echo $cm | sed 's/configmap\///')
+                    echo "🔧 Processing $CM_NAME..."
+                    
+                    # Get content hash for tracking
+                    CURRENT_HASH=$(kubectl get configmap $CM_NAME -n authelia -o jsonpath='{.metadata.annotations.oidc-config/content-hash}' 2>/dev/null || echo "unknown")
+                    echo "  🔐 Content hash: $CURRENT_HASH"
+                    
+                    # Get all keys and process them
+                    kubectl get configmap $CM_NAME -n authelia -o go-template='{{range $key, $value := .data}}{{$key}}{{"\n"}}{{end}}' | while read -r key; do
+                      if [ -n "$key" ] && [ "$key" != "null" ]; then
+                        echo "  📄 Processing key: $key"
+                        
+                        # Get the client configuration
+                        kubectl get configmap $CM_NAME -n authelia -o jsonpath="{.data.$key}" > /tmp/client_config.yaml
+                        
+                        # Merge with existing clients array
+                        yq eval-all '. as $item ireduce ({}; . + $item)' /tmp/clients.yaml /tmp/client_config.yaml > /tmp/merged_clients.yaml
+                        mv /tmp/merged_clients.yaml /tmp/clients.yaml
+                      fi
+                    done
+                  done
+                  
+                  echo "📝 Final assembled clients configuration:"
+                  cat /tmp/clients.yaml
+                  
+                  # Create/update the assembled configuration ConfigMap
+                  kubectl create configmap authelia-oidc-clients-assembled \
+                    --from-file=clients.yaml=/tmp/clients.yaml \
+                    --dry-run=client -o yaml | \
+                    kubectl label --local -f - \
+                      assembled-from="$SOURCE_CONFIGMAP" \
+                      assembly-trigger="content-change" \
+                      assembly-timestamp="{{ time_now_utc() }}" \
+                      -o yaml | kubectl apply -f -
+                  
+                  echo "✅ Assembled OIDC clients configuration updated"
+                  
+                  # Trigger Authelia restart with enhanced annotations
+                  echo "🔄 Restarting Authelia to pick up new OIDC configuration..."
+                  
+                  kubectl patch deployment authelia -n authelia \
+                    -p '{
+                      "spec": {
+                        "template": {
+                          "metadata": {
+                            "annotations": {
+                              "oidc-config/restarted-at": "'$(date -Iseconds)'",
+                              "oidc-config/triggered-by": "kyverno-content-change",
+                              "oidc-config/source-configmap": "'$SOURCE_CONFIGMAP'",
+                              "oidc-config/content-hash": "'$CONTENT_HASH'"
+                            }
+                          }
+                        }
+                      }
+                    }'
+                  
+                  if [ $? -eq 0 ]; then
+                    echo "✅ Authelia deployment restart triggered"
+                  else
+                    echo "❌ Failed to restart Authelia deployment"
+                    exit 1
+                  fi
+                  
+                  # Wait for rollout with timeout
+                  echo "⏳ Waiting for Authelia rollout to complete..."
+                  kubectl rollout status deployment/authelia -n authelia --timeout=300s
+                  
+                  if [ $? -eq 0 ]; then
+                    echo "🎉 Authelia rollout completed successfully!"
+                    echo "🤖 Kyverno content watcher completed - OIDC config updated"
+                  else
+                    echo "⚠️  Authelia rollout timed out or failed"
+                    exit 1
+                  fi
+                  
+                resources:
+                  requests:
+                    memory: 64Mi
+                    cpu: 100m
+                  limits:
+                    memory: 128Mi
+                    cpu: 200m

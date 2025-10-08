@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stalwart-config
+  namespace: stalwart
+data:
+  config.toml: |
+    [server]
+    hostname = "mail.daddyshome.fr"
+    
+    [server.listener."smtp"]
+    bind = ["0.0.0.0:25"]
+    protocol = "smtp"
+    
+    [server.listener."submission"]
+    bind = ["0.0.0.0:587"]
+    protocol = "smtp"
+    
+    [server.listener."smtps"]
+    bind = ["0.0.0.0:465"]
+    protocol = "smtp"
+    tls.implicit = true
+    
+    [server.listener."imap"]
+    bind = ["0.0.0.0:143"]
+    protocol = "imap"
+    
+    [server.listener."imaps"]
+    bind = ["0.0.0.0:993"]
+    protocol = "imap"
+    tls.implicit = true
+    
+    [server.listener."http"]
+    bind = ["0.0.0.0:8080"]
+    protocol = "http"
+    
+    [server.listener."sieve"]
+    bind = ["0.0.0.0:4190"]
+    protocol = "managesieve"
+    
+    [directory."lldap"]
+    type = "ldap"
+    url = "ldap://lldap.lldap.svc.cluster.local:3890"
+    base-dn = "dc=daddyshome,dc=fr"
+    bind-dn = "uid=admin,ou=people,dc=daddyshome,dc=fr"
+    bind-password = "Good men don't need rules. 42"
+    
+    [directory."lldap".pool]
+    max-connections = 10
+    
+    [directory."lldap".object."user"]
+    class = "person"
+    filter = "(&(objectClass=person)(mail=*))"
+    attributes.name = "uid"
+    attributes.email = "mail"
+    attributes.secret = "userPassword"
+    
+    [storage]
+    data = "rocksdb"
+    blob = "rocksdb"
+    fts = "rocksdb"
+    lookup = "rocksdb"
+    
+    [storage.rocksdb]
+    path = "/opt/stalwart/data"
+    
+    [authentication]
+    directory = "lldap"
+    
+    [session.rcpt]
+    relay = true
+    
+    [session.ehlo]
+    require = true
+    
+    [queue]
+    path = "/opt/stalwart/queue"
+    
+    [report]
+    path = "/opt/stalwart/reports"

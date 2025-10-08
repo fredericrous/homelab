@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stalwart
+  namespace: stalwart
+  labels:
+    app: stalwart
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stalwart
+  template:
+    metadata:
+      labels:
+        app: stalwart
+    spec:
+      serviceAccountName: stalwart
+      initContainers:
+      - name: config-init
+        image: alpine:3.18
+        volumeMounts:
+        - name: config-template
+          mountPath: /templates
+        - name: config-output
+          mountPath: /output
+        - name: admin-secret
+          mountPath: /secrets
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Copy base config
+          cp /templates/config.toml /output/config.toml
+          
+          # Read admin password and append admin config
+          ADMIN_PASSWORD=$(cat /secrets/admin-password)
+          echo "" >> /output/config.toml
+          echo "# Admin fallback authentication" >> /output/config.toml
+          echo "[authentication.fallback-admin]" >> /output/config.toml
+          echo "user = \"admin\"" >> /output/config.toml
+          echo "secret = \"$ADMIN_PASSWORD\"" >> /output/config.toml
+          
+          echo "✅ Config generated successfully"
+      containers:
+      - name: stalwart
+        image: stalwartlabs/stalwart:latest
+        ports:
+        - name: smtp
+          containerPort: 25
+          protocol: TCP
+        - name: submission
+          containerPort: 587
+          protocol: TCP
+        - name: smtps
+          containerPort: 465
+          protocol: TCP
+        - name: imap
+          containerPort: 143
+          protocol: TCP
+        - name: imaps
+          containerPort: 993
+          protocol: TCP
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: sieve
+          containerPort: 4190
+          protocol: TCP
+        env:
+        - name: STALWART_CONFIG
+          value: "/etc/stalwart/config.toml"
+        volumeMounts:
+        - name: config-output
+          mountPath: /etc/stalwart
+          readOnly: true
+        - name: data
+          mountPath: /opt/stalwart
+        livenessProbe:
+          httpGet:
+            path: /healthz/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: config-template
+        configMap:
+          name: stalwart-config
+      - name: config-output
+        emptyDir: {}
+      - name: admin-secret
+        secret:
+          secretName: stalwart-vault-creds
+      - name: data
+        persistentVolumeClaim:
+          claimName: stalwart-data
