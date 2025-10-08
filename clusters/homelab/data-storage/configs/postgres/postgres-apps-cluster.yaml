@@ -92,6 +92,14 @@ spec:
       login: true
       passwordSecret:
         name: harbor-db-app
+    
+    # Gitea application user
+    - name: gitea
+      ensure: present
+      comment: Gitea Git and container registry
+      login: true
+      passwordSecret:
+        name: gitea-db-app
   
   # Backup configuration (commented out for now)
   # backup:
