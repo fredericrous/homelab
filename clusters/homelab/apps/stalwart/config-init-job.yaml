@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stalwart-config-init
+  namespace: stalwart
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: stalwart
+      volumes:
+      - name: admin-config-template
+        configMap:
+          name: stalwart-admin-config
+      - name: admin-config-output
+        emptyDir: {}
+      - name: admin-secret
+        secret:
+          secretName: stalwart-vault-creds
+      containers:
+      - name: config-generator
+        image: alpine:3.18
+        volumeMounts:
+        - name: admin-config-template
+          mountPath: /templates
+        - name: admin-config-output
+          mountPath: /output
+        - name: admin-secret
+          mountPath: /secrets
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Read the admin password from secret
+          ADMIN_PASSWORD=$(cat /secrets/admin-password)
+          
+          # Replace placeholder with actual password in config
+          sed "s/__ADMIN_PASSWORD__/$ADMIN_PASSWORD/g" \
+            /templates/admin.toml > /output/admin.toml
+          
+          echo "✅ Admin config generated successfully"
+          cat /output/admin.toml

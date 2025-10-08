@@ -1,0 +1,170 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitea-oidc-config
+  namespace: gitea
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: gitea
+      restartPolicy: OnFailure
+      containers:
+      - name: gitea-oidc-config
+        image: alpine/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "Configuring OIDC authentication source in Gitea..."
+          
+          # Install jq for JSON processing
+          apk add --no-cache jq
+          
+          # Wait for Gitea to be ready
+          echo "Waiting for Gitea to be ready..."
+          until curl -f http://gitea.gitea.svc.cluster.local:3000/api/v1/version; do
+            echo "Waiting for Gitea API..."
+            sleep 10
+          done
+          
+          echo "Gitea is ready, configuring OIDC..."
+          
+          # Get admin credentials
+          GITEA_ADMIN_USER=$(cat /var/secrets/gitea-admin/username)
+          GITEA_ADMIN_PASS=$(cat /var/secrets/gitea-admin/password)
+          OIDC_CLIENT_SECRET=$(cat /var/secrets/gitea-oidc/client_secret)
+          
+          # Gitea API endpoint
+          GITEA_API_URL="http://gitea.gitea.svc.cluster.local:3000"
+          
+          echo "Checking for existing authentication sources..."
+          
+          # Get all existing auth sources
+          ALL_AUTHS=$(curl -s -u "$GITEA_ADMIN_USER:$GITEA_ADMIN_PASS" \
+            "$GITEA_API_URL/api/v1/admin/auths")
+          
+          # Check if LDAP auth source already exists
+          EXISTING_LDAP=$(echo "$ALL_AUTHS" | jq '.[] | select(.name == "LLDAP Directory")')
+          
+          # Check if OIDC auth source already exists
+          EXISTING_OIDC=$(echo "$ALL_AUTHS" | jq '.[] | select(.name == "Authelia OIDC")')
+          
+          if [ -n "$EXISTING_LDAP" ] && [ -n "$EXISTING_OIDC" ]; then
+            echo "✅ Both LDAP and OIDC authentication sources already exist"
+            exit 0
+          fi
+          
+          # Create LDAP authentication source if it doesn't exist
+          if [ -z "$EXISTING_LDAP" ]; then
+            echo "Creating LDAP authentication source..."
+            
+            LDAP_BIND_PASSWORD=$(cat /var/secrets/gitea-ldap/password)
+            
+            LDAP_CREATE_RESPONSE=$(curl -s -X POST \
+              -u "$GITEA_ADMIN_USER:$GITEA_ADMIN_PASS" \
+              -H "Content-Type: application/json" \
+              "$GITEA_API_URL/api/v1/admin/auths" \
+              -d '{
+                "type": "ldap",
+                "name": "LLDAP Directory",
+                "is_active": true,
+                "cfg": {
+                  "host": "lldap.lldap.svc.cluster.local",
+                  "port": 3890,
+                  "security_protocol": "unencrypted",
+                  "bind_dn": "uid=gitea-service,ou=people,dc=daddyshome,dc=fr",
+                  "bind_password": "'"$LDAP_BIND_PASSWORD"'",
+                  "user_base": "ou=people,dc=daddyshome,dc=fr",
+                  "user_filter": "(& (objectClass=person)(|(uid=%s)(mail=%s)))",
+                  "admin_filter": "(memberof=cn=lldap_admin,ou=groups,dc=daddyshome,dc=fr)",
+                  "username_attribute": "uid",
+                  "firstname_attribute": "givenName",
+                  "surname_attribute": "sn",
+                  "email_attribute": "mail"
+                }
+              }')
+            
+            if echo "$LDAP_CREATE_RESPONSE" | jq -e '.id' > /dev/null; then
+              echo "✅ Successfully created LDAP authentication source"
+            else
+              echo "❌ Failed to create LDAP authentication source"
+              echo "Response: $LDAP_CREATE_RESPONSE"
+            fi
+          else
+            echo "✅ LDAP authentication source already exists"
+          fi
+          
+          # Create OIDC authentication source if it doesn't exist
+          if [ -z "$EXISTING_OIDC" ]; then
+            echo "Creating OIDC authentication source..."
+            
+            OIDC_CREATE_RESPONSE=$(curl -s -X POST \
+              -u "$GITEA_ADMIN_USER:$GITEA_ADMIN_PASS" \
+              -H "Content-Type: application/json" \
+              "$GITEA_API_URL/api/v1/admin/auths" \
+              -d '{
+                "type": "oauth2",
+                "name": "Authelia OIDC",
+                "is_active": true,
+                "cfg": {
+                  "provider": "openidConnect",
+                  "client_id": "gitea",
+                  "client_secret": "'"$OIDC_CLIENT_SECRET"'",
+                  "openid_connect_auto_discovery_url": "https://auth.daddyshome.fr/.well-known/openid_configuration",
+                  "icon_url": "https://auth.daddyshome.fr/favicon.ico",
+                  "scopes": "openid profile email groups",
+                  "required_claim_name": "",
+                  "required_claim_value": "",
+                  "group_claim_name": "groups",
+                  "admin_group": "lldap_admin",
+                  "restricted_group": "",
+                  "group_team_map": "",
+                  "group_team_map_removal": false,
+                  "skip_local_2fa": false
+                }
+              }')
+            
+            if echo "$OIDC_CREATE_RESPONSE" | jq -e '.id' > /dev/null; then
+              echo "✅ Successfully created OIDC authentication source"
+            else
+              echo "❌ Failed to create OIDC authentication source"
+              echo "Response: $OIDC_CREATE_RESPONSE"
+              exit 1
+            fi
+          else
+            echo "✅ OIDC authentication source already exists"
+          fi
+          
+          echo "✅ Authentication configuration completed"
+          
+        volumeMounts:
+        - name: gitea-admin-secret
+          mountPath: /var/secrets/gitea-admin
+          readOnly: true
+        - name: gitea-ldap-secret
+          mountPath: /var/secrets/gitea-ldap
+          readOnly: true
+        - name: gitea-oidc-secret
+          mountPath: /var/secrets/gitea-oidc
+          readOnly: true
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 100m
+          limits:
+            memory: 128Mi
+            cpu: 200m
+      volumes:
+      - name: gitea-admin-secret
+        secret:
+          secretName: gitea-admin
+      - name: gitea-ldap-secret
+        secret:
+          secretName: gitea-ldap-bind
+      - name: gitea-oidc-secret
+        secret:
+          secretName: gitea-oidc-client-secret

@@ -10,6 +10,12 @@ resources:
   - secret-store.yaml
   - vault-secret.yaml
   - service-account.yaml
+  - openwebui-ldap-service-account-job.yaml
+  - openwebui-ldap-secret.yaml
+  - openwebui-oidc-password-generator.yaml
+  - openwebui-oidc-hash-generator-job.yaml
+  - openwebui-oidc-client-secret.yaml
+  - openwebui-oidc-client-config.yaml
   - pvc.yaml
   - deployment.yaml
   - service.yaml

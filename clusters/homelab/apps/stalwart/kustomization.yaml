@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: stalwart
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - secret-store.yaml
+  - vault-auth.yaml
+  - vault-secret.yaml
+  - vault-admin-token-reflector.yaml
+  - vault-config-job.yaml
+  - external-secret.yaml
+  - password-generator.yaml
+  - configmap.yaml
+  - rbac.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+
+commonLabels:
+  app.kubernetes.io/name: stalwart
+  app.kubernetes.io/instance: stalwart

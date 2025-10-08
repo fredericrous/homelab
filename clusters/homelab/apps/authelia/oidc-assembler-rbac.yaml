@@ -1,0 +1,44 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: authelia-oidc-assembler
+rules:
+# ConfigMap permissions for reading OIDC client configs and creating assembled config
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "create", "update", "patch"]
+# Deployment permissions for restarting Authelia
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "patch"]
+# ReplicaSet permissions for rollout status
+- apiGroups: ["apps"]
+  resources: ["replicasets"]
+  verbs: ["get", "list"]
+# Pod permissions for rollout status
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+# Events permissions for observability
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list"]
+# Job permissions for manual CronJob triggering
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: authelia-oidc-assembler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: authelia-oidc-assembler
+subjects:
+- kind: ServiceAccount
+  name: authelia
+  namespace: authelia

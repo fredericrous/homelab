@@ -1,0 +1,62 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openwebui-oidc-hash-generator
+  namespace: openwebui
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: openwebui
+      restartPolicy: OnFailure
+      containers:
+      - name: hash-generator
+        image: authelia/authelia:4.38
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "Generating hashed client secret for Open WebUI OIDC configuration..."
+          
+          # Install kubectl
+          apk add --no-cache curl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          mv kubectl /usr/local/bin/
+          
+          # Wait for the client secret to be available
+          echo "Waiting for OIDC client secret to be generated..."
+          while ! kubectl get secret openwebui-oidc-client-secret-temp >/dev/null 2>&1; do
+            echo "Waiting for openwebui-oidc-client-secret-temp secret..."
+            sleep 5
+          done
+          
+          # Get the plain client secret
+          CLIENT_SECRET=$(kubectl get secret openwebui-oidc-client-secret-temp -o jsonpath='{.data.openwebui}' | base64 -d)
+          
+          echo "Generating PBKDF2 hash for Open WebUI client secret..."
+          
+          # Generate hashed secret using Authelia's hash-password command
+          HASHED_SECRET=$(authelia hash-password "$CLIENT_SECRET")
+          
+          echo "Generated hash: $HASHED_SECRET"
+          
+          # Create a ConfigMap with the hashed secret for reference
+          kubectl create configmap openwebui-oidc-client-hash \
+            --from-literal=hashed_secret="$HASHED_SECRET" \
+            --from-literal=instructions="Update Authelia configmap.yaml with this hashed secret for open-webui client" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "✅ Hashed client secret stored in configmap: openwebui-oidc-client-hash"
+          echo "Manual step required: Update Authelia configmap.yaml with the hashed secret"
+          
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 100m
+          limits:
+            memory: 128Mi
+            cpu: 200m

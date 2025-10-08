@@ -1,0 +1,71 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trigger-oidc-assembly-script
+  namespace: authelia
+data:
+  trigger-assembly.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "🚀 Triggering OIDC configuration assembly and Authelia restart..."
+    
+    # Create a job from the CronJob to trigger immediate execution
+    JOB_NAME="manual-oidc-assembly-$(date +%s)"
+    
+    kubectl create job "$JOB_NAME" \
+      --from=cronjob/authelia-oidc-config-assembler \
+      -n authelia
+    
+    echo "✅ Created job: $JOB_NAME"
+    echo "📊 Monitor progress with: kubectl logs -f job/$JOB_NAME -n authelia"
+    echo "🔍 Check status with: kubectl get job $JOB_NAME -n authelia"
+    
+    # Optionally wait for completion
+    if [ "${WAIT_FOR_COMPLETION:-false}" = "true" ]; then
+      echo "⏳ Waiting for job completion..."
+      kubectl wait --for=condition=complete --timeout=600s job/$JOB_NAME -n authelia
+      
+      if [ $? -eq 0 ]; then
+        echo "🎉 OIDC assembly completed successfully!"
+      else
+        echo "❌ OIDC assembly job failed or timed out"
+        kubectl logs job/$JOB_NAME -n authelia
+        exit 1
+      fi
+    fi
+  
+  README.md: |
+    # OIDC Configuration Assembly Trigger
+    
+    This script triggers the OIDC configuration assembly process that:
+    1. Collects all OIDC client configurations from app ConfigMaps
+    2. Assembles them into a single configuration
+    3. Restarts Authelia to pick up the new configuration
+    
+    ## Usage
+    
+    ### Manual trigger (fire and forget):
+    ```bash
+    kubectl exec -it deployment/some-app -n some-namespace -- \
+      bash -c "$(kubectl get configmap trigger-oidc-assembly-script -n authelia -o jsonpath='{.data.trigger-assembly\.sh}')"
+    ```
+    
+    ### Manual trigger (wait for completion):
+    ```bash
+    kubectl exec -it deployment/some-app -n some-namespace -- \
+      env WAIT_FOR_COMPLETION=true bash -c "$(kubectl get configmap trigger-oidc-assembly-script -n authelia -o jsonpath='{.data.trigger-assembly\.sh}')"
+    ```
+    
+    ### From a Job or initContainer:
+    ```yaml
+    containers:
+    - name: trigger-oidc-assembly
+      image: bitnami/kubectl:latest
+      command: ["/bin/bash"]
+      args:
+      - -c
+      - |
+        $(kubectl get configmap trigger-oidc-assembly-script -n authelia -o jsonpath='{.data.trigger-assembly\.sh}')
+    ```

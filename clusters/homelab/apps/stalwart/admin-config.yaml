@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stalwart-admin-config
+  namespace: stalwart
+data:
+  admin.toml: |
+    # Admin-only configuration that requires secrets
+    [authentication]
+    fallback-admin = {user = "admin", secret = "__ADMIN_PASSWORD__"}

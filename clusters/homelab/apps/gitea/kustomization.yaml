@@ -12,6 +12,13 @@ resources:
   - gitea-db-credentials.yaml
   - gitea-database.yaml
   - gitea-helmrepository.yaml
+  - gitea-ldap-secret.yaml
+  - gitea-service-account-job.yaml
+  - gitea-oidc-password-generator.yaml
+  - gitea-oidc-hash-generator-job.yaml
+  - gitea-oidc-client-secret.yaml
+  - gitea-oidc-client-config.yaml
+  - gitea-oidc-config-job.yaml
   - gitea-helmrelease.yaml
 
 # Override namespace for Database and HelmRepository

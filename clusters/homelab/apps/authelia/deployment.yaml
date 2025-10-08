@@ -65,6 +65,12 @@ spec:
           value: /secrets/STORAGE_ENCRYPTION_KEY
         - name: AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE
           value: /secrets/AUTHENTICATION_BACKEND_LDAP_PASSWORD
+        - name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE
+          value: /secrets/OIDC_HMAC_SECRET
+        - name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE
+          value: /secrets/OIDC_ISSUER_PRIVATE_KEY
+        - name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_CERTIFICATE_CHAIN_FILE
+          value: /secrets/OIDC_ISSUER_CERTIFICATE_CHAIN
         - name: SSL_CERT_FILE
           value: /custom-ca/ca-bundle.crt
         volumeMounts:
@@ -117,6 +123,15 @@ spec:
               items:
               - key: password
                 path: POSTGRES_PASSWORD
+          - secret:
+              name: authelia-oidc-secrets
+              items:
+              - key: hmac_secret
+                path: OIDC_HMAC_SECRET
+              - key: issuer_private_key
+                path: OIDC_ISSUER_PRIVATE_KEY
+              - key: issuer_certificate_chain
+                path: OIDC_ISSUER_CERTIFICATE_CHAIN
       - name: ca-certificates
         secret:
           secretName: ca-certificates

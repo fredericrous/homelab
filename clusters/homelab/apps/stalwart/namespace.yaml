@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stalwart
+  labels:
+    name: stalwart
+    istio-injection: enabled

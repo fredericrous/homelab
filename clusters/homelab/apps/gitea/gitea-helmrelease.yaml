@@ -95,12 +95,51 @@ spec:
           ENABLED: true
           
         service:
-          DISABLE_REGISTRATION: false
+          DISABLE_REGISTRATION: true  # Only LDAP/OIDC users can register
           REQUIRE_SIGNIN_VIEW: false
           ENABLE_NOTIFY_MAIL: false
           
         security:
           INSTALL_LOCK: true
+          
+        # LDAP configuration for LLDAP integration (for service accounts and direct LDAP auth)
+        ldap:
+          ENABLE_LDAP: true
+          LDAP_NAME: "LLDAP Directory"
+          LDAP_HOST: "lldap.lldap.svc.cluster.local"
+          LDAP_PORT: 3890
+          LDAP_SECURITY_PROTOCOL: "unencrypted"
+          LDAP_BIND_DN: "uid=gitea-service,ou=people,dc=daddyshome,dc=fr"
+          LDAP_BIND_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: gitea-ldap-bind
+                key: password
+          LDAP_USER_SEARCH_BASE: "ou=people,dc=daddyshome,dc=fr"
+          LDAP_USER_FILTER: "(& (objectClass=person)(|(uid=%[1]s)(mail=%[1]s)))"
+          LDAP_ADMIN_FILTER: "(memberof=cn=lldap_admin,ou=groups,dc=daddyshome,dc=fr)"
+          LDAP_USERNAME_ATTRIBUTE: "uid"
+          LDAP_FIRSTNAME_ATTRIBUTE: "givenName"
+          LDAP_SURNAME_ATTRIBUTE: "sn"
+          LDAP_EMAIL_ATTRIBUTE: "mail"
+          LDAP_AVATAR_ATTRIBUTE: "jpegPhoto"
+          LDAP_GROUP_SEARCH_BASE: "ou=groups,dc=daddyshome,dc=fr"
+          LDAP_GROUP_ATTRIBUTE_CONTAIN_USERS: "member"
+          LDAP_USER_ATTRIBUTE_IN_GROUP: "dn"
+          LDAP_SKIP_TLS_VERIFY: true
+          
+        # OAuth2/OIDC configuration for Authelia integration (for web UI convenience)
+        oauth2_client:
+          REGISTER_EMAIL_CONFIRM: false
+          OPENID_CONNECT_SCOPES: "openid profile email groups"
+          ENABLE_AUTO_REGISTRATION: true
+          USERNAME: preferred_username
+          EMAIL: email
+          NAME: name
+          
+        # Additional OAuth2 settings
+        oauth2:
+          JWT_SIGNING_ALGORITHM: "RS256"
           
         log:
           LEVEL: Info
