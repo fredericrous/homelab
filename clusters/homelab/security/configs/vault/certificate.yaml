@@ -15,4 +15,4 @@ spec:
     kind: ClusterIssuer
     group: cert-manager.io
   dnsNames:
-  - vault.daddyshome.fr
+  - xvault.daddyshome.fr

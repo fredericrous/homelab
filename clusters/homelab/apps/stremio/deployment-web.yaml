@@ -54,7 +54,7 @@ spec:
         - name: IMAGE_REGISTRY
           value: "harbor-registry.harbor.svc.cluster.local:5000"
         - name: IMAGE_NAME
-          value: "admin/stremio-web"
+          value: "library/stremio-web"
         resources:
           requests:
             memory: 16Mi
@@ -63,7 +63,7 @@ spec:
             memory: 32Mi
             cpu: 50m
       - name: copy-build
-        image: harbor-registry.harbor.svc.cluster.local:5000/admin/stremio-web:latest
+        image: harbor-registry.harbor.svc.cluster.local:5000/library/stremio-web:latest
         imagePullPolicy: Always
         command: ["sh", "-c", "cp -r /var/www/stremio-web/build/* /build-output/"]
         volumeMounts:

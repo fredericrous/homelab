@@ -51,7 +51,9 @@ spec:
           storageClass: rook-ceph-block
           size: 10Gi
     
-    harborAdminPassword: "Harbor12345!"  # Will be overridden by external secret
+    # Admin password will be read from external secret
+    existingSecretAdminPassword: harbor-admin
+    existingSecretAdminPasswordKey: secret
     
     database:
       type: external
