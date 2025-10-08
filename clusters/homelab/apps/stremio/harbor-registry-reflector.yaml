@@ -1,0 +1,11 @@
+---
+# Pulls harbor-registry secret from harbor namespace using modular reflector pattern  
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harbor-registry
+  namespace: stremio
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflects: "harbor/harbor-registry"
+type: Opaque
+data: {}
