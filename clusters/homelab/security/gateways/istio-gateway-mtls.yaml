@@ -1,0 +1,67 @@
+---
+# Consolidated mTLS Gateway for standard services
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: homelab-mtls-gateway
+  namespace: istio-ingress
+spec:
+  selector:
+    istio: gateway
+  servers:
+  # HTTP redirect to HTTPS
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*.daddyshome.fr"
+    tls:
+      httpsRedirect: true
+  # HTTPS with mTLS client certificate authentication
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: MUTUAL
+      credentialName: wildcard-daddyshome-fr-tls
+    hosts:
+    - "*.daddyshome.fr"
+
+---
+# Certificate for wildcard domain
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-daddyshome-fr
+  namespace: istio-ingress
+spec:
+  secretName: wildcard-daddyshome-fr-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - "*.daddyshome.fr"
+  - "daddyshome.fr"
+
+---
+# External Secret to pull client CA from Vault PKI
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: client-ca-bundle-secret
+  namespace: istio-ingress
+spec:
+  refreshInterval: 24h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-backend
+  target:
+    name: client-ca-bundle
+    creationPolicy: Owner
+  data:
+    - secretKey: ca-bundle.crt
+      remoteRef:
+        key: pki/cert/ca
+        property: certificate

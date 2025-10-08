@@ -1,0 +1,111 @@
+---
+# Consolidated mTLS Gateway with Authelia external auth for user-facing services
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: homelab-mtls-authelia-gateway
+  namespace: istio-ingress
+spec:
+  selector:
+    istio: gateway
+  servers:
+  # HTTP redirect to HTTPS
+  - port:
+      number: 80
+      name: http-authelia
+      protocol: HTTP
+    hosts:
+    - "auth.daddyshome.fr"
+    - "gitea.daddyshome.fr"
+    - "aix.daddyshome.fr"
+    tls:
+      httpsRedirect: true
+  # HTTPS with mTLS client certificate authentication + Authelia
+  - port:
+      number: 443
+      name: https-authelia
+      protocol: HTTPS
+    tls:
+      mode: MUTUAL
+      credentialName: wildcard-daddyshome-fr-tls
+    hosts:
+    - "auth.daddyshome.fr"
+    - "gitea.daddyshome.fr"
+    - "aix.daddyshome.fr"
+
+---
+# AuthorizationPolicy for Authelia external authorization
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: authelia-external-auth
+  namespace: istio-ingress
+spec:
+  selector:
+    matchLabels:
+      istio: gateway
+  rules:
+  - to:
+    - operation:
+        hosts:
+        - "gitea.daddyshome.fr"
+        - "aix.daddyshome.fr"
+    when:
+    - key: request.headers[":path"]
+      notValues: ["/api/authz/ext-authz"]
+  action: CUSTOM
+  provider:
+    name: authelia-ext-authz
+
+---
+# EnvoyFilter for Authelia external authorization
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: authelia-ext-authz
+  namespace: istio-ingress
+spec:
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.ext_authz
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+          http_service:
+            server_uri:
+              uri: http://authelia.authelia.svc.cluster.local:9091
+              cluster: outbound|9091||authelia.authelia.svc.cluster.local
+              timeout: 10s
+            path_prefix: "/api/authz/ext-authz"
+            authorization_request:
+              allowed_headers:
+                patterns:
+                - exact: "accept"
+                - exact: "cookie"
+                - exact: "proxy-authorization"
+                - exact: "authorization"
+                - exact: "x-forwarded-proto"
+                - exact: "x-forwarded-host"
+                - exact: "x-forwarded-uri" 
+                - exact: "x-forwarded-for"
+            authorization_response:
+              allowed_upstream_headers:
+                patterns:
+                - exact: "authorization"
+                - exact: "proxy-authorization"
+                - exact: "x-forwarded-proto"
+                - exact: "x-forwarded-host"
+                - exact: "x-forwarded-uri"
+                - exact: "x-forwarded-for"
+                - exact: "remote-user"
+                - exact: "remote-name"
+                - exact: "remote-email"
+                - exact: "remote-groups"

@@ -19,6 +19,7 @@ resources:
   - service.yaml
   - peerauthentication.yaml
   - post-install-job.yaml
+  - virtualservice.yaml
 
 patches:
   # Add backup annotations

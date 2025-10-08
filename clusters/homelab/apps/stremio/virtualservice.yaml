@@ -1,38 +1,20 @@
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: stremio-https
-  namespace: flux-system
+  name: stremio
+  namespace: stremio
 spec:
   hosts:
   - stremiox.daddyshome.fr
   gateways:
-  - stremio-gateway
+  - istio-ingress/homelab-mtls-gateway
   http:
   - match:
     - uri:
         prefix: /
     route:
     - destination:
-        host: stremio-web.stremio.svc.cluster.local
+        host: stremio-web
         port:
           number: 8080
----
-apiVersion: networking.istio.io/v1
-kind: VirtualService
-metadata:
-  name: stremio-redirect
-  namespace: flux-system
-spec:
-  hosts:
-  - stremiox.daddyshome.fr
-  gateways:
-  - istio-system/public-gateway
-  http:
-  - match:
-    - uri:
-        prefix: /
-    redirect:
-      scheme: https
-      port: 443
