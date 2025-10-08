@@ -12,6 +12,5 @@ spec:
   prune: true
   wait: false
   dependsOn:
-    - name: data-storage
     - name: ml-serving
     - name: data-cache
