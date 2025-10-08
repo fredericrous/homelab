@@ -15,7 +15,7 @@ metadata:
 spec:
   ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
   backoffLimit: 3
-  activeDeadlineSeconds: 600  # Increased to 10 minutes
+  activeDeadlineSeconds: 900  # Increased to 15 minutes to accommodate credential wait
   template:
     spec:
       restartPolicy: OnFailure
@@ -34,17 +34,34 @@ spec:
           # Wait for MinIO to be ready with timeout
           echo "Waiting for MinIO to be ready..."
           RETRY_COUNT=0
-          MAX_RETRIES=60  # 5 minutes total (5s * 60)
+          MAX_RETRIES=120  # 10 minutes total (5s * 120)
           
+          # First wait for MinIO service to be responsive
+          echo "Checking MinIO service availability..."
+          until curl -f http://minio:9000/minio/health/live >/dev/null 2>&1; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -ge 60 ]; then  # 5 minutes for basic connectivity
+              echo "ERROR: MinIO service not responding after 5 minutes"
+              exit 1
+            fi
+            echo "Attempt $RETRY_COUNT/60: Waiting for MinIO service..."
+            sleep 5
+          done
+          
+          echo "MinIO service is responding, waiting for credentials to be active..."
+          RETRY_COUNT=0
+          
+          # Now wait for credentials to be processed by MinIO
           until mc alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" 2>/dev/null; do
             RETRY_COUNT=$((RETRY_COUNT + 1))
             if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-              echo "ERROR: Failed to connect to MinIO after $MAX_RETRIES attempts"
-              echo "Checking if MinIO service is reachable..."
-              nc -z minio 9000 && echo "MinIO port is open" || echo "MinIO port is not reachable"
+              echo "ERROR: Failed to authenticate with MinIO after $MAX_RETRIES attempts"
+              echo "This usually indicates MinIO hasn't fully processed the credentials yet"
+              echo "Last connection attempt details:"
+              mc --debug alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" || true
               exit 1
             fi
-            echo "Attempt $RETRY_COUNT/$MAX_RETRIES: Waiting for MinIO..."
+            echo "Attempt $RETRY_COUNT/$MAX_RETRIES: Waiting for MinIO credentials to be active..."
             sleep 5
           done
           
