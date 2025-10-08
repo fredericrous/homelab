@@ -411,6 +411,7 @@ spec:
               app.kubernetes.io/managed-by: kyverno-ingress-mtls-policy
               istio.io/source-service: "{{ request.object.metadata.name }}"
           spec:
+            ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
             template:
               metadata:
                 labels:

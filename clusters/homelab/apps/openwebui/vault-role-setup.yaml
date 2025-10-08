@@ -4,6 +4,7 @@ metadata:
   name: openwebui-vault-role-setup
   namespace: openwebui
 spec:
+  ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
   template:
     spec:
       serviceAccountName: openwebui

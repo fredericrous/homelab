@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harbor-registry
+  namespace: harbor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: harbor-registry
+  template:
+    metadata:
+      labels:
+        app: harbor-registry
+    spec:
+      serviceAccountName: harbor
+      containers:
+      - name: registry
+        image: goharbor/registry-photon:v2.11.1
+        ports:
+        - containerPort: 5000
+          name: registry
+        env:
+        - name: REGISTRY_HTTP_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: harbor-registry
+              key: secret
+        - name: REGISTRY_REDIS_ADDR
+          value: "redis-standalone.ot-operators.svc.cluster.local:6379"
+        - name: REGISTRY_LOG_LEVEL
+          value: "info"
+        - name: REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR
+          value: "redis"
+        - name: REGISTRY_STORAGE_DELETE_ENABLED
+          value: "true"
+        volumeMounts:
+        - name: registry-data
+          mountPath: /storage
+        - name: registry-config
+          mountPath: /etc/registry/config.yml
+          subPath: config.yml
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 300
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 10
+      - name: registryctl
+        image: goharbor/harbor-registryctl:v2.11.1
+        ports:
+        - containerPort: 8080
+          name: registryctl
+        env:
+        - name: CORE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: harbor-admin
+              key: secret
+        - name: JOBSERVICE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: harbor-admin
+              key: secret
+        - name: REGISTRY_URL
+          value: "http://localhost:5000"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 300
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 10
+      volumes:
+      - name: registry-data
+        persistentVolumeClaim:
+          claimName: harbor-registry-data
+      - name: registry-config
+        configMap:
+          name: harbor-registry-config

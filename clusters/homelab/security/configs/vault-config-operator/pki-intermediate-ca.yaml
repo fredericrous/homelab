@@ -5,6 +5,7 @@ metadata:
   name: setup-pki-intermediate-ca
   namespace: vault-config-operator
 spec:
+  ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
   template:
     spec:
       serviceAccountName: controller-manager
