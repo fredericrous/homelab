@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  timeout: 10m
+  timeout: 20m
   path: ./clusters/homelab/apps/harbor
   prune: true
   sourceRef:
