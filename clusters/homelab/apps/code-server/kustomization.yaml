@@ -7,8 +7,7 @@ resources:
   - namespace.yaml
   - service-account.yaml
   - secret-store.yaml
-  - vault-auth.yaml
-  - vault-secret.yaml
+  - external-secret.yaml
   - vault-admin-token-reflector.yaml
   - vault-config-job.yaml
   - password-generator.yaml
