@@ -13,12 +13,12 @@ spec:
     name: flux-system
   dependsOn:
     - name: data-storage
-    - name: harbor
+    - name: gitea
   healthChecks:
-    - apiVersion: helm.toolkit.fluxcd.io/v2beta1
+    - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
-      name: harbor
-      namespace: harbor
+      name: gitea
+      namespace: gitea
     - apiVersion: apps/v1
       kind: Deployment
       name: stremio-server
