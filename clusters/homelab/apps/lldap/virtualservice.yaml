@@ -2,11 +2,11 @@
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: plex
-  namespace: plex
+  name: lldap
+  namespace: lldap
 spec:
   hosts:
-  - plexx.daddyshome.fr
+  - lldapx.daddyshome.fr
   gateways:
   - istio-ingress/homelab-mtls-gateway
   http:
@@ -15,6 +15,6 @@ spec:
         prefix: /
     route:
     - destination:
-        host: plex
+        host: lldap
         port:
-          number: 32400
+          number: 17170

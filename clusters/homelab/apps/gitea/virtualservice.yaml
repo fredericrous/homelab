@@ -2,19 +2,19 @@
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: plex
-  namespace: plex
+  name: gitea
+  namespace: gitea
 spec:
   hosts:
-  - plexx.daddyshome.fr
+  - gitea.daddyshome.fr
   gateways:
-  - istio-ingress/homelab-mtls-gateway
+  - istio-ingress/homelab-mtls-authelia-gateway
   http:
   - match:
     - uri:
         prefix: /
     route:
     - destination:
-        host: plex
+        host: gitea-http
         port:
-          number: 32400
+          number: 3000

@@ -1,3 +1,4 @@
+---
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
@@ -7,13 +8,13 @@ spec:
   hosts:
   - aix.daddyshome.fr
   gateways:
-  - openwebui
+  - istio-ingress/homelab-mtls-authelia-gateway
   http:
   - match:
     - uri:
         prefix: /
     route:
     - destination:
-        host: openwebui.openwebui.svc.cluster.local
+        host: openwebui
         port:
           number: 80

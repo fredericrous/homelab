@@ -21,6 +21,7 @@ resources:
   - stremio-ca-secret.yaml
   - build-rbac.yaml
   - buildkit-job.yaml
+  - virtualservice.yaml
 
 patches:
   # Add backup annotations

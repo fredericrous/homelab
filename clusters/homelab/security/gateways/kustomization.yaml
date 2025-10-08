@@ -3,6 +3,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  # Shared Envoy Gateways for the homelab
-  - envoy-gateway-mtls.yaml          # Main gateway with mTLS for most apps
-  - envoy-gateway-mtls-authelia.yaml # Special gateway with mTLS + Authelia for streaming
+  # Shared Istio Gateways for the homelab
+  - istio-gateway-mtls.yaml          # Main gateway with mTLS for most apps
+  - istio-gateway-mtls-authelia.yaml # Special gateway with mTLS + Authelia for user-facing apps

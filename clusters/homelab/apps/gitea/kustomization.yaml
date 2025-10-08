@@ -20,6 +20,7 @@ resources:
   - gitea-oidc-client-config.yaml
   - gitea-oidc-config-job.yaml
   - gitea-helmrelease.yaml
+  - virtualservice.yaml
 
 # Override namespace for Database and HelmRepository
 patchesJson6902:
