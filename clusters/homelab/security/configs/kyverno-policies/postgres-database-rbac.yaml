@@ -1,0 +1,33 @@
+---
+# ClusterRole for Kyverno to manage PostgreSQL Database resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno-postgres-database-manager
+  labels:
+    app.kubernetes.io/component: kyverno
+    app.kubernetes.io/instance: kyverno
+    app.kubernetes.io/part-of: kyverno
+rules:
+- apiGroups: ["postgresql.cnpg.io"]
+  resources: ["databases"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+---
+# ClusterRoleBinding for Kyverno admission controller
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kyverno-postgres-database-manager
+  labels:
+    app.kubernetes.io/component: kyverno
+    app.kubernetes.io/instance: kyverno
+    app.kubernetes.io/part-of: kyverno
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kyverno-postgres-database-manager
+subjects:
+- kind: ServiceAccount
+  name: kyverno-admission-controller
+  namespace: kyverno
