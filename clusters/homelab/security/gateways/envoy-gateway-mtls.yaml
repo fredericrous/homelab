@@ -64,16 +64,45 @@ spec:
   - "daddyshome.fr"
 
 ---
-# Client CA certificate bundle (ConfigMap)
-apiVersion: v1
-kind: ConfigMap
+# External Secret to pull client CA from Vault PKI as Secret
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
 metadata:
-  name: client-ca-bundle
+  name: client-ca-bundle-secret
   namespace: envoy-gateway-system
-data:
-  ca-bundle.crt: |
-    # This will be populated with your client CA certificate
-    # You need to replace this with your actual client CA certificate
-    -----BEGIN CERTIFICATE-----
-    # Your client CA certificate content here
-    -----END CERTIFICATE-----
+spec:
+  refreshInterval: 24h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-backend
+  target:
+    name: client-ca-bundle
+    creationPolicy: Owner
+    type: Opaque
+  data:
+    - secretKey: ca-bundle.crt
+      remoteRef:
+        key: pki/cert/ca
+        property: certificate
+
+---
+# External Secret to pull client CA from Vault PKI as ConfigMap
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: client-ca-bundle-configmap
+  namespace: envoy-gateway-system
+spec:
+  refreshInterval: 24h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-backend
+  target:
+    name: client-ca-bundle
+    creationPolicy: Owner
+    type: configMap
+  data:
+    - secretKey: ca-bundle.crt
+      remoteRef:
+        key: pki/cert/ca
+        property: certificate
