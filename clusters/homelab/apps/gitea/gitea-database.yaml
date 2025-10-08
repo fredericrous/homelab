@@ -1,0 +1,13 @@
+# Gitea database in CloudNativePG
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: gitea
+  namespace: postgres
+spec:
+  name: gitea
+  owner: gitea
+  cluster:
+    name: postgres-apps
+  ensure: present
+  databaseReclaimPolicy: retain

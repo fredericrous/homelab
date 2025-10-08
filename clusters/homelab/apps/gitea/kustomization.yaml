@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gitea
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - secret-store.yaml
+  - password-generators.yaml
+  - external-secrets-generated.yaml
+  - gitea-db-credentials.yaml
+  - gitea-database.yaml
+  - gitea-helmrepository.yaml
+  - gitea-helmrelease.yaml
+
+# Override namespace for Database and HelmRepository
+patchesJson6902:
+- target:
+    version: v1
+    group: postgresql.cnpg.io
+    kind: Database
+    name: gitea
+  patch: |-
+    - op: replace
+      path: /metadata/namespace
+      value: postgres
+- target:
+    version: v1beta2
+    group: source.toolkit.fluxcd.io
+    kind: HelmRepository
+    name: gitea
+  patch: |-
+    - op: replace
+      path: /metadata/namespace
+      value: flux-system

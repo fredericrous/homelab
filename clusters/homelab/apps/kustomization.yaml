@@ -4,6 +4,7 @@ resources:
   # Setup files removed - using declarative database management
   - lldap.yaml
   - authelia.yaml
+  - gitea.yaml
   - harbor.yaml
   - stremio.yaml
   - plex.yaml

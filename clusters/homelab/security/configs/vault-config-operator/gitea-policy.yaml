@@ -1,0 +1,39 @@
+# Vault policy for Gitea
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: Policy
+metadata:
+  name: gitea
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: vault-config-operator
+    serviceAccount:
+      name: vault-config-operator
+  policy: |
+    # Allow Gitea to read and write its own secrets
+    path "secret/data/gitea/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    path "secret/metadata/gitea/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+---
+# Kubernetes auth role for Gitea
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: KubernetesAuthEngineRole
+metadata:
+  name: gitea
+  namespace: vault-config-operator
+spec:
+  authentication:
+    path: kubernetes
+    role: vault-config-operator
+    serviceAccount:
+      name: vault-config-operator
+  path: kubernetes
+  policies:
+    - gitea
+  targetServiceAccounts:
+    - name: gitea
+      namespace: gitea

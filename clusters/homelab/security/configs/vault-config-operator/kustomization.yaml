@@ -28,6 +28,7 @@ resources:
   - lldap-policy.yaml
   - authelia-policy.yaml
   - nextcloud-policy.yaml
+  - gitea-policy.yaml
   - harbor-policy.yaml
   - stremio-policy.yaml
   - plex-policy.yaml

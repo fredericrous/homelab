@@ -1,0 +1,127 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: gitea
+  namespace: gitea
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: gitea
+      version: '10.4.1'
+      sourceRef:
+        kind: HelmRepository
+        name: gitea
+        namespace: flux-system
+      interval: 10m
+  values:
+    # Image configuration
+    image:
+      repository: gitea/gitea
+      tag: "1.22.3"
+      pullPolicy: Always
+    
+    # Service configuration
+    service:
+      http:
+        type: ClusterIP
+        port: 3000
+      ssh:
+        type: ClusterIP
+        port: 22
+    
+    # Ingress disabled - we'll use Istio Gateway
+    ingress:
+      enabled: false
+    
+    # Storage
+    persistence:
+      enabled: true
+      storageClass: "rook-ceph-block"
+      size: 50Gi
+      accessMode: ReadWriteOnce
+    
+    # Database configuration - external PostgreSQL
+    postgresql-ha:
+      enabled: false
+    
+    postgresql:
+      enabled: false
+    
+    # Gitea configuration
+    gitea:
+      admin:
+        existingSecret: gitea-admin
+        
+      config:
+        APP_NAME: "Gitea: Homelab Git & Registry"
+        
+        server:
+          PROTOCOL: http
+          DOMAIN: gitea.daddyshome.fr
+          ROOT_URL: https://gitea.daddyshome.fr
+          HTTP_PORT: 3000
+          
+        database:
+          DB_TYPE: postgres
+          HOST: postgres-apps-rw.postgres.svc.cluster.local:5432
+          NAME: gitea
+          USER: gitea
+          PASSWD:
+            valueFrom:
+              secretKeyRef:
+                name: gitea-db-app
+                key: password
+          
+        cache:
+          ENABLED: true
+          ADAPTER: redis
+          HOST: redis-standalone.ot-operators.svc.cluster.local:6379
+          
+        session:
+          PROVIDER: redis
+          PROVIDER_CONFIG: redis-standalone.ot-operators.svc.cluster.local:6379
+          
+        queue:
+          TYPE: redis
+          CONN_STR: redis://redis-standalone.ot-operators.svc.cluster.local:6379
+          
+        packages:
+          ENABLED: true
+          CHUNKED_UPLOAD_PATH: /tmp/packages
+          
+        # Enable container registry
+        packages.registry:
+          ENABLED: true
+          
+        service:
+          DISABLE_REGISTRATION: false
+          REQUIRE_SIGNIN_VIEW: false
+          ENABLE_NOTIFY_MAIL: false
+          
+        security:
+          INSTALL_LOCK: true
+          
+        log:
+          LEVEL: Info
+          MODE: console
+    
+    # ServiceAccount
+    serviceAccount:
+      create: false
+      name: gitea
+    
+    # Security context
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+    
+    # Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
