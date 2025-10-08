@@ -13,6 +13,7 @@ metadata:
     # This job depends on MinIO StatefulSet being ready
     kustomize.toolkit.fluxcd.io/depends-on: minio/StatefulSet/minio
 spec:
+  ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
   backoffLimit: 3
   activeDeadlineSeconds: 300
   template:

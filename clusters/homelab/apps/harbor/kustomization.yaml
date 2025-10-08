@@ -11,38 +11,19 @@ resources:
   - external-secrets-generated.yaml  # Generated secrets
   - harbor-db-credentials.yaml      # Database credentials for CloudNativePG
   - harbor-database.yaml            # Harbor main database
-  - harbor-registry-database.yaml   # Harbor registry database
   - push-secrets.yaml               # Push generated secrets to Vault
   - external-secrets.yaml           # Pull from Vault (after push)
-  - harbor-helmrepository.yaml      # Harbor Helm repository (namespace override)
-  - harbor-helmrelease.yaml
+  - harbor-keys-init-job.yaml       # Initialize Harbor core keys in Vault
+  - harbor-core-secret-generator.yaml # Generate harbor-core-secret from Vault
+  - deployments/                    # Harbor deployment manifests
 
-# Override namespace for HelmRepository to be in flux-system
 # Override namespace for Database resources to be in postgres
 patchesJson6902:
 - target:
-    version: v1beta2
-    group: source.toolkit.fluxcd.io
-    kind: HelmRepository
-    name: harbor
-  patch: |-
-    - op: replace
-      path: /metadata/namespace
-      value: flux-system
-- target:
     version: v1
     group: postgresql.cnpg.io
     kind: Database
     name: harbor
-  patch: |-
-    - op: replace
-      path: /metadata/namespace
-      value: postgres
-- target:
-    version: v1
-    group: postgresql.cnpg.io
-    kind: Database
-    name: harbor-registry
   patch: |-
     - op: replace
       path: /metadata/namespace

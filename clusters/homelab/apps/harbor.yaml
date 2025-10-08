@@ -26,7 +26,23 @@ spec:
       kind: Database
       name: harbor
       namespace: postgres
-    - apiVersion: postgresql.cnpg.io/v1
-      kind: Database
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: harbor-core
+      namespace: harbor
+    - apiVersion: apps/v1
+      kind: Deployment
       name: harbor-registry
-      namespace: postgres
+      namespace: harbor
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: harbor-portal
+      namespace: harbor
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: harbor-jobservice
+      namespace: harbor
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: harbor-proxy
+      namespace: harbor
