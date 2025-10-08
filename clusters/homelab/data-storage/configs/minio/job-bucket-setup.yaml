@@ -38,7 +38,7 @@ spec:
           
           # First wait for MinIO service to be responsive
           echo "Checking MinIO service availability..."
-          until curl -f http://minio:9000/minio/health/live >/dev/null 2>&1; do
+          until mc alias set test-connection http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
             RETRY_COUNT=$((RETRY_COUNT + 1))
             if [ $RETRY_COUNT -ge 60 ]; then  # 5 minutes for basic connectivity
               echo "ERROR: MinIO service not responding after 5 minutes"
@@ -48,22 +48,11 @@ spec:
             sleep 5
           done
           
-          echo "MinIO service is responding, waiting for credentials to be active..."
-          RETRY_COUNT=0
+          echo "MinIO service is responding and credentials are working!"
           
-          # Now wait for credentials to be processed by MinIO
-          until mc alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" 2>/dev/null; do
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-              echo "ERROR: Failed to authenticate with MinIO after $MAX_RETRIES attempts"
-              echo "This usually indicates MinIO hasn't fully processed the credentials yet"
-              echo "Last connection attempt details:"
-              mc --debug alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" || true
-              exit 1
-            fi
-            echo "Attempt $RETRY_COUNT/$MAX_RETRIES: Waiting for MinIO credentials to be active..."
-            sleep 5
-          done
+          # Clean up test connection and set proper alias
+          mc alias remove test-connection 2>/dev/null || true
+          mc alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
           
           echo "Successfully connected to MinIO"
           
