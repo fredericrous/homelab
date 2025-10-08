@@ -63,7 +63,7 @@ spec:
           value: "(&(objectClass=person)(uid=%(user)s))"
         # OIDC Configuration
         - name: WEBUI_URL
-          value: "https://openwebui.daddyshome.fr"
+          value: "https://openwebuix.daddyshome.fr"
         - name: ENABLE_OAUTH_SIGNUP
           value: "true"
         - name: OAUTH_CLIENT_ID
@@ -74,7 +74,7 @@ spec:
               name: openwebui-oidc-client-secret
               key: client_secret
         - name: OPENID_PROVIDER_URL
-          value: "https://auth.daddyshome.fr/.well-known/openid-configuration"
+          value: "https://authx.daddyshome.fr/.well-known/openid-configuration"
         - name: OAUTH_PROVIDER_NAME
           value: "Authelia"
         - name: OAUTH_SCOPES

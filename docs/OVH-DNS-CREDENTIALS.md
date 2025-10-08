@@ -46,7 +46,7 @@ Check that the consumer key has been validated and has the required permissions.
 Check that the cert-manager-webhook-ovh pod is running and the APIService is available:
 ```bash
 kubectl get pods -n cert-manager | grep ovh
-kubectl get apiservice v1alpha1.acme.daddyshome.fr
+kubectl get apiservice v1alpha1.acmex.daddyshome.fr
 ```
 
 ## Architecture

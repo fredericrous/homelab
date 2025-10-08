@@ -6,7 +6,7 @@ metadata:
   namespace: flux-system
 spec:
   hosts:
-  - stremio.daddyshome.fr
+  - stremiox.daddyshome.fr
   gateways:
   - stremio-gateway
   http:
@@ -26,7 +26,7 @@ metadata:
   namespace: flux-system
 spec:
   hosts:
-  - stremio.daddyshome.fr
+  - stremiox.daddyshome.fr
   gateways:
   - istio-system/public-gateway
   http:

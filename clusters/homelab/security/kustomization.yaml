@@ -5,3 +5,4 @@ resources:
   - namespaces/
   - controllers/
   - configs/
+  - gateways/  # Shared Envoy Gateways with mTLS and security policies

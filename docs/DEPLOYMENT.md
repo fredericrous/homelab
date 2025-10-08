@@ -66,7 +66,7 @@ After deployment:
 1. **Access ArgoCD**:
    ```bash
    # URL
-   https://argocd.daddyshome.fr
+   https://argocdx.daddyshome.fr
    
    # Username
    admin

@@ -5,7 +5,7 @@ metadata:
   namespace: openwebui
 spec:
   hosts:
-  - ai.daddyshome.fr
+  - aix.daddyshome.fr
   gateways:
   - openwebui
   http:

@@ -131,8 +131,8 @@ kubectl apply -k manifests/vault/
 
 ### mTLS Configuration
 - Client CA at `manifests/client-ca/ca/`
-- HAProxy validates client certificates for `*.daddyshome.fr`
-- Mobile endpoints use separate ingress without mTLS (e.g., `drive-mobile.daddyshome.fr`)
+- HAProxy validates client certificates for `*x.daddyshome.fr`
+- Mobile endpoints use separate ingress without mTLS (e.g., `drive-mobilex.daddyshome.fr`)
 
 ## Known Issues
 

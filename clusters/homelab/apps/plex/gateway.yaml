@@ -12,7 +12,7 @@ spec:
       name: http
       protocol: HTTP
     hosts:
-    - plex.daddyshome.fr
+    - plexx.daddyshome.fr
   - port:
       number: 443
       name: https
@@ -21,4 +21,4 @@ spec:
       mode: MUTUAL
       credentialName: plex-tls
     hosts:
-    - plex.daddyshome.fr
+    - plexx.daddyshome.fr

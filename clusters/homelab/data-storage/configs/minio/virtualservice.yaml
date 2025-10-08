@@ -5,7 +5,7 @@ metadata:
   namespace: minio
 spec:
   hosts:
-  - minio.daddyshome.fr
+  - miniox.daddyshome.fr
   gateways:
   - istio-system/minio
   http:

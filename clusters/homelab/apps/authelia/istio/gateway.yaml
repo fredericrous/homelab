@@ -14,7 +14,7 @@ spec:
       name: http
       protocol: HTTP
     hosts:
-    - auth.daddyshome.fr
+    - authx.daddyshome.fr
   # HTTPS with mTLS client certificate authentication
   - port:
       number: 443
@@ -24,7 +24,7 @@ spec:
       mode: MUTUAL
       credentialName: authelia-tls
     hosts:
-    - auth.daddyshome.fr
+    - authx.daddyshome.fr
 ---
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
@@ -33,7 +33,7 @@ metadata:
   namespace: flux-system
 spec:
   hosts:
-  - auth.daddyshome.fr
+  - authx.daddyshome.fr
   gateways:
   - authelia-gateway
   http:
@@ -51,7 +51,7 @@ metadata:
   namespace: flux-system
 spec:
   hosts:
-  - auth.daddyshome.fr
+  - authx.daddyshome.fr
   gateways:
   - authelia-gateway
   http:

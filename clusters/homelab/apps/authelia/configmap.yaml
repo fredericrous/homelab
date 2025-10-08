@@ -6,28 +6,28 @@ metadata:
 data:
   configuration.yml: |
     theme: dark
-    
+
     server:
       host: 0.0.0.0
       port: 9091
       headers:
         csp_template: "default-src 'self'; frame-src 'none'; object-src 'none'; style-src 'self' 'nonce-${NONCE}'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; img-src 'self' data:;"
-      
+
     log:
       level: info
-      
+
     totp:
       issuer: authelia.local
       period: 30
       skew: 1
-    
+
     webauthn:
       disable: false
       display_name: Authelia
       attestation_conveyance_preference: indirect
       user_verification: preferred
       timeout: 60s
-      
+
     authentication_backend:
       password_reset:
         disable: false
@@ -46,22 +46,22 @@ data:
           display_name: cn
           mail: mail
           group_name: cn
-        
+
     access_control:
       default_policy: deny
       rules:
         # Allow access to Authelia itself
-        - domain: auth.daddyshome.fr
+        - domain: authx.daddyshome.fr
           policy: bypass
         # Protect all other domains
         - domain: "*.daddyshome.fr"
           policy: two_factor
-          
+
     session:
       name: authelia_session
       cookies:
         - domain: daddyshome.fr
-          authelia_url: https://auth.daddyshome.fr
+          authelia_url: https://authx.daddyshome.fr
       same_site: lax
       expiration: 1h
       inactivity: 5m
@@ -70,12 +70,12 @@ data:
         host: redis-standalone.ot-operators.svc.cluster.local
         port: 6379
         database_index: 0
-        
+
     regulation:
       max_retries: 3
       find_time: 2m
       ban_time: 5m
-      
+
     storage:
       postgres:
         host: postgres-apps-rw.postgres.svc.cluster.local
@@ -83,27 +83,26 @@ data:
         database: authelia
         username: authelia
         schema: public
-        
+
     notifier:
       disable_startup_check: true
       smtp:
-        username: noreply@daddyshome.fr
-        # Password for the noreply user in Maddy
-        password: maddy-password-123
-        host: maddy.maddy.svc.cluster.local
+        username: admin
+        # Password will be loaded from secret
+        host: stalwart.stalwart.svc.cluster.local
         port: 587
         sender: "Authelia <noreply@daddyshome.fr>"
-        identifier: localhost
+        identifier: mailx.daddyshome.fr
         subject: "[Authelia] {title}"
-        startup_check_address: test@example.com
+        startup_check_address: test@daddyshome.fr
         disable_require_tls: false
         disable_html_emails: false
-        
+
     identity_providers:
       oidc:
         # HMAC secret, private key, and certificate chain are loaded from files
         # mounted from the authelia-oidc-secrets secret
-        # 
+        #
         # OIDC clients are dynamically assembled from individual app ConfigMaps
         # Each app defines its own OIDC client configuration in a ConfigMap
         # The oidc-config-assembler-job combines them into the final configuration
@@ -113,4 +112,4 @@ data:
         # 2. Run the oidc-config-assembler-job to regenerate the configuration
         # 3. Restart Authelia to pick up the new configuration
         clients: []  # This will be populated by the config assembler job
-        
+

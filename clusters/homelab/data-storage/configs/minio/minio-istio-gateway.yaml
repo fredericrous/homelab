@@ -15,4 +15,4 @@ spec:
       mode: SIMPLE
       credentialName: minio-tls
     hosts:
-    - minio.daddyshome.fr
+    - miniox.daddyshome.fr

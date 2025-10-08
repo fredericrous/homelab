@@ -15,4 +15,4 @@ spec:
       mode: SIMPLE
       credentialName: grafana-tls
     hosts:
-    - grafana.daddyshome.fr
+    - grafanax.daddyshome.fr

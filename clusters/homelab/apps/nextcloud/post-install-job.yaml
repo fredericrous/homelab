@@ -68,9 +68,9 @@ spec:
 
           echo "Configuring trusted domains..."
           kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 0 --value=localhost
-          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 1 --value=nextcloud.daddyshome.fr
-          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 2 --value=xdrive.daddyshome.fr
-          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 3 --value=xdrive-mobile.daddyshome.fr
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 1 --value=nextcloudx.daddyshome.fr
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 2 --value=xdrivex.daddyshome.fr
+          kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set trusted_domains 3 --value=xdrive-mobilex.daddyshome.fr
 
           echo "Configuring overwrite protocol..."
           kubectl exec -n nextcloud $POD -c nextcloud -- php occ config:system:set overwriteprotocol --value=https
