@@ -85,14 +85,6 @@ spec:
       passwordSecret:
         name: nextcloud-db-app
     
-    # Harbor application user
-    - name: harbor
-      ensure: present
-      comment: Harbor container registry
-      login: true
-      passwordSecret:
-        name: harbor-db-app
-    
     # Gitea application user
     - name: gitea
       ensure: present
