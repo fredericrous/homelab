@@ -32,6 +32,7 @@ resources:
   - stremio-policy.yaml
   - plex-policy.yaml
   - openwebui-policy.yaml
+  - code-server-policy.yaml
   # OIDC authentication configuration
   - vault-oidc-secret.yaml
   - oidc-auth-config.yaml
