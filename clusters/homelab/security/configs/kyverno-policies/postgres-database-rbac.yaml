@@ -11,7 +11,13 @@ metadata:
 rules:
 - apiGroups: ["postgresql.cnpg.io"]
   resources: ["databases"]
-  verbs: ["get", "list", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+- apiGroups: ["postgresql.cnpg.io"]
+  resources: ["databases/status"]
+  verbs: ["get", "list", "update", "patch"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch"]
 
 ---
 # ClusterRoleBinding for Kyverno admission controller
@@ -30,4 +36,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: kyverno-admission-controller
+  namespace: kyverno
+- kind: ServiceAccount
+  name: kyverno-background-controller
   namespace: kyverno
