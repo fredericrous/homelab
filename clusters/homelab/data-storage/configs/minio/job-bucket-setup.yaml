@@ -15,7 +15,7 @@ metadata:
 spec:
   ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
   backoffLimit: 3
-  activeDeadlineSeconds: 300
+  activeDeadlineSeconds: 600  # Increased to 10 minutes
   template:
     spec:
       restartPolicy: OnFailure
@@ -28,25 +28,52 @@ spec:
         - -c
         - |
           set -e
+          echo "Starting MinIO bucket setup at $(date)"
+          echo "MinIO endpoint: http://minio:9000"
+          
+          # Wait for MinIO to be ready with timeout
           echo "Waiting for MinIO to be ready..."
-          until mc alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
-            echo "Waiting for MinIO..."
+          RETRY_COUNT=0
+          MAX_RETRIES=60  # 5 minutes total (5s * 60)
+          
+          until mc alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" 2>/dev/null; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "ERROR: Failed to connect to MinIO after $MAX_RETRIES attempts"
+              echo "Checking if MinIO service is reachable..."
+              nc -z minio 9000 && echo "MinIO port is open" || echo "MinIO port is not reachable"
+              exit 1
+            fi
+            echo "Attempt $RETRY_COUNT/$MAX_RETRIES: Waiting for MinIO..."
             sleep 5
           done
+          
+          echo "Successfully connected to MinIO"
+          
+          # List existing buckets
+          echo "Current buckets:"
+          mc ls myminio/ || echo "No buckets found"
           
           # Create models bucket if it doesn't exist
           if ! mc ls myminio/models 2>/dev/null; then
             echo "Creating models bucket..."
             mc mb myminio/models
-            echo "Bucket created successfully"
+            echo "Bucket 'models' created successfully"
           else
             echo "Bucket 'models' already exists"
           fi
           
           # Set public download policy for models bucket
+          echo "Setting download policy for models bucket..."
           mc anonymous set download myminio/models
+          echo "Policy set successfully"
           
-          echo "MinIO bucket initialization complete"
+          # Verify final state
+          echo "Final verification:"
+          mc ls myminio/
+          mc anonymous get myminio/models
+          
+          echo "MinIO bucket initialization completed successfully at $(date)"
         env:
         - name: MINIO_ROOT_USER
           valueFrom:
