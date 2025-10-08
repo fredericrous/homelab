@@ -12,3 +12,7 @@ metadata:
   annotations:
     # mTLS component configuration
     mtls/tls-secret-name: "nextcloud-tls"
+    # PostgreSQL database generation
+    postgres.cnpg.io/database-name: "nextcloud"
+    postgres.cnpg.io/database-owner: "nextcloud"
+    postgres.cnpg.io/cluster-name: "postgres-apps"

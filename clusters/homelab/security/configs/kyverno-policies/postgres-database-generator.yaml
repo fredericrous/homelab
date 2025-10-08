@@ -1,0 +1,48 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: generate-postgres-database
+  annotations:
+    policies.kyverno.io/title: Auto-generate PostgreSQL Database resources
+    policies.kyverno.io/category: Database Management
+    policies.kyverno.io/description: >-
+      Automatically creates PostgreSQL Database resources in the postgres namespace
+      when a namespace is annotated with postgres.cnpg.io/database-name
+spec:
+  admission: true
+  background: true
+  rules:
+  - name: generate-database
+    match:
+      any:
+      - resources:
+          kinds:
+          - Namespace
+          names:
+          - "lldap"
+          - "authelia" 
+          - "nextcloud"
+          - "gitea"
+    preconditions:
+      any:
+      - key: "{{ request.object.metadata.annotations.\"postgres.cnpg.io/database-name\" || '' }}"
+        operator: NotEquals
+        value: ""
+    generate:
+      apiVersion: postgresql.cnpg.io/v1
+      kind: Database
+      name: "{{ request.object.metadata.annotations.\"postgres.cnpg.io/database-name\" }}"
+      namespace: postgres
+      synchronize: true
+      data:
+        metadata:
+          name: "{{ request.object.metadata.annotations.\"postgres.cnpg.io/database-name\" }}"
+          namespace: postgres
+          labels:
+            app.kubernetes.io/managed-by: kyverno
+            app.kubernetes.io/created-for: "{{ request.object.metadata.name }}"
+        spec:
+          name: "{{ request.object.metadata.annotations.\"postgres.cnpg.io/database-name\" }}"
+          owner: "{{ request.object.metadata.annotations.\"postgres.cnpg.io/database-owner\" || request.object.metadata.annotations.\"postgres.cnpg.io/database-name\" }}"
+          cluster:
+            name: "{{ request.object.metadata.annotations.\"postgres.cnpg.io/cluster-name\" || 'postgres-apps' }}"
