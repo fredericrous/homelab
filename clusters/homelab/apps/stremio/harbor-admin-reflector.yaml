@@ -1,0 +1,11 @@
+---
+# Pulls harbor-admin secret from harbor namespace using modular reflector pattern
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harbor-admin
+  namespace: stremio
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflects: "harbor/harbor-admin"
+type: Opaque
+data: {}
