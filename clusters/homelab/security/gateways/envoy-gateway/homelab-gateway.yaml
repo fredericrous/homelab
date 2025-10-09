@@ -5,6 +5,9 @@ metadata:
   namespace: envoy-gateway-system
   annotations:
     gateway.envoyproxy.io/service-type: NodePort
+    # Configure specific NodePorts to match router configuration
+    service.beta.kubernetes.io/port_80_nodePort: "30080"
+    service.beta.kubernetes.io/port_443_nodePort: "30443"
 spec:
   gatewayClassName: eg
   listeners:
