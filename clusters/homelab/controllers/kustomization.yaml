@@ -2,7 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: flux-system
 resources:
-  # Essential operators only - for faster deployment
+  # HelmRepositories (must be first)
+  - ../platform-foundation/sources/jetstack.yaml
+  - ../platform-foundation/sources/external-secrets.yaml  
+  - ../platform-foundation/sources/emberstack.yaml
+  - ../platform-foundation/sources/rook-release.yaml
+  
+  # Essential operators
   - reflector.yaml
   - rook-ceph.yaml
   - external-secrets-operator.yaml
