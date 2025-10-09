@@ -15,30 +15,3 @@ spec:
     allowedRoutes:
       namespaces:
         from: All
-  # HTTPS listener with mTLS - accepts all hostnames and certificates
-  - name: https
-    protocol: HTTPS
-    port: 443
-    tls:
-      mode: Terminate
-      certificateRefs:
-      - kind: Secret
-        name: wildcard-daddyshome-fr-tls
-        namespace: envoy-gateway-system
-    allowedRoutes:
-      namespaces:
-        from: All
-  # Manual LLDAP HTTPS listener for testing
-  - name: lldap-https
-    protocol: HTTPS
-    port: 443
-    hostname: lldapx.daddyshome.fr
-    tls:
-      mode: Terminate
-      certificateRefs:
-      - kind: Secret
-        name: lldap-tls
-        namespace: envoy-gateway-system
-    allowedRoutes:
-      namespaces:
-        from: All
