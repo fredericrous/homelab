@@ -34,15 +34,13 @@ spec:
         cpu: 100m
         memory: 128Mi
         
-    # Enable policy exceptions and mutations
-    config:
-      webhooks:
-        # Allow policy exceptions for specific namespaces
-        namespaceSelector:
-          matchExpressions:
-          - key: name
-            operator: NotIn
-            values: ["kube-system", "kube-public", "flux-system"]
+    # Enable policy exceptions and mutations  
+    admissionController:
+      namespaceSelector:
+        matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "flux-system"]
     
     # Security configuration
     podSecurityContext:
