@@ -116,8 +116,10 @@ fi
 
 # Check CSI driver pods are ready
 echo "Checking Ceph CSI driver readiness..."
-csi_ready=$(kubectl get pods -n rook-ceph -l app=csi-rbdplugin --no-headers 2>/dev/null | grep -c "Running" || echo "0")
-csi_total=$(kubectl get pods -n rook-ceph -l app=csi-rbdplugin --no-headers 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
+csi_ready=$(kubectl get pods -n rook-ceph -l app=csi-rbdplugin --no-headers 2>/dev/null | grep -c "Running" 2>/dev/null || echo "0")
+csi_total=$(kubectl get pods -n rook-ceph -l app=csi-rbdplugin --no-headers 2>/dev/null | wc -l 2>/dev/null || echo "0")
+csi_ready=$(echo "$csi_ready" | tr -d '\n\r ')
+csi_total=$(echo "$csi_total" | tr -d '\n\r ')
 if [ "$csi_ready" -eq "$csi_total" ] && [ "$csi_total" -gt 0 ]; then
   echo "✅ Ceph CSI driver ready ($csi_ready/$csi_total pods running)"
 else
