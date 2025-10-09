@@ -21,3 +21,6 @@ spec:
       - kind: Secret
         name: cert-manager-env-config
         optional: true  # Created by Terraform during bootstrap, replaced by VaultStaticSecret later
+      - kind: Secret
+        name: cluster-vars
+        optional: false
