@@ -8,7 +8,7 @@ metadata:
 spec:
   secretName: nextcloud-tls
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-ovh-webhook
     kind: ClusterIssuer
   dnsNames:
   - drivex.daddyshome.fr
