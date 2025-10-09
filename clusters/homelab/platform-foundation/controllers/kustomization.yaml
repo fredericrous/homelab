@@ -4,7 +4,6 @@ namespace: flux-system
 resources:
   # Platform-specific controllers that depend on core controllers
   - vault.yaml
-  - vault-transit-unseal-operator.yaml
   - vault-transit-config.yaml
   - external-secrets-config.yaml
   - external-dns.yaml
