@@ -38463,12 +38463,6 @@ spec:
       status: {}
 
 ---
-# Source: gateway-helm/templates/namespace.yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: 'envoy-gateway-system'
----
 # Source: gateway-helm/templates/envoy-gateway-serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
