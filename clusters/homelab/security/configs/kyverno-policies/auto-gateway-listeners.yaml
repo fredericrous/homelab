@@ -36,7 +36,7 @@ spec:
           value:
             name: "{{ request.object.metadata.name }}-https"
             protocol: HTTPS
-            port: 443
+            port: 30443
             hostname: "{{ request.object.spec.hostnames[0] }}"
             tls:
               mode: Terminate
