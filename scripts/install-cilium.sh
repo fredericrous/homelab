@@ -259,8 +259,25 @@ fi
 for i in {1..30}; do
   echo "DEBUG: Starting loop iteration $i"
 
+  # Get current node status each iteration (it changes after CNI installation)
+  node_output=$(kubectl get nodes --no-headers 2>&1) || true
+  if [[ "$node_output" == *"No resources found"* ]] || [ -z "$node_output" ]; then
+    total_nodes=0
+    ready_nodes=0
+  else
+    total_nodes=$(echo "$node_output" | wc -l)
+    total_nodes=$(echo "$total_nodes" | tr -d ' \n\r\t')
+    
+    ready_lines=$(echo "$node_output" | grep -w Ready 2>/dev/null || true)
+    if [ -z "$ready_lines" ]; then
+      ready_nodes=0
+    else
+      ready_nodes=$(echo "$ready_lines" | wc -l)
+      ready_nodes=$(echo "$ready_nodes" | tr -d ' \n\r\t')
+    fi
+  fi
+
   # Get running pods count, handle empty results gracefully
-  # Note: immediately after helm install, pods might not exist yet
   ready_pods=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase=Running --no-headers 2>/dev/null || true)
   if [ -z "$ready_pods" ]; then
     ready_count=0
@@ -278,19 +295,26 @@ for i in {1..30}; do
   fi
 
   echo "  Cilium pods ready: $ready_count/$total_nodes (Running: $ready_count, Pending: $pending_count, attempt $i/30)"
+  echo "  Node status: $ready_nodes/$total_nodes Ready"
 
-  # Check if we have Cilium running on all nodes
-  if [ "$ready_count" -eq "$total_nodes" ]; then
-    log_info "Cilium is fully deployed ($ready_count/$total_nodes pods running)"
+  # Primary success condition: All nodes are Ready AND have Cilium pods
+  if [ "$ready_nodes" -eq "$total_nodes" ] && [ "$ready_count" -ge "$ready_nodes" ] && [ "$total_nodes" -gt 0 ]; then
+    log_info "Cilium CNI installation complete: $ready_nodes Ready nodes with $ready_count running pods"
     break
-  elif [ "$ready_nodes" -gt 0 ] && [ "$ready_count" -eq "$ready_nodes" ] && [ "$pending_count" -gt 0 ]; then
+  # Secondary success: Cilium pods match ready nodes (partial deployment acceptable)  
+  elif [ "$ready_nodes" -gt 0 ] && [ "$ready_count" -eq "$ready_nodes" ] && [ "$pending_count" -eq 0 ]; then
     log_warning "Cilium is running on all Ready nodes ($ready_count/$ready_nodes)"
-    log_warning "$(($total_nodes - $ready_nodes)) node(s) are NotReady - Cilium pods cannot start there"
-    kubectl get nodes | grep NotReady || true
-    log_warning "Fix node connectivity issues and Cilium will automatically deploy there"
+    if [ "$ready_nodes" -lt "$total_nodes" ]; then
+      log_warning "$(($total_nodes - $ready_nodes)) node(s) are NotReady - will get Cilium when they become Ready"
+      kubectl get nodes | grep NotReady || true
+    fi
     break
-  elif [ "$ready_nodes" -eq 0 ]; then
-    echo "  All nodes are NotReady, waiting for them to become Ready after CNI installation..."
+  # Still waiting for nodes to become Ready after CNI installation
+  elif [ "$total_nodes" -gt 0 ] && [ "$ready_nodes" -eq 0 ]; then
+    echo "  All $total_nodes nodes are NotReady, waiting for them to become Ready after CNI installation..."
+  # Still waiting for Cilium pods to start
+  elif [ "$ready_nodes" -gt 0 ] && [ "$ready_count" -lt "$ready_nodes" ]; then
+    echo "  Waiting for Cilium pods to start on Ready nodes ($ready_count/$ready_nodes running)..."
   fi
 
   sleep 10
@@ -298,11 +322,23 @@ done
 
 echo "DEBUG: After loop - ready_count=$ready_count, ready_nodes=$ready_nodes"
 
-# Ensure ready_nodes is properly cleaned
-ready_nodes=$(echo "$ready_nodes" | tr -d ' \n\r')
+# Get final node status for validation
+final_node_output=$(kubectl get nodes --no-headers 2>&1) || true
+if [[ "$final_node_output" == *"No resources found"* ]] || [ -z "$final_node_output" ]; then
+  final_ready_nodes=0
+else
+  ready_lines=$(echo "$final_node_output" | grep -w Ready 2>/dev/null || true)
+  if [ -z "$ready_lines" ]; then
+    final_ready_nodes=0
+  else
+    final_ready_nodes=$(echo "$ready_lines" | wc -l)
+    final_ready_nodes=$(echo "$final_ready_nodes" | tr -d ' \n\r\t')
+  fi
+fi
 
-if [ "$ready_count" -lt "$ready_nodes" ]; then
-  log_error "Cilium deployment incomplete: only $ready_count/$ready_nodes pods on Ready nodes"
+# Final validation - ensure we have Cilium on ready nodes
+if [ "$final_ready_nodes" -gt 0 ] && [ "$ready_count" -lt "$final_ready_nodes" ]; then
+  log_error "Cilium deployment incomplete: only $ready_count/$final_ready_nodes pods on Ready nodes"
   log_error "This indicates a Cilium configuration or resource issue"
   exit 1
 fi
