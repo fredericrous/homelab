@@ -29,10 +29,11 @@ spec:
         kind: Gateway
         name: homelab-gateway
         namespace: envoy-gateway-system
-      patchStrategicMerge:
-        spec:
-          listeners:
-          - name: "{{ request.object.metadata.name }}-https"
+      patchesJson6902: |-
+        - op: add
+          path: "/spec/listeners/-"
+          value:
+            name: "{{ request.object.metadata.name }}-https"
             protocol: HTTPS
             port: 443
             hostname: "{{ request.object.spec.hostnames[0] }}"
