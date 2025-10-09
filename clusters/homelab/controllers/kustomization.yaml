@@ -8,6 +8,7 @@ resources:
   - ../platform-foundation/sources/emberstack.yaml
   - ../platform-foundation/sources/rook-release.yaml
   - ../platform-foundation/sources/hashicorp.yaml
+  - ../platform-foundation/sources/fredericrous.yaml
   
   # Essential operators
   - reflector.yaml
