@@ -10,3 +10,4 @@ resources:
   - node-feature-discovery-repository.yaml
   - jetstack.yaml
   - ovh-webhook-helm-repository.yaml
+  - envoy-gateway.yaml

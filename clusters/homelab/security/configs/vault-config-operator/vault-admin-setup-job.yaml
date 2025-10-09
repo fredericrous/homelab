@@ -57,4 +57,14 @@ spec:
             echo "Kubernetes auth will be enabled by vault-config-operator"
           fi
 
+          # Enable PKI secrets engine if not already enabled
+          echo "Enabling PKI secrets engine..."
+          if ! vault secrets list | grep -q "^pki/"; then
+            vault secrets enable -path=pki pki
+            vault secrets tune -max-lease-ttl=8760h pki
+            echo "PKI secrets engine enabled"
+          else
+            echo "PKI secrets engine already enabled"
+          fi
+
           echo "Vault admin setup complete"
