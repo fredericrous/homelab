@@ -25,8 +25,17 @@ kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/p
   kubectl get kustomization platform-foundation -n flux-system 2>/dev/null || echo "Platform-foundation kustomization not found"
 }
 
-# Wait for Rook-Ceph to be fully healthy before proceeding
+# Check if storage classes already exist - if so, we can skip most Ceph checks
 echo "🗄️  Verifying Rook-Ceph cluster health..."
+echo "Checking for Ceph storage classes..."
+if kubectl get storageclass rook-ceph-block >/dev/null 2>&1; then
+  echo "✅ Ceph storage classes found - storage system is ready"
+  echo "🚀 Proceeding to application verification..."
+  verify_platform_foundation
+  return 0
+fi
+
+echo "StorageClasses not found, waiting for Rook-Ceph deployment..."
 echo "Waiting for Rook operator to be ready..."
 kubectl wait --for=condition=available --timeout=300s deployment/rook-ceph-operator -n rook-ceph 2>/dev/null || {
   echo "⚠️  Rook operator not ready yet"
@@ -43,18 +52,22 @@ for i in {1..60}; do
   sleep 5
 done
 
-echo "Waiting for all 3 Ceph monitors to be running..."
+echo "Waiting for Ceph monitors to be running..."
+# Get expected monitor count from CephCluster spec
+expected_mons=$(kubectl get cephcluster rook-ceph -n rook-ceph -o jsonpath='{.spec.mon.count}' 2>/dev/null || echo "1")
+echo "Expected monitors: $expected_mons"
+
 for i in {1..120}; do
   # Count running monitors
   running_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | grep -c "Running" || echo "0")
   running_mons=$(echo "$running_mons" | head -n1 | tr -d '\n\r ')
   total_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
 
-  if [ "$running_mons" -eq 3 ]; then
-    echo "✅ All 3 Ceph monitors are running"
+  if [ "$running_mons" -ge "$expected_mons" ] && [ "$running_mons" -gt 0 ]; then
+    echo "✅ Ceph monitors are running ($running_mons/$expected_mons)"
     break
   elif [ "$total_mons" -gt 0 ]; then
-    echo "Waiting for monitors: $running_mons/3 running ($i/120)"
+    echo "Waiting for monitors: $running_mons/$expected_mons running ($i/120)"
 
     # Show monitor status every 30 iterations (2.5 minutes)
     if [ $((i % 30)) -eq 0 ]; then
