@@ -7,3 +7,4 @@ resources:
   - mtls-security-policy.yaml
   - nextcloud-httproute.yaml
   - lldap-tls-cert.yaml
+  - nextcloud-tls-cert.yaml
