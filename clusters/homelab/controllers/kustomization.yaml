@@ -17,6 +17,9 @@ resources:
   - cert-manager.yaml
   - vault-transit-unseal-operator.yaml
 
+  # Istio namespaces (must be before Istio components)
+  - istio-namespaces.yaml
+  
   # Istio core (required for mesh)
   - istio-repository.yaml
   - istio-base.yaml
