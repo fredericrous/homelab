@@ -4,9 +4,8 @@ namespace: flux-system
 resources:
   - cluster-secret-store.yaml
   # Direct secrets using postBuild substitution (more reliable than ExternalSecrets with Vault dependency)
-  - nas-vault-token-direct.yaml
   - cert-manager-ovh-credentials-direct.yaml
-  # PKI sync is critical for mTLS - keep it but need to fix the authentication issues
+  # PKI sync is critical for mTLS - now uses cluster-vars directly for authentication
   - vault-pki-sync-externalsecret.yaml
   # Temporarily commented out client CA ExternalSecret - may have similar issues
   # - client-ca-externalsecret.yaml
