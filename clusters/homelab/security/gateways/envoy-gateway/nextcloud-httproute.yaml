@@ -7,7 +7,7 @@ spec:
   parentRefs:
   - name: homelab-gateway
     namespace: envoy-gateway-system
-    sectionName: https
+    sectionName: nextcloud-https
   hostnames:
   - "drivex.daddyshome.fr"
   rules:
