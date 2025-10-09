@@ -19,19 +19,13 @@ spec:
       - name: external-dns
         image: registry.k8s.io/external-dns/external-dns:v0.15.0
         args:
-        - --source=gateway-httproute
-        - --source=gateway-grpcroute
-        - --source=gateway-tlsroute
-        - --source=gateway-tcproute
-        - --source=gateway-udproute
         - --source=service
-        - --source=ingress
         - --provider=ovh
         - --ovh-endpoint=ovh-eu
         - --domain-filter=daddyshome.fr
         - --txt-owner-id=homelab-cluster
         - --txt-prefix=ext-dns-
-        - --log-level=info
+        - --log-level=debug
         - --log-format=text
         - --interval=1m
         - --registry=txt
