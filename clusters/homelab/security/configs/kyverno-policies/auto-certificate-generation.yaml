@@ -26,16 +26,12 @@ spec:
             "cert.daddyshome.fr/skip": "true"
     skipBackgroundRequests: false
     generate:
-      synchronize: true
       apiVersion: cert-manager.io/v1
       kind: Certificate
       name: "{{ request.object.metadata.name }}-tls"
       namespace: envoy-gateway-system
+      synchronize: true
       data:
-        metadata:
-          labels:
-            app.kubernetes.io/managed-by: kyverno
-            app.kubernetes.io/generated-from: "{{ request.object.metadata.namespace }}/{{ request.object.metadata.name }}"
         spec:
           secretName: "{{ request.object.metadata.name }}-tls"
           issuerRef:
