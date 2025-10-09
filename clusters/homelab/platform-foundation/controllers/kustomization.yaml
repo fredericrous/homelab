@@ -24,3 +24,4 @@ resources:
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
   - cert-manager.yaml
+  - external-dns.yaml
