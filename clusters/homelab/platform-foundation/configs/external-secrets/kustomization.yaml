@@ -3,8 +3,10 @@ kind: Kustomization
 namespace: flux-system
 resources:
   - cluster-secret-store.yaml
-  - nas-vault-token-externalsecret.yaml
+  # Direct secrets using postBuild substitution (more reliable than ExternalSecrets with Vault dependency)
+  - nas-vault-token-direct.yaml
+  - cert-manager-ovh-credentials-direct.yaml
+  # Keep PKI and client CA ExternalSecrets for now (if they work with NAS vault)
   - vault-pki-sync-externalsecret.yaml
-  - cert-manager-ovh-credentials-externalsecret.yaml
   - client-ca-externalsecret.yaml
   # Note: cluster-vars secret is created by bootstrap script and distributed by reflector
