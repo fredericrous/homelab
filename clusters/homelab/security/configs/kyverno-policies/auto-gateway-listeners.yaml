@@ -23,6 +23,7 @@ spec:
       - resources:
           annotations:
             "gateway.daddyshome.fr/skip": "true"
+    skipBackgroundRequests: false
     mutate:
       targets:
       - apiVersion: gateway.networking.k8s.io/v1

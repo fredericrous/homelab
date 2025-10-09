@@ -24,6 +24,7 @@ spec:
       - resources:
           annotations:
             "cert.daddyshome.fr/skip": "true"
+    skipBackgroundRequests: false
     generate:
       synchronize: true
       apiVersion: cert-manager.io/v1
