@@ -5,7 +5,8 @@ metadata:
   name: vault-oidc-config
   namespace: vault-config-operator
 spec:
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 600  # Keep for 10 minutes for debugging
+  activeDeadlineSeconds: 3600   # Allow up to 1 hour for Authelia to come online
   template:
     spec:
       serviceAccountName: vault-config-operator
@@ -19,13 +20,44 @@ spec:
         - |
           set -e
 
-          echo "Configuring Vault OIDC authentication..."
+          echo "🔐 Configuring Vault OIDC authentication..."
+          
+          # Install curl for health checks
+          apk add --no-cache curl
 
           # Set Vault connection
           export VAULT_ADDR=http://vault-vault.vault.svc.cluster.local:8200
           export VAULT_TOKEN=$(cat /var/secrets/vault-admin-token/token)
+          
+          # Wait for Authelia to be ready
+          echo "⏳ Waiting for Authelia to be available at https://authx.daddyshome.fr..."
+          AUTHELIA_READY=false
+          MAX_ATTEMPTS=120  # 10 minutes (5s * 120)
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ] && [ "$AUTHELIA_READY" = "false" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "  🔍 Attempt $ATTEMPT/$MAX_ATTEMPTS: Checking Authelia health..."
+            
+            # Check if the OIDC discovery endpoint is available
+            if curl -s --connect-timeout 10 --max-time 15 "https://authx.daddyshome.fr/.well-known/openid_configuration" >/dev/null 2>&1; then
+              echo "  ✅ Authelia is online and responding!"
+              AUTHELIA_READY=true
+            else
+              echo "  ⏳ Authelia not ready yet, waiting 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          if [ "$AUTHELIA_READY" = "false" ]; then
+            echo "❌ Authelia did not come online within 10 minutes"
+            echo "ℹ️  This is expected if Authelia is not deployed yet"
+            echo "🔄 This job will retry when re-run after Authelia deployment"
+            exit 1
+          fi
 
-          echo "Enabling JWT/OIDC auth method..."
+          echo "🚀 Proceeding with Vault OIDC configuration..."
+          echo "🔧 Enabling JWT/OIDC auth method..."
 
           # Enable OIDC auth method if not already enabled
           if ! vault auth list | grep -q oidc; then
@@ -74,7 +106,9 @@ spec:
 
           echo "✅ User role created"
 
-          echo "OIDC authentication configured successfully!"
+          echo "🎉 OIDC authentication configured successfully!"
+          echo "🔗 Vault is now configured to use Authelia for OIDC authentication"
+          echo "🌐 Login URL: https://vaultx.daddyshome.fr/ui/vault/auth/oidc/oidc/callback"
 
         volumeMounts:
         - name: vault-admin-token
