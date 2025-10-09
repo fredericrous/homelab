@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: flux-system
+resources:
+  # Essential operators only - for faster deployment
+  - reflector.yaml
+  - rook-ceph.yaml
+  - external-secrets-operator.yaml
+  - cert-manager.yaml
+  
+  # Istio core (required for mesh)
+  - istio-repository.yaml
+  - istio-base.yaml
+  - istio-cni.yaml
+  - istio-istiod.yaml
+  - istio-ztunnel.yaml
+  - istio-sa-fix.yaml

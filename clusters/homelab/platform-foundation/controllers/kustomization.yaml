@@ -2,26 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: flux-system
 resources:
-  - reflector.yaml
-  - rook-ceph.yaml
-  - rook-ceph-cluster.yaml
+  # Platform-specific controllers that depend on core controllers
   - vault.yaml
   - vault-transit-unseal-operator.yaml
   - vault-transit-config.yaml
-  # nas-vault-eso-token-secret.yaml moved to infrastructure/controllers
-  - external-secrets-operator.yaml
   - external-secrets-config.yaml
-  # Istio components
-  - istio-repository.yaml
-  - istio-base.yaml
-  - istio-cni.yaml
-  - istio-istiod.yaml
-  - istio-ztunnel.yaml
+  - external-dns.yaml
   - envoy-gateway.yaml
-  - istio-sa-fix.yaml
-  # Infrastructure core controllers
-  # vault-pki-sync resources moved to configs/external-secrets/
   - node-feature-discovery.yaml
   - nvidia-device-plugin.yaml
-  - cert-manager.yaml
-  - external-dns.yaml
+  - rook-ceph-cluster.yaml
