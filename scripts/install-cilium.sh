@@ -58,56 +58,92 @@ echo "Using control plane IP: $CONTROL_PLANE_IP"
 
 # Create temporary values file with environment substitution
 cat > /tmp/cilium-bootstrap-values.yaml << EOF
-# Cilium bootstrap configuration for Talos homelab
-# Conservative settings for reliable deployment with kubeProxyReplacement
-
-# Basic networking configuration
+# Cilium bootstrap configuration for homelab
 routingMode: "native"
 ipv4NativeRoutingCIDR: "10.244.0.0/16"
 autoDirectNodeRoutes: true
+endpointRoutes:
+  enabled: true
 
-# kube-proxy replacement (Talos has proxy.disabled: true)
 kubeProxyReplacement: true
 k8sServiceHost: "$CONTROL_PLANE_IP"
 k8sServicePort: 6443
 
-# Conservative BPF settings for Talos
+bandwidthManager:
+  enabled: true
+  bbr: true
+
 bpf:
   masquerade: true
-  # Disable advanced features that might cause connectivity issues
-  tproxy: false
+  tproxy: true
   hostRouting: false
 
-# Use standard Kubernetes IPAM (most reliable)
 ipam:
   mode: "kubernetes"
+  operator:
+    clusterPoolIPv4PodCIDRList: ["10.244.0.0/16"]
+    clusterPoolIPv4MaskSize: 24
 
-# Reduce MTU for stability (Talos default minus overhead)
+dnsProxy:
+  enabled: true
+  enableTransparentMode: true
+  minTTL: 3600
+  maxTTL: 86400
+
 mtu: 1450
 
-# Basic DNS configuration
-dnsProxy:
-  enabled: false  # Disable to avoid DNS conflicts during bootstrap
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+  metrics:
+    enabled:
+      - dns:query
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
 
-# Minimal additional features for bootstrap stability
 operator:
   replicas: 1
+  prometheus:
+    enabled: true
 
-# Disable Hubble for bootstrap to reduce complexity
-hubble:
-  enabled: false
-
-# Basic health checking
 healthChecking: true
 healthPort: 9879
 
-# Disable advanced features during bootstrap
-prometheus:
-  enabled: false
-
-# Let Talos handle sysctls
 sysctlfix:
   enabled: false
+
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+
+socketLB:
+  hostNamespaceOnly: true
 EOF
 
 # Install Cilium
