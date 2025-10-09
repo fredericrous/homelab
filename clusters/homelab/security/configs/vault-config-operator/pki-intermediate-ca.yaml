@@ -44,6 +44,11 @@ spec:
           # Check if intermediate CA already exists
           if vault read pki/cert/ca >/dev/null 2>&1; then
             echo "✅ Intermediate CA already exists"
+            # Still store in KV for traffic filters
+            echo "📋 Storing intermediate CA certificate in KV for traffic filters..."
+            INTERMEDIATE_CA_CERT=$(vault read -field=certificate pki/cert/ca)
+            vault kv put secret/pki/intermediate-ca "ca.crt=$INTERMEDIATE_CA_CERT"
+            echo "✅ Intermediate CA certificate stored in KV"
             exit 0
           fi
 
@@ -74,6 +79,11 @@ spec:
           vault write pki/config/urls \
             issuing_certificates="http://vault-vault.vault.svc.cluster.local:8200/v1/pki/ca" \
             crl_distribution_points="http://vault-vault.vault.svc.cluster.local:8200/v1/pki/crl"
+
+          # Store intermediate CA certificate in KV store for traffic filters (1 year TTL)
+          echo "📋 Storing intermediate CA certificate in KV for traffic filters..."
+          INTERMEDIATE_CA_CERT=$(vault read -field=certificate pki/cert/ca)
+          vault kv put secret/pki/intermediate-ca "ca.crt=$INTERMEDIATE_CA_CERT"
 
           echo "✅ Intermediate CA configured successfully"
   backoffLimit: 3

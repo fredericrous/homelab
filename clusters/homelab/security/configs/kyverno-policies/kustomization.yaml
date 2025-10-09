@@ -9,3 +9,7 @@ resources:
   - admission-controller-rbac.yaml
   - postgres-database-generator.yaml
   - postgres-database-rbac.yaml
+  - gateway-rbac.yaml
+  - auto-certificate-generation.yaml
+  - auto-gateway-generation.yaml
+  - auto-mtls-policy.yaml
