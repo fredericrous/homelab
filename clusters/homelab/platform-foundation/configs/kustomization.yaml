@@ -12,3 +12,4 @@ resources:
   - nvidia/
   - rook-ceph-cluster/
   - vault-transit/
+  - vault/
