@@ -14,8 +14,8 @@ spec:
       method: quick
     allowUninstallWithVolumes: true
   mon:
-    count: 3
-    allowMultiplePerNode: false  # One monitor per node for stability
+    count: 1  # Start with 1 monitor for small cluster
+    allowMultiplePerNode: true
   mgr:
     count: 2
     allowMultiplePerNode: true
@@ -55,18 +55,7 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
-      # Use soft anti-affinity to prevent scheduling issues
-      podAntiAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 50  # Reduced weight to allow flexibility
-          podAffinityTerm:
-            labelSelector:
-              matchExpressions:
-              - key: app
-                operator: In
-                values:
-                - rook-ceph-mon
-            topologyKey: kubernetes.io/hostname
+      # Remove anti-affinity for small cluster to allow flexible scheduling
     mgr:
       tolerations:
       - key: node-role.kubernetes.io/control-plane
