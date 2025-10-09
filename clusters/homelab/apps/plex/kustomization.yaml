@@ -13,3 +13,4 @@ resources:
   - helm-release.yaml
   - virtualservice.yaml
   - peerauthentication.yaml
+  - httproute.yaml

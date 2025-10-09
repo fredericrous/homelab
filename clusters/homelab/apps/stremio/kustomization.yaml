@@ -22,6 +22,8 @@ resources:
   - build-rbac.yaml
   - buildkit-job.yaml
   - virtualservice.yaml
+  - httproute-web.yaml
+  - httproute-server.yaml
 
 patches:
   # Add backup annotations

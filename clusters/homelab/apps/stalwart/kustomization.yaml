@@ -19,6 +19,7 @@ resources:
   - pvc.yaml
   - deployment.yaml
   - service.yaml
+  - httproute.yaml
 
 commonLabels:
   app.kubernetes.io/name: stalwart

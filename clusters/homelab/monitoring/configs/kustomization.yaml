@@ -5,3 +5,4 @@ resources:
   - istio-system-gateway.yaml
   - grafana-gateway.yaml
   - grafana-virtualservice.yaml
+  - grafana-httproute.yaml

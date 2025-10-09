@@ -21,3 +21,4 @@ resources:
   - service.yaml
   - certificates.yaml
   - virtualservice.yaml
+  - httproute.yaml
