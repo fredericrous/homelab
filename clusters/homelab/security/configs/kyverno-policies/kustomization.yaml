@@ -12,4 +12,3 @@ resources:
   - gateway-rbac.yaml
   - auto-certificate-generation.yaml
   - auto-gateway-listeners.yaml
-  - auto-mtls-policy.yaml
