@@ -27,8 +27,8 @@ spec:
         - name: NAS_VAULT_TOKEN
           valueFrom:
             secretKeyRef:
-              name: nas-vault-root-token
-              key: token
+              name: cluster-vars
+              key: QNAP_VAULT_TOKEN
         args:
         - |
           # Install jq for JSON parsing
