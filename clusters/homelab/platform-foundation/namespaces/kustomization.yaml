@@ -11,3 +11,4 @@ resources:
   - postgres.yaml
   - node-feature-discovery-namespace.yaml
   - cert-manager.yaml
+  - envoy-gateway-system.yaml

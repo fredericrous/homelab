@@ -17,7 +17,7 @@ resources:
   - istio-cni.yaml
   - istio-istiod.yaml
   - istio-ztunnel.yaml
-  - istio-gateway.yaml
+  - envoy-gateway.yaml
   - istio-sa-fix.yaml
   # Infrastructure core controllers
   # vault-pki-sync resources moved to configs/external-secrets/
