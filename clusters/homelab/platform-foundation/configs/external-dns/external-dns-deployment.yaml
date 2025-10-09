@@ -27,11 +27,9 @@ spec:
         - --txt-prefix=ext-dns-
         - --log-level=info
         - --log-format=text
-        - --interval=1m
+        - --interval=2m
         - --registry=txt
         - --policy=upsert-only
-        - --kube-api-qps=5
-        - --kube-api-burst=10
         env:
         - name: OVH_APPLICATION_KEY
           valueFrom:
