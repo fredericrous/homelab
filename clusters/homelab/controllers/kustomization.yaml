@@ -3,20 +3,20 @@ kind: Kustomization
 namespace: flux-system
 resources:
   # HelmRepositories (must be first)
-  - ../platform-foundation/sources/jetstack.yaml
-  - ../platform-foundation/sources/external-secrets.yaml  
-  - ../platform-foundation/sources/emberstack.yaml
-  - ../platform-foundation/sources/rook-release.yaml
-  - ../platform-foundation/sources/hashicorp.yaml
-  - ../platform-foundation/sources/fredericrous.yaml
-  
+  - jetstack.yaml
+  - external-secrets.yaml  
+  - emberstack.yaml
+  - rook-release.yaml
+  - hashicorp.yaml
+  - fredericrous.yaml
+
   # Essential operators
   - reflector.yaml
   - rook-ceph.yaml
   - external-secrets-operator.yaml
   - cert-manager.yaml
   - vault-transit-unseal-operator.yaml
-  
+
   # Istio core (required for mesh)
   - istio-repository.yaml
   - istio-base.yaml
