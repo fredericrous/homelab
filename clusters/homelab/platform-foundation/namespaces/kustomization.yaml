@@ -5,7 +5,7 @@ resources:
   - rook-ceph.yaml
   - vault.yaml
   - external-secrets.yaml
-  - istio.yaml
+  # istio.yaml moved to controllers layer to fix dependency
   - cnpg-system.yaml
   - kyverno.yaml
   - postgres.yaml
