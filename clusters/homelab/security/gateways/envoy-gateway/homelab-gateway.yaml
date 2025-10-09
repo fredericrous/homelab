@@ -21,6 +21,10 @@ spec:
     port: 443
     tls:
       mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: wildcard-daddyshome-fr-tls
+        namespace: envoy-gateway-system
     allowedRoutes:
       namespaces:
         from: All
