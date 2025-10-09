@@ -24,3 +24,17 @@ spec:
     allowedRoutes:
       namespaces:
         from: All
+  # Manual LLDAP HTTPS listener for testing
+  - name: lldap-https
+    protocol: HTTPS
+    port: 443
+    hostname: lldapx.daddyshome.fr
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: lldap-tls
+        namespace: envoy-gateway-system
+    allowedRoutes:
+      namespaces:
+        from: All

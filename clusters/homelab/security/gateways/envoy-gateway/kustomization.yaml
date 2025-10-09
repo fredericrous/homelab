@@ -6,3 +6,4 @@ resources:
   - mtls-ca-externalsecret.yaml
   - mtls-security-policy.yaml
   - nextcloud-httproute.yaml
+  - lldap-tls-cert.yaml
