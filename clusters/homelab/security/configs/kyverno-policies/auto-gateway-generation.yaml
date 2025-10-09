@@ -1,0 +1,62 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: auto-generate-service-gateway
+  annotations:
+    policies.kyverno.io/title: Auto-generate Gateway for HTTPRoutes
+    policies.kyverno.io/category: Networking
+    policies.kyverno.io/subject: Gateway
+    policies.kyverno.io/description: >-
+      Automatically generates a dedicated Gateway resource for each HTTPRoute
+      with its own TLS certificate.
+spec:
+  rules:
+  - name: generate-service-gateway
+    match:
+      any:
+      - resources:
+          kinds:
+          - HTTPRoute
+          namespaces:
+          - "*"
+    exclude:
+      any:
+      - resources:
+          annotations:
+            "gateway.daddyshome.fr/skip": "true"
+    generate:
+      synchronize: true
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      name: "{{ request.object.metadata.name }}-gateway"
+      namespace: envoy-gateway-system
+      data:
+        metadata:
+          labels:
+            app.kubernetes.io/managed-by: kyverno
+            app.kubernetes.io/generated-from: "{{ request.object.metadata.namespace }}/{{ request.object.metadata.name }}"
+          annotations:
+            gateway.envoyproxy.io/service-type: NodePort
+        spec:
+          gatewayClassName: eg
+          listeners:
+          - name: http
+            protocol: HTTP
+            port: 80
+            hostname: "{{ request.object.spec.hostnames[0] }}"
+            allowedRoutes:
+              namespaces:
+                from: All
+          - name: https
+            protocol: HTTPS
+            port: 443
+            hostname: "{{ request.object.spec.hostnames[0] }}"
+            tls:
+              mode: Terminate
+              certificateRefs:
+              - kind: Secret
+                name: "{{ request.object.metadata.name }}-tls"
+                namespace: envoy-gateway-system
+            allowedRoutes:
+              namespaces:
+                from: All

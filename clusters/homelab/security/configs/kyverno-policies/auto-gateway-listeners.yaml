@@ -1,0 +1,47 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: auto-generate-gateway-listeners
+  annotations:
+    policies.kyverno.io/title: Auto-generate Gateway Listeners for HTTPRoutes
+    policies.kyverno.io/category: Networking
+    policies.kyverno.io/subject: Gateway
+    policies.kyverno.io/description: >-
+      Automatically adds listeners to the main homelab-gateway when an HTTPRoute is created.
+spec:
+  rules:
+  - name: add-gateway-listener
+    match:
+      any:
+      - resources:
+          kinds:
+          - HTTPRoute
+          namespaces:
+          - "*"
+    exclude:
+      any:
+      - resources:
+          annotations:
+            "gateway.daddyshome.fr/skip": "true"
+    mutate:
+      targets:
+      - apiVersion: gateway.networking.k8s.io/v1
+        kind: Gateway
+        name: homelab-gateway
+        namespace: envoy-gateway-system
+      patchStrategicMerge:
+        spec:
+          listeners:
+          - name: "{{ request.object.metadata.name }}-https"
+            protocol: HTTPS
+            port: 443
+            hostname: "{{ request.object.spec.hostnames[0] }}"
+            tls:
+              mode: Terminate
+              certificateRefs:
+              - kind: Secret
+                name: "{{ request.object.metadata.name }}-tls"
+                namespace: envoy-gateway-system
+            allowedRoutes:
+              namespaces:
+                from: All

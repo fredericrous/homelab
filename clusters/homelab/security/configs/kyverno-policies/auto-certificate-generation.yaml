@@ -1,0 +1,43 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: auto-generate-certificates-and-listeners
+  annotations:
+    policies.kyverno.io/title: Auto-generate Certificates and Gateway Listeners for HTTPRoutes
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/subject: Certificate, Gateway
+    policies.kyverno.io/description: >-
+      Automatically generates cert-manager Certificate resources and Gateway listeners
+      when an HTTPRoute is created with hostnames.
+spec:
+  rules:
+  - name: generate-certificate
+    match:
+      any:
+      - resources:
+          kinds:
+          - HTTPRoute
+          namespaces:
+          - "*"
+    exclude:
+      any:
+      - resources:
+          annotations:
+            "cert.daddyshome.fr/skip": "true"
+    generate:
+      synchronize: true
+      apiVersion: cert-manager.io/v1
+      kind: Certificate
+      name: "{{ request.object.metadata.name }}-tls"
+      namespace: envoy-gateway-system
+      data:
+        metadata:
+          labels:
+            app.kubernetes.io/managed-by: kyverno
+            app.kubernetes.io/generated-from: "{{ request.object.metadata.namespace }}/{{ request.object.metadata.name }}"
+        spec:
+          secretName: "{{ request.object.metadata.name }}-tls"
+          issuerRef:
+            name: letsencrypt-prod
+            kind: ClusterIssuer
+          dnsNames: "{{ request.object.spec.hostnames }}"
