@@ -35,6 +35,6 @@ spec:
         spec:
           secretName: "{{ request.object.metadata.name }}-tls"
           issuerRef:
-            name: letsencrypt-prod
+            name: letsencrypt-ovh-webhook
             kind: ClusterIssuer
           dnsNames: "{{ request.object.spec.hostnames }}"

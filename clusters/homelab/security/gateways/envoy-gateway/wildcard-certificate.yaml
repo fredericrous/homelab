@@ -8,7 +8,7 @@ metadata:
 spec:
   secretName: wildcard-daddyshome-fr-tls
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-ovh-webhook
     kind: ClusterIssuer
   dnsNames:
   - "*.daddyshome.fr"

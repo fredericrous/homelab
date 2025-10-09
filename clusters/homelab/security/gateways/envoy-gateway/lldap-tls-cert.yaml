@@ -8,7 +8,7 @@ metadata:
 spec:
   secretName: lldap-tls
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-ovh-webhook
     kind: ClusterIssuer
   dnsNames:
   - lldapx.daddyshome.fr
