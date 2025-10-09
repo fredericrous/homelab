@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - gotk-components.yaml
 - gotk-sync.yaml
+- ../controllers.yaml
 - ../platform-foundation.yaml
 - ../security.yaml
 - ../serverless.yaml
