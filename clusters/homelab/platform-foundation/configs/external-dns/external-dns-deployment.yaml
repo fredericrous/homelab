@@ -25,11 +25,13 @@ spec:
         - --domain-filter=daddyshome.fr
         - --txt-owner-id=homelab-cluster
         - --txt-prefix=ext-dns-
-        - --log-level=debug
+        - --log-level=info
         - --log-format=text
         - --interval=1m
         - --registry=txt
         - --policy=upsert-only
+        - --kube-api-qps=5
+        - --kube-api-burst=10
         env:
         - name: OVH_APPLICATION_KEY
           valueFrom:
@@ -55,3 +57,10 @@ spec:
             drop: ["ALL"]
           seccompProfile:
             type: RuntimeDefault
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
