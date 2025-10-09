@@ -4,4 +4,3 @@ resources:
   - ovh-credentials-externalsecret.yaml
   - external-dns-deployment.yaml
   - external-dns-rbac.yaml
-  - wildcard-dns-service.yaml
