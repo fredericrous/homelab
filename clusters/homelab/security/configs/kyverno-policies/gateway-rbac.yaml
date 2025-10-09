@@ -4,7 +4,7 @@ metadata:
   name: kyverno-gateway-manager
 rules:
 - apiGroups: ["gateway.networking.k8s.io"]
-  resources: ["gateways"]
+  resources: ["gateways", "httproutes"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 - apiGroups: ["gateway.envoyproxy.io"]
   resources: ["clienttrafficpolicies"]
