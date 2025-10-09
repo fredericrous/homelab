@@ -7,6 +7,4 @@ resources:
   - vault-pki-sync-externalsecret.yaml
   - cert-manager-ovh-credentials-externalsecret.yaml
   - client-ca-externalsecret.yaml
-  # Essential Vault policy (deployed before PushSecret to break circular dependency)
-  - external-secrets-policy.yaml
-  - cluster-vars-pushsecret.yaml
+  # Note: cluster-vars secret is created by bootstrap script and distributed by reflector
