@@ -46,29 +46,30 @@ spec:
     # Worker configuration
     worker:
       config:
-        # Core feature sources
+        # Core feature sources optimized for homelab
         sources:
           cpu:
             cpuid:
-              attributeBlacklist: []
-              attributeWhitelist: []
+              # Detect CPU features useful for workload scheduling
+              attributeWhitelist: ["AVX", "AVX2", "SSE4.1", "SSE4.2"]
           kernel:
             kconfigFile: ""
-            configOpts: []
+            configOpts: ["NO_HZ", "PREEMPT"]
           pci:
-            deviceClassWhitelist: []
-            deviceLabelFields: []
+            # Focus on GPU and networking devices
+            deviceClassWhitelist: ["0300", "0200"] # Display controllers, Network controllers
+            deviceLabelFields: ["vendor", "device", "class"]
           usb:
-            deviceClassWhitelist: []
-            deviceLabelFields: []
+            deviceClassWhitelist: ["09"] # USB hubs
+            deviceLabelFields: ["vendor", "device"]
           custom: []
           local: []
           
-        # Enable all standard feature sources
+        # Standard feature detection with reasonable interval
         core:
           labelWhiteList: []
           noPublish: false
-          sleepInterval: 60s
+          sleepInterval: 120s # Longer interval for efficiency
       
       resources:
         requests:
@@ -78,15 +79,12 @@ spec:
           cpu: 200m
           memory: 128Mi
       
-      # Tolerate control plane and GPU nodes
+      # Tolerate control plane nodes (NFD worker runs on all nodes for feature detection)
       tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
       - key: node-role.kubernetes.io/master
-        operator: Exists
-        effect: NoSchedule
-      - key: nvidia.com/gpu
         operator: Exists
         effect: NoSchedule
     
