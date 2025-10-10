@@ -8,6 +8,7 @@ resources:
   - rook-release.yaml
   - hashicorp.yaml
   - fredericrous.yaml
+  - node-feature-discovery-repository.yaml
 
   # Essential operators
   - reflector.yaml
@@ -15,6 +16,7 @@ resources:
   - external-secrets-operator.yaml
   - cert-manager.yaml
   - vault-transit-unseal-operator.yaml
+  - node-feature-discovery.yaml
 
   # Istio namespaces (must be before Istio components)
   - istio-namespaces.yaml
