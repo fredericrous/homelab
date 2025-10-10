@@ -8,18 +8,12 @@ resources:
   - rook-release.yaml
   - hashicorp.yaml
   - fredericrous.yaml
-  - node-feature-discovery-repository.yaml
-
   # Essential operators
   - reflector.yaml
   - rook-ceph.yaml
   - external-secrets-operator.yaml
   - cert-manager.yaml
   - vault-transit-unseal-operator.yaml
-  # Node Feature Discovery disabled - requires privileged PodSecurity 
-  # but Talos cluster-level admission controller overrides namespace annotations
-  # - node-feature-discovery-namespace.yaml  
-  # - node-feature-discovery.yaml
 
   # Istio namespaces (must be before Istio components)
   - istio-namespaces.yaml
