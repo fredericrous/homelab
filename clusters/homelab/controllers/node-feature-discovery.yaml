@@ -22,16 +22,9 @@ spec:
     remediation:
       retries: 3
   values:
-    # Use default feature gates configuration for v0.18.0
-    
-    # Master configuration
+    # Master configuration (simplified for basic node labeling)
     master:
       replicaCount: 1
-      config:
-        # Enable all feature groups by default
-        extraLabelNs: ["custom.feature.node.kubernetes.io"]
-        # Deny list for sensitive labels  
-        denyLabelNs: ["kubernetes.io"]
       resources:
         requests:
           cpu: 50m
