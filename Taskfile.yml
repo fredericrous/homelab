@@ -349,13 +349,39 @@ tasks:
           echo "✅ Cilium CNI is already installed"
         fi
 
-        # Install FluxCD
+        # Install FluxCD (just the installation, no waiting)
         echo "🚀 Installing FluxCD GitOps..."
         task install-fluxcd flux_path="{{.FLUX_PATH}}"
 
-        # Create required secrets after FluxCD creates flux-system namespace
+        # Wait for flux-system namespace to be created
+        echo "⏳ Waiting for flux-system namespace..."
+        for i in {1..30}; do
+          if kubectl get namespace flux-system >/dev/null 2>&1; then
+            echo "✅ flux-system namespace is ready"
+            break
+          fi
+          echo "  Waiting for flux-system namespace... ($i/30)"
+          sleep 2
+        done
+
+        # Create required secrets IMMEDIATELY after FluxCD creates namespace
+        echo "🔐 Creating required secrets before reconciliation starts..."
         task create-vault-transit-secret
         task sync-env-secrets
+
+        # Now wait for the initial sync and controllers to stabilize
+        echo "⏳ Waiting for FluxCD to sync repository and controllers to be ready..."
+        for i in {1..60}; do
+          if kubectl get kustomization controllers -n flux-system >/dev/null 2>&1; then
+            controllers_status=$(kubectl get kustomization controllers -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+            if [ "$controllers_status" = "True" ]; then
+              echo "✅ Controllers layer is ready"
+              break
+            fi
+          fi
+          echo "  Waiting for controllers layer... ($i/60)"
+          sleep 5
+        done
 
         echo "✅ Cluster created and FluxCD bootstrapped successfully!"
 
