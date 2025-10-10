@@ -16,8 +16,10 @@ resources:
   - external-secrets-operator.yaml
   - cert-manager.yaml
   - vault-transit-unseal-operator.yaml
-  - node-feature-discovery-namespace.yaml
-  - node-feature-discovery.yaml
+  # Node Feature Discovery disabled - requires privileged PodSecurity 
+  # but Talos cluster-level admission controller overrides namespace annotations
+  # - node-feature-discovery-namespace.yaml  
+  # - node-feature-discovery.yaml
 
   # Istio namespaces (must be before Istio components)
   - istio-namespaces.yaml
