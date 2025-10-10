@@ -8,3 +8,4 @@ resources:
   - storageclass-cephfs.yaml
   - ceph-objectstore.yaml
   - storageclass-ceph-bucket.yaml
+  - job-csi-config.yaml

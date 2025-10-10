@@ -5,7 +5,7 @@ metadata:
   namespace: rook-ceph
 spec:
   cephVersion:
-    image: quay.io/ceph/ceph:v19.2.0
+    image: quay.io/ceph/ceph:v19.2.3
   dataDirHostPath: /var/lib/rook
   skipUpgradeChecks: false
   continueUpgradeAfterChecksEvenIfNotHealthy: false
@@ -14,8 +14,8 @@ spec:
       method: quick
     allowUninstallWithVolumes: true
   mon:
-    count: 1  # Start with 1 monitor for small cluster
-    allowMultiplePerNode: true
+    count: 3
+    allowMultiplePerNode: false
   mgr:
     count: 2
     allowMultiplePerNode: true
@@ -23,26 +23,10 @@ spec:
     - name: rook
       enabled: true
   dashboard:
-    enabled: false  # Disable to save resources
-    ssl: false
-  crashCollector:
-    disable: true  # Disable to reduce etcd objects
-  logCollector:
-    enabled: false  # Disable to save resources
-  monitoring:
-    enabled: false
+    enabled: true
+    ssl: true
   network:
     hostNetwork: false
-  # Ceph configuration for small cluster
-  cephConfig:
-    global:
-      osd_pool_default_size: "2"
-      osd_pool_default_min_size: "1"
-      mon_warn_on_pool_no_redundancy: "false"
-      osd_recovery_max_active: "1"
-      osd_max_backfills: "1"
-      osd_memory_target: "1073741824"
-      bluestore_cache_size: "536870912"
   # Placement configuration
   placement:
     all:
@@ -65,23 +49,11 @@ spec:
     osd:
       tolerations: []
   storage:
-    useAllNodes: false
+    useAllNodes: true
     useAllDevices: false
     deviceFilter: "sdb"
     config:
       osdsPerDevice: "1"
-      encryptedDevice: "false"
-    nodes:
-    - name: "talos-wk-1-gpu"
-      devices:
-      - name: "sdb"
-        config:
-          deviceClass: hdd
-    - name: "talos-wk-2"
-      devices:
-      - name: "sdb"
-        config:
-          deviceClass: hdd
   # Reduced resources for small cluster
   resources:
     mgr:

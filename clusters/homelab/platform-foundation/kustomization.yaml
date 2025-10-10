@@ -5,5 +5,4 @@ resources:
   - namespaces
   - configs
   - vault.yaml
-  - vault-transit-unseal-operator.yaml
   - buildkit
