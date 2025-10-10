@@ -12,8 +12,3 @@ spec:
   prune: true
   wait: true
   # No dependencies - controllers must be deployed first
-  postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: vault-transit-token
-        optional: false
