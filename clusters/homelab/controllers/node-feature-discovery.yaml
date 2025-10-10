@@ -22,10 +22,7 @@ spec:
     remediation:
       retries: 3
   values:
-    # Enable CRDs (default in v0.14+)
-    featureGates:
-      NodeFeature: true
-      NodeFeatureAPI: true
+    # Use default feature gates configuration for v0.18.0
     
     # Master configuration
     master:
