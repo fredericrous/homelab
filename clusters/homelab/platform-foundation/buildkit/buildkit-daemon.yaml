@@ -17,7 +17,7 @@ spec:
       serviceAccountName: buildkit
       containers:
       - name: buildkitd
-        image: moby/buildkit:latest
+        image: moby/buildkit:v0.25.1
         args:
         - --addr
         - tcp://0.0.0.0:1234

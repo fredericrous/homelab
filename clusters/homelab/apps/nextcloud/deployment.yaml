@@ -27,7 +27,7 @@ spec:
         command: ['sh', '-c', 'until nc -z postgres-apps-rw.postgres.svc.cluster.local 5432; do echo waiting for postgres; sleep 2; done']
       containers:
       - name: nextcloud
-        image: nextcloud:29-apache
+        image: nextcloud:31-apache
         command: ["/bin/bash", "-c"]
         args:
         - |
@@ -103,7 +103,7 @@ spec:
             memory: "2Gi"
             cpu: "2000m"
       - name: nextcloud-cron
-        image: nextcloud:29-apache
+        image: nextcloud:31-apache
         command: ["/cron.sh"]
         env:
         - name: POSTGRES_HOST
