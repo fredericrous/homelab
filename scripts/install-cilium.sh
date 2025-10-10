@@ -144,6 +144,9 @@ prometheus:
 
 socketLB:
   hostNamespaceOnly: true
+
+cni:
+  exclusive: false
 EOF
 
 # Install Cilium
