@@ -18,24 +18,31 @@ for i in {1..30}; do
   sleep 2
 done
 
-# Wait for platform foundation first (includes Rook-Ceph, Vault, ESO, Istio)
+# Wait for controllers layer first (includes operators)
+echo "Waiting for controllers layer..."
+if ! kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/controllers 2>/dev/null; then
+  echo "⚠️  Controllers layer not ready yet, checking status..."
+  kubectl get kustomization controllers -n flux-system 2>/dev/null || echo "Controllers kustomization not found"
+  echo "⚠️  Cannot proceed without controllers - operators must be deployed first"
+  exit 1
+fi
+
+# Wait for platform foundation (includes actual Ceph cluster, Vault, ESO, Istio)
 echo "Waiting for platform foundation components..."
 kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/platform-foundation 2>/dev/null || {
   echo "⚠️  Platform foundation not ready yet, checking status..."
   kubectl get kustomization platform-foundation -n flux-system 2>/dev/null || echo "Platform-foundation kustomization not found"
 }
 
-# Check if storage classes already exist - if so, we can skip most Ceph checks
+# Check if storage classes already exist - if so, we can skip detailed Ceph checks
 echo "🗄️  Verifying Rook-Ceph cluster health..."
 echo "Checking for Ceph storage classes..."
 if kubectl get storageclass rook-ceph-block >/dev/null 2>&1; then
   echo "✅ Ceph storage classes found - storage system is ready"
-  echo "🚀 Proceeding to application verification..."
-  verify_platform_foundation
-  return 0
+  echo "🚀 Proceeding to remaining infrastructure verification..."
+else
+  echo "StorageClasses not found, waiting for Rook-Ceph deployment..."
 fi
-
-echo "StorageClasses not found, waiting for Rook-Ceph deployment..."
 echo "Waiting for Rook operator to be ready..."
 kubectl wait --for=condition=available --timeout=300s deployment/rook-ceph-operator -n rook-ceph 2>/dev/null || {
   echo "⚠️  Rook operator not ready yet"
@@ -186,6 +193,7 @@ else
   kubectl delete pvc test-rook-health -n default --wait=false >/dev/null 2>&1
 fi
 
+
 # Wait for security layer (includes cert-manager)
 echo "Waiting for security layer..."
 kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/security 2>/dev/null || {
@@ -236,24 +244,31 @@ for i in {1..60}; do
   sleep 5
 done
 
-# Wait for other infrastructure
-echo "Waiting for remaining infrastructure..."
-kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/cert-manager 2>/dev/null || echo "⚠️  cert-manager not ready yet"
-kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/haproxy-ingress 2>/dev/null || echo "⚠️  HAProxy not ready yet"
-kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/cloudnative-pg 2>/dev/null || echo "⚠️  CloudNativePG not ready yet"
-kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/rook-ceph 2>/dev/null || echo "⚠️  Rook-Ceph not ready yet"
+# Note: Rook-Ceph cluster health already validated above
+# Note: cert-manager and external-secrets operators validated in controllers layer
+# At this point, focus on remaining infrastructure layers
 
 echo ""
 echo "🔍 Infrastructure status summary:"
 echo "================================"
-echo "Platform Foundation:"
-kubectl get kustomization -n flux-system 2>/dev/null | grep -E 'NAME|platform-foundation' || echo "No platform-foundation found"
+echo "Core Layers:"
+kubectl get kustomization -n flux-system 2>/dev/null | grep -E 'NAME|controllers|platform-foundation' || echo "No core layers found"
 echo ""
 echo "Infrastructure Layers:"
-kubectl get kustomization -n flux-system 2>/dev/null | grep -E 'NAME|security|serverless|data-cache|ml-serving|data-storage' || echo "No infrastructure layers found"
+kubectl get kustomization -n flux-system 2>/dev/null | grep -E 'NAME|security|data-storage' || echo "No infrastructure layers found"
 echo ""
-echo "HelmReleases:"
-kubectl get helmrelease -n flux-system 2>/dev/null || echo "No HelmReleases found"
+echo "Critical Infrastructure Components:"
+echo "  Controllers (operators):"
+kubectl get kustomization controllers -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | sed 's/True/✅ Ready/' | sed 's/False/❌ Not Ready/' | sed 's/Unknown/⏳ In Progress/' || echo "❌ Not found"
+echo "  Platform Foundation (resources):"
+kubectl get kustomization platform-foundation -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | sed 's/True/✅ Ready/' | sed 's/False/❌ Not Ready/' | sed 's/Unknown/⏳ In Progress/' || echo "❌ Not found"
+echo ""
+echo "Storage System:"
+if kubectl get storageclass rook-ceph-block >/dev/null 2>&1; then
+  echo "  Ceph StorageClasses: ✅ Available"
+else
+  echo "  Ceph StorageClasses: ❌ Not Available"
+fi
 echo ""
 echo "Application deployment status:"
 kubectl get kustomization -n flux-system apps 2>/dev/null || echo "⚠️  Applications kustomization not yet deployed"
