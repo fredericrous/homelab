@@ -4,11 +4,11 @@ dotenv: ['.env']
 
 includes:
   nas:
-    taskfile: ./nas/Taskfile.yml
-    dir: ./nas
+    taskfile: ./terraform/nas/Taskfile.yml
+    dir: ./terraform/nas
 
 vars:
-  TERRAFORM_DIR: './terraform'
+  TERRAFORM_DIR: './terraform/homelab'
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/talosconfig'
 
@@ -108,7 +108,7 @@ tasks:
       - |
         # Extract IPs from terraform output
         VM_IPS=($(terraform output -json | jq -r '.talos_client_configuration.value.nodes[]'))
-        ../scripts/wait-vms-ready.sh "${VM_IPS[@]}"
+        ../../scripts/wait-vms-ready.sh "${VM_IPS[@]}"
       - terraform apply -var="configure_talos=true" -auto-approve
 
   kubeconfig:
@@ -252,9 +252,9 @@ tasks:
     cmds:
       - |
         # Extract control plane IP from terraform output and pass to script
-        cd terraform
+        cd terraform/homelab
         export CONTROL_PLANE_IP=$(terraform output -json | jq -r '.talos_client_configuration.value.endpoints[0]')
-        cd ..
+        cd ../..
         export KUBECONFIG=kubeconfig
         ./scripts/install-cilium.sh
 
@@ -482,7 +482,7 @@ tasks:
       - terraform destroy -auto-approve
       - echo "🧹 Cleaning up configs..."
       - rm -f {{.KUBECONFIG}} {{.TALOSCONFIG}}
-      - ../scripts/cleanup-vms.sh
+      - ../../scripts/cleanup-vms.sh
       - |
         echo
         echo "=== IMPORTANT: GPU Passthrough Users ==="
@@ -500,7 +500,7 @@ tasks:
     deps: [check-prereq]
     prompt: This will stop and remove all VMs defined in terraform.tfvars. Are you sure?
     cmds:
-      - ../scripts/cleanup-vms.sh
+      - ../../scripts/cleanup-vms.sh
 
 
   reboot:
@@ -508,4 +508,4 @@ tasks:
     dir: '{{.TERRAFORM_DIR}}'
     prompt: This will reboot the Proxmox host. Are you sure?
     cmds:
-      - ../scripts/reboot-proxmox.sh
+      - ../../scripts/reboot-proxmox.sh
