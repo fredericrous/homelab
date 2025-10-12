@@ -3,7 +3,7 @@ version: '3'
 vars:
   TASK_DIR: '{{.TASKFILE_DIR}}'
   KUBECONFIG_QNAP: '{{.TASK_DIR}}/kubeconfig.yaml'
-  MANIFESTS_DIR: '{{.TASK_DIR}}/../manifests/nas'
+  MANIFESTS_DIR: '{{.TASK_DIR}}/../../clusters/nas'
   VAULT_ADDR: 'http://192.168.1.42:61200'
 
 env:
@@ -102,6 +102,7 @@ tasks:
     cmds:
       - task: create-aws-secret
       - task: vault-pki
+      - task: vault-auto-unseal
       - task: show-info
 
   create-aws-secret:
@@ -112,8 +113,8 @@ tasks:
       - '{{.TASK_DIR}}/scripts/create-aws-secret.sh'
     silent: true
 
-  vault-init:
-    desc: Initialize Vault (first time only)
+  vault-bootstrap:
+    desc: Bootstrap Vault with GPG-encrypted single key (first time only)
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     preconditions:
@@ -121,6 +122,39 @@ tasks:
         msg: "Vault not deployed yet. Run 'task deploy' first"
     cmds:
       - |
+        if vault status &>/dev/null 2>&1 && vault status | grep -q "Initialized.*true"; then
+          echo "✅ Vault is already initialized"
+          echo "If you need to unseal it, run: task nas:vault-unseal"
+          exit 0
+        fi
+
+        echo "🔐 Starting automated Vault bootstrap with GPG encryption..."
+        echo ""
+        echo "This will:"
+        echo "  - Initialize Vault with a single unseal key (no threshold)"
+        echo "  - Encrypt the key with GPG"
+        echo "  - Store encrypted keys in nas/unseal/"
+        echo "  - Enable KV v2 secrets engine"
+        echo ""
+        read -p "Continue? (y/N): " confirm
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+          echo "Aborted"
+          exit 1
+        fi
+
+        '{{.TASK_DIR}}/scripts/vault-bootstrap-keys.sh'
+
+  vault-init:
+    desc: Initialize Vault manually (legacy method)
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    preconditions:
+      - sh: kubectl get statefulset -n vault vault &>/dev/null
+        msg: "Vault not deployed yet. Run 'task deploy' first"
+    cmds:
+      - |
+        echo "⚠️  DEPRECATED: Use 'task nas:vault-bootstrap' for automated setup"
+        echo ""
         if kubectl -n vault get secret vault-keys &>/dev/null 2>&1; then
           echo "✅ Vault is already initialized"
           exit 0
@@ -154,7 +188,7 @@ tasks:
         echo "Then run:"
         echo "  task nas:vault-secrets          # Setup MinIO password and AWS credentials"
         echo "  task nas:vault-transit          # Configure transit unseal for main K8s"
-        echo "  task nas:vault-bootstrap-config # Setup bootstrap configuration for AVP"
+        # echo "  task nas:vault-bootstrap-config # Setup bootstrap configuration for AVP"
 
   vault-secrets:
     desc: Setup Vault secrets for MinIO and AWS
@@ -166,6 +200,48 @@ tasks:
     cmds:
       - '{{.TASK_DIR}}/scripts/vault-secrets-setup.sh'
 
+  vault-unseal:
+    desc: Unseal Vault using GPG-encrypted key
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    preconditions:
+      - sh: test -f '{{.TASK_DIR}}/unseal/unseal-keys.txt.gpg'
+        msg: "Encrypted unseal key not found. Run 'task nas:vault-bootstrap' first"
+    cmds:
+      - |
+        echo "🔐 Unsealing Vault using GPG-encrypted key..."
+        
+        if vault status | grep -q "Sealed.*false"; then
+          echo "✅ Vault is already unsealed"
+          exit 0
+        fi
+        
+        if ! vault status &>/dev/null; then
+          echo "❌ Cannot connect to Vault at {{.VAULT_ADDR}}"
+          exit 1
+        fi
+        
+        UNSEAL_KEY=$(gpg --quiet --batch --decrypt {{.TASK_DIR}}/unseal/unseal-keys.txt.gpg 2>/dev/null)
+        vault operator unseal "$UNSEAL_KEY"
+        
+        echo "✅ Vault unsealed successfully"
+
+  vault-auto-unseal:
+    desc: Deploy auto-unseal job for Vault
+    deps: [deploy-vault]
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    preconditions:
+      - sh: test -f '{{.TASK_DIR}}/unseal/unseal-keys.txt.gpg'
+        msg: "Encrypted unseal key not found. Run 'task nas:vault-bootstrap' first"
+    cmds:
+      - echo "📦 Deploying Vault auto-unseal job..."
+      - kubectl apply -k {{.MANIFESTS_DIR}}/auto-unseal
+      - echo "✅ Auto-unseal job deployed"
+      - echo ""
+      - echo "To trigger manual unseal:"
+      - echo "  kubectl -n vault create job vault-manual-unseal-$(date +%s) --from=job/vault-auto-unseal"
+
   vault-transit:
     desc: Setup Vault transit unseal for main K8s cluster
     preconditions:
@@ -176,6 +252,7 @@ tasks:
     cmds:
       - '{{.TASK_DIR}}/scripts/vault-transit-setup.sh'
 
+  # Deprecated TODO: maybe reuse to rethink cluster-vars security
   vault-bootstrap-config:
     desc: Setup bootstrap configuration for ArgoCD Vault Plugin
     preconditions:
@@ -219,13 +296,13 @@ tasks:
             echo "Not authenticated to Vault. Run: vault login"
             exit 1
           fi
-          
+
           # Source the functions from generate-pki.sh
           source {{.TASK_DIR}}/scripts/generate-pki.sh
-          
+
           # Generate the certificate
           generate_client_cert "{{.USERNAME}}" "{{.EMAIL}}"
-          
+
           echo ""
           echo "📥 Download your certificate:"
           echo "  export VAULT_ADDR={{.VAULT_ADDR}}"
@@ -260,9 +337,12 @@ tasks:
         echo "  Password: {{.MINIO_PASSWORD}}"
 
         # Check Vault initialization status
-        if ! kubectl -n vault get secret vault-keys &>/dev/null 2>&1; then
+        if ! vault status | grep -q "Initialized.*true" &>/dev/null; then
           echo ""
-          echo "🔐 Next step: Initialize Vault"
+          echo "🔐 Next step: Initialize Vault with automated GPG bootstrap"
+          echo "  task nas:vault-bootstrap"
+          echo ""
+          echo "Or use legacy manual method:"
           echo "  task nas:vault-init"
         else
           # Check PKI status
@@ -284,6 +364,16 @@ tasks:
           else
             echo "🔒 PKI Status: ❌ Not initialized"
             echo "   Run: task nas:vault-pki"
+          fi
+          
+          # Check auto-unseal status
+          echo ""
+          if kubectl -n vault get job vault-auto-unseal &>/dev/null 2>&1; then
+            echo "🔓 Auto-unseal: ✅ Deployed"
+            echo "   Manual trigger: kubectl -n vault create job vault-manual-unseal-$(date +%s) --from=job/vault-auto-unseal"
+          else
+            echo "🔓 Auto-unseal: ❌ Not deployed"
+            echo "   Run: task nas:vault-auto-unseal"
           fi
         fi
 

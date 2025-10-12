@@ -1,9 +1,9 @@
 #!/bin/bash
-# Setup bootstrap configuration in NAS Vault for ArgoCD Vault Plugin
+# Setup bootstrap configuration in NAS Vault for Vailt
 
 set -euo pipefail
 
-echo "🔐 Setting up bootstrap configuration for ArgoCD Vault Plugin..."
+echo "🔐 Setting up bootstrap configuration for Vault..."
 
 # Get script directory and find project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,13 +43,13 @@ VAULT_CMD="vault kv put secret/bootstrap/config"
 while IFS='=' read -r key value; do
     # Skip comments and empty lines
     [[ "$key" =~ ^#.*$ ]] || [[ -z "$key" ]] && continue
-    
+
     # Only process ARGO_ prefixed variables
     if [[ "$key" =~ ^ARGO_ ]]; then
         # Remove ARGO_ prefix and convert to camelCase
         # First, remove ARGO_ prefix
         var_name="${key#ARGO_}"
-        
+
         # Convert snake_case to camelCase
         # Split by underscore and process each part
         var_name=$(echo "$var_name" | awk -F_ '{
@@ -60,16 +60,16 @@ while IFS='=' read -r key value; do
                 printf "%s", toupper(substr($i,1,1)) tolower(substr($i,2))
             }
         }')
-        
+
         # Get the value from environment
         var_value="${!key}"
-        
+
         # Skip if value is empty
         [[ -z "$var_value" ]] && continue
-        
+
         # Add to vault command
         VAULT_CMD="$VAULT_CMD $var_name=\"$var_value\""
-        
+
         echo "  $key -> $var_name: $var_value"
     fi
 done < "$ENV_FILE"

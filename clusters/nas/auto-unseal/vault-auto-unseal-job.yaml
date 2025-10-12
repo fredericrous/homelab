@@ -1,0 +1,81 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-auto-unseal
+  namespace: vault
+  labels:
+    app: vault-auto-unseal
+spec:
+  template:
+    metadata:
+      name: vault-auto-unseal
+      labels:
+        app: vault-auto-unseal
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: vault-auto-unseal
+      containers:
+        - name: vault-unsealer
+          image: alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Installing required packages..."
+              apk add --no-cache vault gnupg curl bash >/dev/null 2>&1
+              
+              echo "Making auto-unseal script executable..."
+              chmod +x /unseal/vault-auto-unseal.sh
+              
+              echo "Starting auto-unseal process..."
+              /unseal/vault-auto-unseal.sh
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault.vault.svc.cluster.local:8200"
+          volumeMounts:
+            - name: unseal-volume
+              mountPath: /unseal
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: unseal-volume
+          secret:
+            secretName: vault-unseal-secret
+            defaultMode: 0755
+      backoffLimit: 3
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-auto-unseal
+  namespace: vault
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-auto-unseal
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-auto-unseal
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vault-auto-unseal
+subjects:
+  - kind: ServiceAccount
+    name: vault-auto-unseal
+    namespace: vault
