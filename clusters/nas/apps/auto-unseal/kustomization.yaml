@@ -5,6 +5,11 @@ namespace: vault
 resources:
   - vault-auto-unseal-job.yaml
 
+configMapGenerator:
+  - name: vault-auto-unseal-script
+    files:
+      - vault-auto-unseal.sh
+
 # Note: Encrypted keys and GPG private key are now stored on NFS at /share/VMs/kubernetes/vault/
 # The auto-unseal job will mount this path directly from the host
 
