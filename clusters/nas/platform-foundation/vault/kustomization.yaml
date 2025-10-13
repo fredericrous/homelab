@@ -5,7 +5,7 @@ resources:
   - vault-helm-repo.yaml
   - vault-namespace.yaml
   - vault-helmrelease.yaml
-  - vault-pv-patch.yaml
+  - vault-pv.yaml
 
 patchesStrategicMerge:
   - vault-helmrelease-patch.yaml

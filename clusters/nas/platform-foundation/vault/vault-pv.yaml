@@ -1,19 +1,20 @@
 ---
+# Create specific PV for Vault with correct path  
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: nas-local-pv
+  name: vault-nas-pv
   labels:
-    app: minio
-    type: local
+    app: vault-nas
 spec:
-  storageClassName: nas-local
   capacity:
-    storage: 100Gi
+    storage: 10Gi
   accessModes:
     - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nas-local
   hostPath:
-    path: /share/VMs/kubernetes/minio
+    path: /share/VMs/kubernetes/vault/data
     type: DirectoryOrCreate
   nodeAffinity:
     required:
