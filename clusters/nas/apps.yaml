@@ -1,0 +1,29 @@
+---
+# NAS Applications Layer  
+# Business applications that depend on infrastructure
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: nas-apps
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./clusters/nas/apps
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: homelab-nas
+  timeout: 10m0s
+  wait: true
+  dependsOn:
+    - name: nas-infrastructure
+  # Health checks for critical applications
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: vault-nas
+      namespace: vault
+    - apiVersion: apps/v1  
+      kind: Deployment
+      name: minio
+      namespace: minio

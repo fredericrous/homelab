@@ -1,0 +1,208 @@
+---
+# FluxCD GOTK Components for Main Cluster
+# Full installation: all components including image automation
+# Version: v2.2.3 (pinned for stability)
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flux-system
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    tag: v2.2.3
+  url: https://github.com/fluxcd/flux2
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: flux-components
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./manifests/install
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 5m0s
+  patches:
+    # Resource optimization for main cluster
+    - target:
+        kind: Deployment
+        name: source-controller
+        namespace: flux-system
+      patch: |
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value: { name: GOGC, value: "50" }
+        - op: add
+          path: /spec/template/spec/containers/0/resources
+          value:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+    - target:
+        kind: Deployment
+        name: kustomize-controller
+        namespace: flux-system
+      patch: |
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value: { name: GOGC, value: "50" }
+        - op: add
+          path: /spec/template/spec/containers/0/resources
+          value:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+    - target:
+        kind: Deployment
+        name: helm-controller
+        namespace: flux-system
+      patch: |
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value: { name: GOGC, value: "50" }
+        - op: add
+          path: /spec/template/spec/containers/0/resources
+          value:
+            requests: { cpu: 100m, memory: 96Mi }
+            limits: { cpu: 300m, memory: 192Mi }
+    - target:
+        kind: Deployment
+        name: notification-controller
+        namespace: flux-system
+      patch: |
+        - op: add
+          path: /spec/template/spec/containers/0/resources
+          value:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+    # Image automation components (main cluster only)
+    - target:
+        kind: Deployment
+        name: image-reflector-controller
+        namespace: flux-system
+      patch: |
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value: { name: GOGC, value: "50" }
+        - op: add
+          path: /spec/template/spec/containers/0/resources
+          value:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+        - op: add
+          path: /spec/template/spec/containers/0/args/-
+          value: "--concurrent=2"
+        - op: add
+          path: /spec/template/spec/containers/0/args/-
+          value: "--log-level=info"
+    - target:
+        kind: Deployment
+        name: image-automation-controller
+        namespace: flux-system
+      patch: |
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value: { name: GOGC, value: "50" }
+        - op: add
+          path: /spec/template/spec/containers/0/resources
+          value:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+        - op: add
+          path: /spec/template/spec/containers/0/args/-
+          value: "--log-level=info"
+---
+# Source Watcher for monitoring Git and Helm repositories (main cluster)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: source-watcher
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/name: source-watcher
+    app.kubernetes.io/part-of: flux
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: source-watcher
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: source-watcher
+    spec:
+      containers:
+      - name: manager
+        image: ghcr.io/fluxcd/source-watcher:v0.8.0
+        args:
+          - --watch-all-namespaces
+          - --log-level=info
+          - --log-encoding=json
+          - --enable-leader-election
+          - --concurrent=4
+        env:
+        - name: GOGC
+          value: "50"
+        - name: GOMAXPROCS
+          value: "2"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          seccompProfile:
+            type: RuntimeDefault
+      serviceAccountName: source-watcher
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: source-watcher
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: source-watcher
+rules:
+- apiGroups: ["source.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["image.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: source-watcher
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: source-watcher
+subjects:
+- kind: ServiceAccount
+  name: source-watcher
+  namespace: flux-system

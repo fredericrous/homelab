@@ -5,6 +5,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UNSEAL_DIR="$SCRIPT_DIR/../unseal"
+NAS_HOST="${NAS_HOST:-admin@192.168.1.42}"
+NFS_VAULT_DIR="/VMs/kubernetes/vault"
 GPG_RECIPIENT="${GPG_RECIPIENT:-admin@daddyshome.fr}"
 VAULT_ADDR="${VAULT_ADDR:-http://192.168.1.42:61200}"
 
@@ -126,6 +128,9 @@ initialize_vault() {
 encrypt_keys() {
     log "Encrypting unseal key with GPG..."
     
+    # Ensure local unseal directory exists
+    mkdir -p "$UNSEAL_DIR"
+    
     # Encrypt the unseal key
     gpg --trust-model always \
         --cipher-algo AES256 \
@@ -147,6 +152,14 @@ encrypt_keys() {
         --armor \
         --output "$UNSEAL_DIR/root-token.txt.gpg" \
         /tmp/vault-root-token
+    
+    # Export GPG private key for auto-unseal job
+    log "Exporting GPG private key for auto-unseal..."
+    gpg --export-secret-keys --armor "$GPG_RECIPIENT" > "$UNSEAL_DIR/gpg-private-key.asc"
+    
+    # Keys are stored locally and will be copied to NFS via Kubernetes Job
+    log "Keys stored locally at $UNSEAL_DIR/"
+    log "Use 'task nas:copy-keys-to-nfs' to copy keys to NAS via Kubernetes Job"
     
     # Clean up temporary files
     shred -u /tmp/vault-unseal-key /tmp/vault-root-token
@@ -199,6 +212,7 @@ show_next_steps() {
     echo "   QNAP_VAULT_TOKEN=\$(gpg --quiet --batch --decrypt $UNSEAL_DIR/root-token.txt.gpg)"
     echo ""
     echo "🚀 Next steps:"
+    echo "   task nas:copy-keys-to-nfs       # Copy keys to NFS via Kubernetes Job"
     echo "   task nas:vault-secrets          # Setup MinIO and AWS secrets"
     echo "   task nas:vault-transit          # Setup transit unsealing for main cluster"
     echo "   task nas:vault-auto-unseal      # Deploy auto-unseal job"

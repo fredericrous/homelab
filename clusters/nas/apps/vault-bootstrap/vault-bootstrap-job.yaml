@@ -1,0 +1,338 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-bootstrap
+  namespace: vault
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: vault-bootstrap
+          image: alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              
+              # Install required packages
+              echo "📦 Installing required packages..."
+              apk add --no-cache vault gnupg curl bash jq
+              
+              # Configuration
+              VAULT_ADDR="${VAULT_ADDR:-http://vault-nas-vault.vault.svc.cluster.local:8200}"
+              GPG_RECIPIENT="${GPG_RECIPIENT:-admin@daddyshome.fr}"
+              NFS_VAULT_DIR="/nfs/kubernetes/vault"
+              
+              export VAULT_ADDR="$VAULT_ADDR"
+              
+              # Colors for output
+              RED='\033[0;31m'
+              GREEN='\033[0;32m'
+              YELLOW='\033[1;33m'
+              BLUE='\033[0;34m'
+              NC='\033[0m'
+              
+              log() { echo -e "${BLUE}[$(date +'%H:%M:%S')]${NC} $1"; }
+              warn() { echo -e "${YELLOW}[$(date +'%H:%M:%S')] WARNING:${NC} $1"; }
+              error() { echo -e "${RED}[$(date +'%H:%M:%S')] ERROR:${NC} $1"; exit 1; }
+              success() { echo -e "${GREEN}[$(date +'%H:%M:%S')] SUCCESS:${NC} $1"; }
+              
+              # Wait for Vault to be ready
+              log "⏳ Waiting for Vault to be reachable..."
+              for i in {1..60}; do
+                if vault status >/dev/null 2>&1; then
+                  log "✅ Vault is reachable"
+                  break
+                elif vault status 2>&1 | grep -q "not been initialized"; then
+                  log "✅ Vault is reachable and ready for initialization"
+                  break
+                fi
+                echo "  Waiting for Vault... ($i/60)"
+                sleep 5
+              done
+              
+              # Check if already initialized
+              if vault status 2>&1 | grep -q "Initialized.*true"; then
+                error "Vault is already initialized. This job is for first-time setup only."
+              fi
+              
+              # Generate GPG key
+              log "🔐 Generating GPG key for $GPG_RECIPIENT..."
+              cat > /tmp/gpg-batch <<EOF
+              %echo Generating homelab vault key
+              Key-Type: RSA
+              Key-Length: 4096
+              Subkey-Type: RSA
+              Subkey-Length: 4096
+              Name-Real: Homelab Vault Admin
+              Name-Email: $GPG_RECIPIENT
+              Expire-Date: 2y
+              Passphrase: 
+              %commit
+              %echo GPG key generation complete
+              EOF
+              
+              gpg --batch --generate-key /tmp/gpg-batch
+              rm -f /tmp/gpg-batch
+              success "GPG key generated for $GPG_RECIPIENT"
+              
+              # Initialize Vault
+              log "🔓 Initializing Vault with single key..."
+              INIT_OUTPUT=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
+              
+              UNSEAL_KEY=$(echo "$INIT_OUTPUT" | jq -r '.unseal_keys_b64[0]')
+              ROOT_TOKEN=$(echo "$INIT_OUTPUT" | jq -r '.root_token')
+              
+              if [[ -z "$UNSEAL_KEY" || -z "$ROOT_TOKEN" ]]; then
+                error "Failed to extract unseal key or root token"
+              fi
+              
+              success "Vault initialized successfully"
+              
+              # Store keys in temporary files
+              echo "$UNSEAL_KEY" > /tmp/vault-unseal-key
+              echo "$ROOT_TOKEN" > /tmp/vault-root-token
+              
+              # Encrypt keys with GPG
+              log "🔐 Encrypting keys with GPG..."
+              mkdir -p "$NFS_VAULT_DIR"
+              
+              # Encrypt unseal key
+              gpg --trust-model always \
+                  --cipher-algo AES256 \
+                  --compress-algo 1 \
+                  --compress-level 6 \
+                  --recipient "$GPG_RECIPIENT" \
+                  --encrypt \
+                  --armor \
+                  --output "$NFS_VAULT_DIR/unseal-keys.txt.gpg" \
+                  /tmp/vault-unseal-key
+              
+              # Encrypt root token
+              gpg --trust-model always \
+                  --cipher-algo AES256 \
+                  --compress-algo 1 \
+                  --compress-level 6 \
+                  --recipient "$GPG_RECIPIENT" \
+                  --encrypt \
+                  --armor \
+                  --output "$NFS_VAULT_DIR/root-token.txt.gpg" \
+                  /tmp/vault-root-token
+              
+              # Export GPG private key for auto-unseal
+              gpg --export-secret-keys --armor "$GPG_RECIPIENT" > "$NFS_VAULT_DIR/gpg-private-key.asc"
+              
+              # Copy auto-unseal script
+              cp /scripts/vault-auto-unseal.sh "$NFS_VAULT_DIR/"
+              
+              # Set permissions
+              chmod 600 "$NFS_VAULT_DIR/unseal-keys.txt.gpg" "$NFS_VAULT_DIR/root-token.txt.gpg" "$NFS_VAULT_DIR/gpg-private-key.asc"
+              chmod 755 "$NFS_VAULT_DIR/vault-auto-unseal.sh"
+              
+              success "Keys encrypted and stored on NFS"
+              
+              # Unseal Vault
+              log "🔓 Unsealing Vault..."
+              vault operator unseal "$UNSEAL_KEY"
+              success "Vault unsealed"
+              
+              # Login and setup
+              log "⚙️  Setting up initial Vault configuration..."
+              vault auth "$ROOT_TOKEN"
+              
+              # Enable KV v2 secrets engine
+              if ! vault secrets list | grep -q "^secret/"; then
+                vault secrets enable -path=secret kv-v2
+                success "KV v2 secrets engine enabled"
+              fi
+              
+              # Clean up sensitive files from memory
+              shred -u /tmp/vault-unseal-key /tmp/vault-root-token
+              
+              success "🎉 Vault bootstrap complete!"
+              echo ""
+              echo "📋 What was created:"
+              echo "   - Vault initialized with single unseal key"
+              echo "   - Keys encrypted with GPG and stored on NFS"
+              echo "   - GPG private key exported for auto-unseal"
+              echo "   - KV v2 secrets engine enabled"
+              echo ""
+              echo "📂 Files stored on NFS at $NFS_VAULT_DIR:"
+              ls -la "$NFS_VAULT_DIR"
+              echo ""
+              echo "🔑 To decrypt root token (from NAS):"
+              echo "   gpg --decrypt $NFS_VAULT_DIR/root-token.txt.gpg"
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault-nas-vault.vault.svc.cluster.local:8200"
+            - name: GPG_RECIPIENT
+              value: "admin@daddyshome.fr"
+          volumeMounts:
+            - name: vault-nfs
+              mountPath: /nfs
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: vault-nfs
+          hostPath:
+            path: /VMs
+            type: Directory
+        - name: scripts
+          configMap:
+            name: vault-auto-unseal-script
+            defaultMode: 0755
+      backoffLimit: 3
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-auto-unseal-script
+  namespace: vault
+data:
+  vault-auto-unseal.sh: |
+    #!/bin/sh
+    # Auto-unseal script for NAS Vault using GPG-encrypted keys
+    # Runs inside Kubernetes Job to unseal Vault after restart
+
+    set -euo pipefail
+
+    VAULT_ADDR="${VAULT_ADDR:-http://vault-nas-vault.vault.svc.cluster.local:8200}"
+    UNSEAL_FILE="/unseal/unseal-keys.txt.gpg"
+    MAX_RETRIES=30
+    RETRY_INTERVAL=5
+
+    log() {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') [AUTO-UNSEAL] $1"
+    }
+
+    error() {
+        log "ERROR: $1"
+        exit 1
+    }
+
+    wait_for_vault() {
+        log "Waiting for Vault to be reachable at $VAULT_ADDR..."
+        
+        local retries=0
+        while [ $retries -lt $MAX_RETRIES ]; do
+            if vault status >/dev/null 2>&1; then
+                log "Vault is reachable"
+                return 0
+            elif vault status 2>&1 | grep -q "connection refused"; then
+                log "Vault not yet reachable (attempt $((retries + 1))/$MAX_RETRIES)"
+            elif vault status 2>&1 | grep -q "sealed"; then
+                log "Vault is reachable but sealed - proceeding with unseal"
+                return 0
+            else
+                log "Vault check returned unexpected status (attempt $((retries + 1))/$MAX_RETRIES)"
+            fi
+            
+            retries=$((retries + 1))
+            sleep $RETRY_INTERVAL
+        done
+        
+        error "Vault did not become reachable after $((MAX_RETRIES * RETRY_INTERVAL)) seconds"
+    }
+
+    check_vault_status() {
+        log "Checking Vault seal status..."
+        
+        if ! vault status >/dev/null 2>&1; then
+            log "Cannot connect to Vault - skipping unseal"
+            exit 0
+        fi
+        
+        # Check if Vault is already unsealed
+        if vault status | grep -q "Sealed.*false"; then
+            log "✅ Vault is already unsealed - nothing to do"
+            exit 0
+        fi
+        
+        if vault status | grep -q "Sealed.*true"; then
+            log "🔒 Vault is sealed - proceeding with unseal"
+            return 0
+        fi
+        
+        log "Cannot determine Vault seal status - skipping unseal"
+        exit 0
+    }
+
+    decrypt_and_unseal() {
+        log "Decrypting unseal keys..."
+        
+        if [ ! -f "$UNSEAL_FILE" ]; then
+            log "Unseal file not found at $UNSEAL_FILE - keys may not be ready yet"
+            exit 0
+        fi
+        
+        # Import GPG private key (required for decryption)
+        if [ -f "/unseal/gpg-private-key.asc" ]; then
+            log "Importing GPG private key..."
+            gpg --batch --quiet --import /unseal/gpg-private-key.asc 2>/dev/null || {
+                log "GPG key import failed or key already imported"
+            }
+        else
+            log "GPG private key not found at /unseal/gpg-private-key.asc - cannot decrypt"
+            exit 0
+        fi
+        
+        # Decrypt the unseal key
+        log "Decrypting unseal key..."
+        UNSEAL_KEY=$(gpg --quiet --batch --decrypt "$UNSEAL_FILE" 2>/dev/null)
+        
+        if [ -z "$UNSEAL_KEY" ]; then
+            log "Failed to decrypt unseal key - may need GPG passphrase or key not ready"
+            exit 0
+        fi
+        
+        log "Successfully decrypted unseal key"
+        
+        # Unseal Vault
+        log "Unsealing Vault..."
+        if vault operator unseal "$UNSEAL_KEY" >/dev/null; then
+            log "✅ Vault unsealed successfully"
+        else
+            log "Failed to unseal Vault"
+            exit 0
+        fi
+    }
+
+    verify_unseal() {
+        log "Verifying Vault is unsealed..."
+        
+        if vault status | grep -q "Sealed.*false"; then
+            log "✅ Vault is unsealed and ready"
+            return 0
+        else
+            error "Vault is still sealed after unseal operation"
+        fi
+    }
+
+    main() {
+        log "🔐 Starting Vault auto-unseal process"
+        
+        export VAULT_ADDR="$VAULT_ADDR"
+        
+        wait_for_vault
+        
+        if check_vault_status; then
+            decrypt_and_unseal
+            verify_unseal
+            log "🎉 Auto-unseal completed successfully"
+        else
+            log "🎉 Vault already unsealed - job completed"
+        fi
+    }
+
+    main "$@"
