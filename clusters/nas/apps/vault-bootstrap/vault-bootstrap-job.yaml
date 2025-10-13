@@ -10,16 +10,17 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: vault-bootstrap
-          image: alpine:3.20
+          image: hashicorp/vault:1.17.2
           command:
             - /bin/sh
-            - -c
+            - -ec
             - |
               set -euo pipefail
               
-              # Install required packages
-              echo "📦 Installing required packages..."
-              apk add --no-cache vault gnupg curl bash jq
+              # Install additional required packages (Vault CLI already available)
+              echo "📦 Installing additional packages..."
+              apk add --no-cache gnupg jq
+              vault version
               
               # Configuration
               VAULT_ADDR="${VAULT_ADDR:-http://vault-nas-vault.vault.svc.cluster.local:8200}"
@@ -153,7 +154,7 @@ spec:
               
               # Login and setup
               log "⚙️  Setting up initial Vault configuration..."
-              vault auth "$ROOT_TOKEN"
+              vault login "$ROOT_TOKEN"
               
               # Enable KV v2 secrets engine
               if ! vault secrets list | grep -q "^secret/"; then
@@ -179,9 +180,15 @@ spec:
               echo "   gpg --decrypt $VAULT_DIR/root-token.txt.gpg"
           env:
             - name: VAULT_ADDR
-              value: "http://vault-nas-vault.vault.svc.cluster.local:8200"
+              value: "http://vault-vault-nas.vault.svc.cluster.local:8200"
             - name: GPG_RECIPIENT
               value: "admin@daddyshome.fr"
+            - name: SKIP_CHOWN
+              value: "true"
+            - name: SKIP_SETCAP
+              value: "true"
+            - name: HOME
+              value: /tmp
           volumeMounts:
             - name: vault-storage
               mountPath: /share/VMs
@@ -195,6 +202,11 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: 100
+            runAsGroup: 1000
+            runAsNonRoot: true
       volumes:
         - name: vault-storage
           hostPath:
