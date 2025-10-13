@@ -31,22 +31,19 @@ spec:
                 - |
                   set -e
                   echo "Installing required packages..."
-                  apk add --no-cache vault gnupg curl bash >/dev/null 2>&1
-                  
-                  echo "Making auto-unseal script executable..."
-                  chmod +x /unseal/vault-auto-unseal.sh
+                  apk add --no-cache gnupg curl jq bash >/dev/null 2>&1
                   
                   echo "Starting auto-unseal process..."
-                  /unseal/vault-auto-unseal.sh
+                  bash /scripts/vault-auto-unseal.sh
               env:
                 - name: VAULT_ADDR
-                  value: "http://vault-nas-vault.vault.svc.cluster.local:8200"
+                  value: "http://vault-vault-nas.vault.svc.cluster.local:8200"
               volumeMounts:
                 - name: vault-nfs-keys
                   mountPath: /unseal
                   readOnly: true
                 - name: auto-unseal-script
-                  mountPath: /unseal/vault-auto-unseal.sh
+                  mountPath: /scripts/vault-auto-unseal.sh
                   subPath: vault-auto-unseal.sh
                   readOnly: true
               resources:
