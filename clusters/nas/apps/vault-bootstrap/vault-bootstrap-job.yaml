@@ -21,18 +21,42 @@ spec:
               chown -R 100:1000 /share/VMs/kubernetes/vault/ || echo "Permission change failed, continuing..."
               chmod 755 /share/VMs/kubernetes/vault/ || echo "Chmod failed, continuing..."
               
-              # Install GPG
-              apk add --no-cache gnupg jq
+              # Install vault CLI and GPG
+              apk add --no-cache gnupg jq curl unzip
               
-              echo "🔐 Creating GPG key and encrypting existing Vault keys..."
+              # Install vault CLI
+              curl -sL https://releases.hashicorp.com/vault/1.17.2/vault_1.17.2_linux_amd64.zip -o /tmp/vault.zip
+              unzip -q /tmp/vault.zip -d /usr/local/bin/
+              chmod +x /usr/local/bin/vault
+              
+              echo "🚀 Initializing Vault..."
               
               # Configuration
               VAULT_DIR="/share/VMs/kubernetes/vault"
               GPG_RECIPIENT="admin@daddyshome.fr"
+              export VAULT_ADDR="http://vault-vault-nas.vault.svc.cluster.local:8200"
               
-              # Read existing keys
-              UNSEAL_KEY=$(cat $VAULT_DIR/unseal-key.txt)
-              ROOT_TOKEN=$(cat $VAULT_DIR/root-token.txt)
+              # Wait for Vault to be ready
+              echo "⏳ Waiting for Vault to be ready..."
+              until vault status >/dev/null 2>&1; do
+                echo "Waiting for Vault..."
+                sleep 5
+              done
+              
+              # Initialize Vault
+              echo "🔐 Initializing Vault with single key..."
+              INIT_OUTPUT=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
+              
+              # Extract keys from init output
+              UNSEAL_KEY=$(echo "$INIT_OUTPUT" | jq -r '.unseal_keys_b64[0]')
+              ROOT_TOKEN=$(echo "$INIT_OUTPUT" | jq -r '.root_token')
+              
+              # Save keys temporarily
+              echo "$UNSEAL_KEY" > "$VAULT_DIR/unseal-key.txt"
+              echo "$ROOT_TOKEN" > "$VAULT_DIR/root-token.txt"
+              
+              echo "🔓 Unsealing Vault..."
+              vault operator unseal "$UNSEAL_KEY"
               
               # Generate GPG key (no passphrase)
               printf '%%echo Generating homelab vault key\nKey-Type: RSA\nKey-Length: 2048\nSubkey-Type: RSA\nSubkey-Length: 2048\nName-Real: Homelab Vault Admin\nName-Email: admin@daddyshome.fr\nExpire-Date: 2y\n%%no-protection\n%%commit\n%%echo GPG key generation complete\n' > /tmp/gpg-batch
