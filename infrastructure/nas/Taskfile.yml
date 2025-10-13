@@ -80,10 +80,18 @@ tasks:
         for i in {1..60}; do
           if kubectl get kustomization nas-platform-foundation -n flux-system >/dev/null 2>&1; then
             platform_status=$(kubectl get kustomization nas-platform-foundation -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+            # Trim whitespace
+            platform_status=$(echo "$platform_status" | tr -d '\n\r\t ')
             if [ "$platform_status" = "True" ]; then
               echo "✅ Platform foundation layer is ready"
               break
+            elif [ -n "$platform_status" ]; then
+              echo "  Platform status: '$platform_status' (waiting...)"
+            else
+              echo "  Platform kustomization not ready yet (waiting...)"
             fi
+          else
+            echo "  Platform kustomization not found yet (waiting...)"
           fi
           echo "  Waiting for platform foundation layer... ($i/60)"
           sleep 5
