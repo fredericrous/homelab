@@ -1,0 +1,28 @@
+name: k3s
+services:
+    k3s:
+        container_name: qnap-k3s
+        hostname: qnap-k3s
+        volumes:
+            - ${SHARE_BASE}/.qpkg/container-station/var/log/container-station/k3s:/var/log
+            - ${SHARE_BASE}/.qpkg/container-station/etc/k3s:/etc/k3s
+            - ${SHARE_BASE}/.qpkg/container-station/var/lib/k3s/etc/rancher:/etc/rancher
+            - ${SHARE_BASE}/.qpkg/container-station/var/lib/k3s/var/lib/cni:/var/lib/cni
+            - ${SHARE_BASE}/.qpkg/container-station/var/lib/k3s/var/lib/kubelet:/var/lib/kubelet
+            - ${SHARE_BASE}/.qpkg/container-station/var/lib/k3s/var/lib/rancher/k3s:/var/lib/rancher/k3s
+            - /share:/share
+        network_mode: bridge
+        privileged: true
+        ports:
+            - "6443:6443"
+            - "61000-62000"
+        restart: on-failure:3
+        labels:
+            - com.qnap.kubernetes=True
+        logging:
+            options:
+                max-size: 10m
+                max-file: 10
+        runtime: runc
+        image: rancher/k3s:v1.34.1-k3s1
+        command: server --config /etc/rancher/config.yaml
