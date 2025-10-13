@@ -24,7 +24,7 @@ spec:
               # Configuration
               VAULT_ADDR="${VAULT_ADDR:-http://vault-nas-vault.vault.svc.cluster.local:8200}"
               GPG_RECIPIENT="${GPG_RECIPIENT:-admin@daddyshome.fr}"
-              NFS_VAULT_DIR="/nfs/kubernetes/vault"
+              VAULT_DIR="/share/VMs/kubernetes/vault"
               
               export VAULT_ADDR="$VAULT_ADDR"
               
@@ -42,17 +42,29 @@ spec:
               
               # Wait for Vault to be ready
               log "⏳ Waiting for Vault to be reachable..."
+              VAULT_READY=false
               for i in {1..60}; do
-                if vault status >/dev/null 2>&1; then
-                  log "✅ Vault is reachable"
+                # Test if Vault API is responding
+                if curl -s "$VAULT_ADDR/v1/sys/health" >/dev/null 2>&1; then
+                  log "✅ Vault API is responding"
+                  VAULT_READY=true
+                  break
+                elif vault status >/dev/null 2>&1; then
+                  log "✅ Vault CLI can connect"
+                  VAULT_READY=true
                   break
                 elif vault status 2>&1 | grep -q "not been initialized"; then
-                  log "✅ Vault is reachable and ready for initialization"
+                  log "✅ Vault is ready for initialization"
+                  VAULT_READY=true
                   break
                 fi
                 echo "  Waiting for Vault... ($i/60)"
                 sleep 5
               done
+              
+              if [ "$VAULT_READY" != "true" ]; then
+                error "Vault did not become reachable after 5 minutes"
+              fi
               
               # Check if already initialized
               if vault status 2>&1 | grep -q "Initialized.*true"; then
@@ -98,7 +110,7 @@ spec:
               
               # Encrypt keys with GPG
               log "🔐 Encrypting keys with GPG..."
-              mkdir -p "$NFS_VAULT_DIR"
+              mkdir -p "$VAULT_DIR"
               
               # Encrypt unseal key
               gpg --trust-model always \
@@ -108,7 +120,7 @@ spec:
                   --recipient "$GPG_RECIPIENT" \
                   --encrypt \
                   --armor \
-                  --output "$NFS_VAULT_DIR/unseal-keys.txt.gpg" \
+                  --output "$VAULT_DIR/unseal-keys.txt.gpg" \
                   /tmp/vault-unseal-key
               
               # Encrypt root token
@@ -119,18 +131,18 @@ spec:
                   --recipient "$GPG_RECIPIENT" \
                   --encrypt \
                   --armor \
-                  --output "$NFS_VAULT_DIR/root-token.txt.gpg" \
+                  --output "$VAULT_DIR/root-token.txt.gpg" \
                   /tmp/vault-root-token
               
               # Export GPG private key for auto-unseal
-              gpg --export-secret-keys --armor "$GPG_RECIPIENT" > "$NFS_VAULT_DIR/gpg-private-key.asc"
+              gpg --export-secret-keys --armor "$GPG_RECIPIENT" > "$VAULT_DIR/gpg-private-key.asc"
               
               # Copy auto-unseal script
-              cp /scripts/vault-auto-unseal.sh "$NFS_VAULT_DIR/"
+              cp /scripts/vault-auto-unseal.sh "$VAULT_DIR/"
               
               # Set permissions
-              chmod 600 "$NFS_VAULT_DIR/unseal-keys.txt.gpg" "$NFS_VAULT_DIR/root-token.txt.gpg" "$NFS_VAULT_DIR/gpg-private-key.asc"
-              chmod 755 "$NFS_VAULT_DIR/vault-auto-unseal.sh"
+              chmod 600 "$VAULT_DIR/unseal-keys.txt.gpg" "$VAULT_DIR/root-token.txt.gpg" "$VAULT_DIR/gpg-private-key.asc"
+              chmod 755 "$VAULT_DIR/vault-auto-unseal.sh"
               
               success "Keys encrypted and stored on NFS"
               
@@ -160,19 +172,19 @@ spec:
               echo "   - GPG private key exported for auto-unseal"
               echo "   - KV v2 secrets engine enabled"
               echo ""
-              echo "📂 Files stored on NFS at $NFS_VAULT_DIR:"
-              ls -la "$NFS_VAULT_DIR"
+              echo "📂 Files stored at $VAULT_DIR:"
+              ls -la "$VAULT_DIR"
               echo ""
               echo "🔑 To decrypt root token (from NAS):"
-              echo "   gpg --decrypt $NFS_VAULT_DIR/root-token.txt.gpg"
+              echo "   gpg --decrypt $VAULT_DIR/root-token.txt.gpg"
           env:
             - name: VAULT_ADDR
               value: "http://vault-nas-vault.vault.svc.cluster.local:8200"
             - name: GPG_RECIPIENT
               value: "admin@daddyshome.fr"
           volumeMounts:
-            - name: vault-nfs
-              mountPath: /nfs
+            - name: vault-storage
+              mountPath: /share/VMs
             - name: scripts
               mountPath: /scripts
               readOnly: true
@@ -184,7 +196,7 @@ spec:
               cpu: 500m
               memory: 512Mi
       volumes:
-        - name: vault-nfs
+        - name: vault-storage
           hostPath:
             path: /share/VMs
             type: Directory
