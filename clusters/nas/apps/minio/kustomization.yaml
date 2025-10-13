@@ -10,4 +10,4 @@ resources:
   - minio-pv.yaml
 
 patches:
-  - minio-helmrelease-patch.yaml
+  - path: minio-helmrelease-patch.yaml
