@@ -8,5 +8,5 @@ resources:
   - minio-helmrelease.yaml
   - minio-values-configmap.yaml
 
-# patchesStrategicMerge:
-#   - minio-pv-patch.yaml  # Not needed with HelmRelease
+patchesStrategicMerge:
+  - minio-pv-patch.yaml
