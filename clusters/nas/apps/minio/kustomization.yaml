@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: minio
 
 resources:
-  - ../../infrastructure/base
+  - ../../platform-foundation/base
   - namespace.yaml
 
 helmCharts:
