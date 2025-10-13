@@ -3,4 +3,6 @@ kind: Kustomization
 
 resources:
   - base
-  - vault
+  - vault-helm-repo.yaml
+  - vault-namespace.yaml
+  - vault-helmrelease.yaml

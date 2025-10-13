@@ -1,3 +1,4 @@
+# file created following qnap-k3s details exposed by https://github.com/lavie/runlike
 name: k3s
 services:
     k3s:
