@@ -173,6 +173,8 @@ tasks:
     cmds:
       - task: status
       - task: wait-for-vault-ready
+      - task: vault-bootstrap
+      - echo "✅ Vault initialized and ready!"
       - task: trigger-auto-unseal
       - echo "🎉 NAS cluster installation complete and verified!"
 
@@ -399,9 +401,9 @@ tasks:
           echo "⚠️  Vault HelmRelease not ready yet"
           kubectl get helmrelease vault-nas -n flux-system 2>/dev/null || echo "vault-nas HelmRelease not found"
         }
-      - echo "⏳ Waiting for Vault pod to be running..."
-      - kubectl -n vault wait --for=condition=ready pod -l app.kubernetes.io/name=vault --timeout=300s
-      - echo "✅ Vault infrastructure is ready for bootstrap"
+      - echo "⏳ Waiting for Vault pod to be running (but not ready - needs initialization)..."
+      - kubectl -n vault wait --for=condition=PodScheduled pod -l app.kubernetes.io/name=vault --timeout=300s
+      - echo "✅ Vault infrastructure is deployed and ready for initialization"
 
   trigger-auto-unseal:
     desc: Trigger auto-unseal job (managed by FluxCD)
@@ -886,28 +888,6 @@ tasks:
       - cmd: docker volume prune -f
         ignore_error: true
       - echo "✅ Cleanup complete"
-
-  wait-for-vault-ready:
-    desc: Wait for Vault to be deployed and ready (follows main cluster pattern)
-    env:
-      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
-    cmds:
-      - echo "⏳ Waiting for FluxCD to deploy infrastructure..."
-      - |
-        echo "Waiting for platform foundation kustomization to be ready..."
-        kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/nas-platform-foundation 2>/dev/null || {
-          echo "⚠️  Infrastructure layer not ready yet, checking status..."
-          kubectl get kustomization nas-platform-foundation -n flux-system 2>/dev/null || echo "nas-platform-foundation kustomization not found"
-        }
-      - echo "⏳ Waiting for Vault HelmRelease to be ready..."
-      - |
-        kubectl wait --for=condition=ready --timeout=600s -n flux-system helmrelease/vault-nas 2>/dev/null || {
-          echo "⚠️  Vault HelmRelease not ready yet"
-          kubectl get helmrelease vault-nas -n flux-system 2>/dev/null || echo "vault-nas HelmRelease not found"
-        }
-      - echo "⏳ Waiting for Vault pod to be running..."
-      - kubectl -n vault wait --for=condition=ready pod -l app.kubernetes.io/name=vault --timeout=300s
-      - echo "✅ Vault infrastructure is ready for bootstrap"
 
   vault-bootstrap:
     desc: Bootstrap Vault with GPG encryption via Kubernetes Job
