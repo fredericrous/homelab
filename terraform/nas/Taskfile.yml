@@ -16,11 +16,12 @@ tasks:
       - task --list
 
   install:
-    desc: Full NAS installation (Vault + GitOps + apps)
+    desc: Full NAS installation (FluxCD + Vault + apps)
     deps: [check-k3s]
     cmds:
-      - task: vault-bootstrap
       - task: bootstrap
+      - task: wait-for-vault-ready
+      - task: vault-bootstrap
       - task: verify
 
   bootstrap:
@@ -36,7 +37,7 @@ tasks:
       - task: show-info
 
   install-fluxcd:
-    desc: Install FluxCD GitOps controller
+    desc: Install FluxCD GitOps controller with GitHub bootstrap (minimal source-watcher only)
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
@@ -46,13 +47,58 @@ tasks:
           echo "✅ FluxCD is already installed"
           exit 0
         fi
-        
+
+        # Install flux CLI if needed
+        if ! command -v flux &> /dev/null; then
+          echo "📦 Installing flux CLI..."
+          curl -s https://fluxcd.io/install.sh | sudo bash
+        fi
+
         echo "🚀 Installing FluxCD on NAS cluster..."
-        kubectl apply -k {{.MANIFESTS_DIR}}/flux-system
-        
-        echo "⏳ Waiting for FluxCD controllers to be ready..."
-        kubectl -n flux-system wait --for=condition=ready pod -l app.kubernetes.io/part-of=flux --timeout=300s
-        echo "✅ FluxCD bootstrap complete"
+
+        # Check for GitHub token in environment or .env file
+        if [ -z "${FLUXCD_GITHUB_TOKEN:-}" ] && [ -f ../../.env ]; then
+          source ../../.env
+        fi
+
+        # Validate required environment variables
+        if [ -z "${FLUXCD_OWNER:-}" ]; then
+          echo "❌ FLUXCD_OWNER environment variable is required"
+          echo "Set it in .env file or export FLUXCD_OWNER=your-github-username"
+          exit 1
+        fi
+
+        if [ -z "${FLUXCD_REPOSITORY:-}" ]; then
+          echo "❌ FLUXCD_REPOSITORY environment variable is required"
+          echo "Set it in .env file or export FLUXCD_REPOSITORY=your-repo-name"
+          exit 1
+        fi
+
+        if [ -n "${FLUXCD_GITHUB_TOKEN:-}" ]; then
+          echo "✅ Using GitHub token from environment"
+          export GITHUB_TOKEN="$FLUXCD_GITHUB_TOKEN"
+        else
+          echo "⚠️  No FLUXCD_GITHUB_TOKEN found - you will be prompted for your GitHub token"
+        fi
+
+        echo "📋 FluxCD Configuration:"
+        echo "  Owner: $FLUXCD_OWNER"
+        echo "  Repository: $FLUXCD_REPOSITORY"
+        echo "  Path: clusters/nas/flux-system"
+        echo "  Branch: main"
+        echo ""
+
+        # Bootstrap FluxCD for NAS cluster (same version as main cluster)
+        flux bootstrap github \
+          --owner="$FLUXCD_OWNER" \
+          --repository="$FLUXCD_REPOSITORY" \
+          --branch=main \
+          --path="clusters/nas/flux-system" \
+          --personal \
+          --token-auth \
+          --components="source-controller,kustomize-controller,helm-controller"
+
+        echo "✅ FluxCD installed and configured successfully!"
     status:
       - kubectl get deployment -n flux-system source-controller &>/dev/null
 
@@ -588,13 +634,35 @@ tasks:
         echo ""
         echo "⚠️  Note: K3s itself is managed by QNAP and should not be uninstalled"
 
+  wait-for-vault-ready:
+    desc: Wait for Vault to be deployed and ready (follows main cluster pattern)
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    cmds:
+      - echo "⏳ Waiting for FluxCD to deploy infrastructure..."
+      - |
+        echo "Waiting for infrastructure kustomization to be ready..."
+        kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/nas-infrastructure 2>/dev/null || {
+          echo "⚠️  Infrastructure layer not ready yet, checking status..."
+          kubectl get kustomization nas-infrastructure -n flux-system 2>/dev/null || echo "nas-infrastructure kustomization not found"
+        }
+      - echo "⏳ Waiting for Vault HelmRelease to be ready..."
+      - |
+        kubectl wait --for=condition=ready --timeout=600s -n flux-system helmrelease/vault-nas 2>/dev/null || {
+          echo "⚠️  Vault HelmRelease not ready yet"
+          kubectl get helmrelease vault-nas -n flux-system 2>/dev/null || echo "vault-nas HelmRelease not found"
+        }
+      - echo "⏳ Waiting for Vault pod to be running..."
+      - kubectl -n vault wait --for=condition=ready pod -l app.kubernetes.io/name=vault --timeout=300s
+      - echo "✅ Vault infrastructure is ready for bootstrap"
+
   vault-bootstrap:
     desc: Bootstrap Vault with GPG encryption via Kubernetes Job
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     preconditions:
-      - sh: kubectl get namespace vault >/dev/null 2>&1
-        msg: "Vault namespace not found. Deploy Vault first with 'task nas:deploy-vault'"
+      - sh: kubectl get statefulset -n vault vault >/dev/null 2>&1
+        msg: "Vault StatefulSet not found. Run 'task nas:wait-for-vault-ready' first"
     cmds:
       - echo "🔄 Deploying Vault bootstrap job to NAS cluster..."
       - kubectl apply -k {{.MANIFESTS_DIR}}/apps/vault-bootstrap
