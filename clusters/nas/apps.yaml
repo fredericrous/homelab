@@ -16,7 +16,7 @@ spec:
   timeout: 10m0s
   wait: true
   dependsOn:
-    - name: nas-infrastructure
+    - name: nas-platform-foundation
   # Health checks for critical applications
   healthChecks:
     - apiVersion: apps/v1

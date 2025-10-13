@@ -4,11 +4,11 @@ dotenv: ['.env']
 
 includes:
   nas:
-    taskfile: ./terraform/nas/Taskfile.yml
-    dir: ./terraform/nas
+    taskfile: ./infrastructure/nas/Taskfile.yml
+    dir: ./infrastructure/nas
 
 vars:
-  TERRAFORM_DIR: './terraform/homelab'
+  TERRAFORM_DIR: './infrastructure/homelab'
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/talosconfig'
 
@@ -252,7 +252,7 @@ tasks:
     cmds:
       - |
         # Extract control plane IP from terraform output and pass to script
-        cd terraform/homelab
+        cd infrastructure/homelab
         export CONTROL_PLANE_IP=$(terraform output -json | jq -r '.talos_client_configuration.value.endpoints[0]')
         cd ../..
         export KUBECONFIG=kubeconfig
@@ -333,12 +333,18 @@ tasks:
       FLUX_PATH: '{{.flux_path | default "clusters/homelab"}}'
     cmds:
       - |
-        # Create cluster if kubeconfig doesn't exist
+        # Create cluster if kubeconfig doesn't exist or can't connect
         if [ ! -f "{{.KUBECONFIG}}" ]; then
           echo "🚀 Creating Kubernetes cluster..."
           task up
         else
-          echo "✅ Cluster already exists"
+          echo "🔍 Checking cluster connectivity..."
+          if kubectl get nodes >/dev/null 2>&1; then
+            echo "✅ Cluster already exists and is accessible"
+          else
+            echo "⚠️  Kubeconfig exists but cluster not accessible, recreating..."
+            task up
+          fi
         fi
 
         # Install Cilium CNI if not already installed
