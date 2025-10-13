@@ -2,3 +2,5 @@
 vault-keys.txt
 cert/*
 !cert/.gitkeep
+kubeconfig.yaml
+admin.p12

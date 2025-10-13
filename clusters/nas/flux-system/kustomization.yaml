@@ -1,0 +1,86 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gotk-components.yaml
+  - gotk-sync.yaml
+patches:
+  # Balanced resource optimization for NAS cluster
+  # Target: ~120Mi total RAM footprint (50% reduction from 240Mi)
+  # Better performance vs ultra-aggressive 80Mi version
+  
+  - target: { kind: Deployment, name: source-controller, namespace: flux-system }
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: GOGC, value: "50" }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: GOMAXPROCS, value: "1" }
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: { cpu: 15m, memory: 24Mi }
+          limits:   { cpu: 100m, memory: 48Mi }
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: "--concurrent=2"
+        
+  - target: { kind: Deployment, name: kustomize-controller, namespace: flux-system }
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: GOGC, value: "50" }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: GOMAXPROCS, value: "1" }
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: { cpu: 15m, memory: 32Mi }
+          limits:   { cpu: 100m, memory: 64Mi }
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: "--concurrent=2"
+        
+  - target: { kind: Deployment, name: helm-controller, namespace: flux-system }
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: GOGC, value: "50" }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: GOMAXPROCS, value: "1" }
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: { cpu: 20m, memory: 40Mi }
+          limits:   { cpu: 150m, memory: 80Mi }
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: "--concurrent=2"
+        
+  - target: { kind: Deployment, name: notification-controller, namespace: flux-system }
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: GOGC, value: "50" }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: GOMAXPROCS, value: "1" }
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: { cpu: 5m, memory: 12Mi }
+          limits:   { cpu: 50m, memory: 24Mi }
+          
+  # Completely disable image controllers (saves ~200Mi)
+  - target: { kind: Deployment, name: image-reflector-controller, namespace: flux-system }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 0
+  - target: { kind: Deployment, name: image-automation-controller, namespace: flux-system }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 0

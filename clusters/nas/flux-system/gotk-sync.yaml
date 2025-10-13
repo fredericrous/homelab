@@ -1,0 +1,28 @@
+---
+# NAS Cluster GitOps Sync Configuration
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: GitRepository
+metadata:
+  name: homelab-nas
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  url: https://github.com/fredericrous/homelab
+  timeout: 60s
+---
+# Include layered GitOps structure
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: nas-layers
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./clusters/nas
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: homelab-nas
+  timeout: 2m0s

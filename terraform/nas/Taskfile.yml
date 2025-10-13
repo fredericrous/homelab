@@ -11,20 +11,70 @@ env:
 
 tasks:
   default:
-    desc: Deploy K3s services to QNAP
+    desc: Show available NAS tasks
     cmds:
-      - task: deploy
+      - task --list
 
-  deploy:
-    desc: Deploy Vault and MinIO to K3s on QNAP
+  install:
+    desc: Full NAS installation (Vault + GitOps + apps)
+    deps: [check-k3s]
+    cmds:
+      - task: vault-bootstrap
+      - task: bootstrap
+      - task: verify
+
+  bootstrap:
+    desc: Bootstrap GitOps on existing K3s cluster
     deps: [check-k3s]
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
-      - task: deploy-base
-      - task: deploy-vault
-      - task: deploy-minio
-      - task: post-deploy
+      - task: install-fluxcd
+      - task: sync-env-secrets
+      - task: wait-for-infrastructure
+      - task: wait-for-apps
+      - task: show-info
+
+  install-fluxcd:
+    desc: Install FluxCD GitOps controller
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    cmds:
+      - |
+        # Skip if FluxCD is already installed
+        if kubectl get namespace flux-system &>/dev/null; then
+          echo "✅ FluxCD is already installed"
+          exit 0
+        fi
+        
+        echo "🚀 Installing FluxCD on NAS cluster..."
+        kubectl apply -k {{.MANIFESTS_DIR}}/flux-system
+        
+        echo "⏳ Waiting for FluxCD controllers to be ready..."
+        kubectl -n flux-system wait --for=condition=ready pod -l app.kubernetes.io/part-of=flux --timeout=300s
+        echo "✅ FluxCD bootstrap complete"
+    status:
+      - kubectl get deployment -n flux-system source-controller &>/dev/null
+
+  sync-env-secrets:
+    desc: Sync required environment to cluster (placeholder for future)
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    cmds:
+      - |
+        echo "📝 NAS cluster environment sync (placeholder)"
+        echo "   Future: Sync any required secrets/config from .env"
+
+  verify:
+    desc: Verify full NAS cluster deployment
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    cmds:
+      - task: status
+      - task: wait-for-vault-ready
+      - task: trigger-auto-unseal
+      - echo "🎉 NAS cluster installation complete and verified!"
+
 
   check-k3s:
     desc: Verify K3s connectivity
@@ -50,6 +100,67 @@ tasks:
     cmds:
       - echo "✅ Connected to K3s cluster"
       - kubectl get nodes
+
+  wait-for-vault-ready:
+    desc: Wait for Vault to be ready and trigger auto-unseal
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    cmds:
+      - echo "⏳ Waiting for Vault StatefulSet to be ready..."
+      - kubectl -n vault wait --for=condition=ready pod -l app.kubernetes.io/name=vault --timeout=600s
+      - echo "✅ Vault NAS is ready"
+
+  trigger-auto-unseal:
+    desc: Trigger auto-unseal job (managed by FluxCD)
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    preconditions:
+      - sh: test -f '{{.TASK_DIR}}/unseal/unseal-keys.txt.gpg'
+        msg: "Encrypted unseal key not found. Vault bootstrap may have failed."
+    cmds:
+      - |
+        echo "🔐 Triggering Vault auto-unseal..."
+        
+        # Check if auto-unseal job exists and create manual trigger if needed
+        if kubectl get job -n vault vault-auto-unseal &>/dev/null; then
+          echo "   Auto-unseal job already exists, checking status..."
+          if kubectl get job -n vault vault-auto-unseal -o jsonpath='{.status.conditions[0].type}' | grep -q "Complete"; then
+            echo "   ✅ Auto-unseal already completed"
+          else
+            echo "   ⏳ Auto-unseal job is running..."
+          fi
+        else
+          echo "   ❌ Auto-unseal job not found. FluxCD should have deployed it."
+          echo "   Manual trigger: kubectl -n vault create job vault-manual-unseal-$(date +%s) --from=job/vault-auto-unseal"
+        fi
+
+  wait-for-infrastructure:
+    desc: Wait for infrastructure layer to be ready
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    cmds:
+      - echo "⏳ Waiting for infrastructure layer..."
+      - |
+        timeout 600 bash -c '
+        while ! kubectl get kustomization -n flux-system nas-infrastructure -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" | grep -q "True"; do
+          echo "Infrastructure layer not ready yet..."
+          sleep 10
+        done'
+      - echo "✅ Infrastructure layer ready"
+
+  wait-for-apps:
+    desc: Wait for applications layer to be ready  
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    cmds:
+      - echo "⏳ Waiting for applications layer..."
+      - |
+        timeout 600 bash -c '
+        while ! kubectl get kustomization -n flux-system nas-apps -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" | grep -q "True"; do
+          echo "Applications layer not ready yet..."
+          sleep 10
+        done'
+      - echo "✅ Applications layer ready"
 
   deploy-base:
     desc: Deploy base resources
@@ -378,35 +489,40 @@ tasks:
         fi
 
   status:
-    desc: Check status of QNAP services
+    desc: Check status of NAS cluster and GitOps
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
-      - echo "🔍 Checking QNAP services status..."
+      - echo "🔍 Checking NAS cluster status..."
       - echo ""
       - echo "K3s nodes:"
       - kubectl get nodes || echo "K3s not accessible"
       - echo ""
-      - echo "Vault:"
-      - kubectl get pods -n vault 2>/dev/null || echo "Vault not deployed"
+      - echo "FluxCD status:"
       - |
-        if vault status &>/dev/null 2>&1; then
-          echo "Vault status: ✅ Accessible"
+        if kubectl get namespace flux-system &>/dev/null; then
+          echo "  Controllers:"
+          kubectl get pods -n flux-system --no-headers | awk '{print "    " $1 ": " $3}'
+          echo "  GitOps Layers:"
+          kubectl get kustomization -n flux-system --no-headers 2>/dev/null | awk '{print "    " $1 ": " $2}' || echo "    No kustomizations found"
         else
-          echo "Vault status: ❌ Not accessible or sealed"
+          echo "  ❌ FluxCD not deployed"
         fi
       - echo ""
-      - echo "MinIO:"
-      - kubectl get pods -n minio 2>/dev/null || echo "MinIO not deployed"
-      - echo ""
-      - echo "Secrets:"
+      - echo "Infrastructure status:"
+      - kubectl get pods -n vault 2>/dev/null || echo "  Vault not deployed"
       - |
-        echo -n "  MinIO password: "
-        kubectl -n minio get secret minio-root-user &>/dev/null && echo "✅" || echo "❌"
-        echo -n "  AWS credentials: "
-        kubectl -n minio get secret aws-credentials &>/dev/null && echo "✅" || echo "❌"
-        echo -n "  Transit token: "
-        vault kv get secret/k8s-transit &>/dev/null 2>&1 && echo "✅ (in Vault)" || echo "❌"
+        if vault status &>/dev/null 2>&1; then
+          echo "  Vault: ✅ Accessible"
+        else
+          echo "  Vault: ❌ Not accessible or sealed"
+        fi
+      - echo ""
+      - echo "Applications status:"
+      - kubectl get pods -n minio 2>/dev/null || echo "  MinIO not deployed"
+      - echo ""
+      - echo "Auto-unseal status:"
+      - kubectl get jobs -n vault 2>/dev/null | grep vault-auto-unseal || echo "  Auto-unseal job not found"
 
   logs:
     desc: Show logs for a service
@@ -471,3 +587,26 @@ tasks:
         echo "   task nas:deploy"
         echo ""
         echo "⚠️  Note: K3s itself is managed by QNAP and should not be uninstalled"
+
+  vault-bootstrap:
+    desc: Bootstrap Vault with GPG encryption via Kubernetes Job
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    preconditions:
+      - sh: kubectl get namespace vault >/dev/null 2>&1
+        msg: "Vault namespace not found. Deploy Vault first with 'task nas:deploy-vault'"
+    cmds:
+      - echo "🔄 Deploying Vault bootstrap job to NAS cluster..."
+      - kubectl apply -k {{.MANIFESTS_DIR}}/apps/vault-bootstrap
+      - |
+        echo "⏳ Waiting for bootstrap job to complete..."
+        kubectl wait --for=condition=complete job/vault-bootstrap -n vault --timeout=600s
+        
+        echo "📋 Bootstrap job logs:"
+        kubectl logs job/vault-bootstrap -n vault
+        
+        echo "✅ Vault bootstrap completed!"
+        echo "📂 Files now available at /VMs/kubernetes/vault/ on NAS"
+      - |
+        echo "🧹 Cleaning up bootstrap job..."
+        kubectl delete job vault-bootstrap -n vault --ignore-not-found=true

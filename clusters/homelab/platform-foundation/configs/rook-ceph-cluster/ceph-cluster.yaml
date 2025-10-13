@@ -54,6 +54,10 @@ spec:
     deviceFilter: "sdb"
     config:
       osdsPerDevice: "1"
+  # CSI configuration
+  csi:
+    readAffinity:
+      enabled: false
   # Reduced resources for small cluster
   resources:
     mgr:
