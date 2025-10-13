@@ -10,7 +10,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: bootstrap
-          image: hashicorp/vault:1.17.2
+          image: alpine:3.20
           command: ["/bin/sh", "-ec"]
           args:
             - |
@@ -34,20 +34,8 @@ spec:
               UNSEAL_KEY=$(cat $VAULT_DIR/unseal-key.txt)
               ROOT_TOKEN=$(cat $VAULT_DIR/root-token.txt)
               
-              # Generate GPG key
-              cat > /tmp/gpg-batch <<EOF
-              %echo Generating homelab vault key
-              Key-Type: RSA
-              Key-Length: 2048
-              Subkey-Type: RSA
-              Subkey-Length: 2048
-              Name-Real: Homelab Vault Admin
-              Name-Email: $GPG_RECIPIENT
-              Expire-Date: 2y
-              Passphrase: 
-              %commit
-              %echo GPG key generation complete
-              EOF
+              # Generate GPG key (no passphrase)
+              printf '%%echo Generating homelab vault key\nKey-Type: RSA\nKey-Length: 2048\nSubkey-Type: RSA\nSubkey-Length: 2048\nName-Real: Homelab Vault Admin\nName-Email: admin@daddyshome.fr\nExpire-Date: 2y\n%%no-protection\n%%commit\n%%echo GPG key generation complete\n' > /tmp/gpg-batch
               
               gpg --batch --generate-key /tmp/gpg-batch
               rm -f /tmp/gpg-batch
