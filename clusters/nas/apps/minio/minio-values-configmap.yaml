@@ -35,24 +35,3 @@ data:
     
     environment:
       MINIO_PROMETHEUS_AUTH_TYPE: "public"
-    
-    securityContext:
-      runAsUser: 1000
-      runAsGroup: 1000
-      fsGroup: 1000
-      runAsNonRoot: true
-    
-    extraInitContainers:
-      - name: init-chown
-        image: busybox:1.35
-        command:
-          - sh
-          - -c
-          - |
-            chown -R 1000:1000 /export
-            chmod -R 755 /export
-        securityContext:
-          runAsUser: 0
-        volumeMounts:
-          - name: export
-            mountPath: /export

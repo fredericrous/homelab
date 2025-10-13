@@ -10,3 +10,4 @@ resources:
 
 patchesStrategicMerge:
   - minio-pv-patch.yaml
+  - minio-helmrelease-patch.yaml
