@@ -9,3 +9,14 @@ CLAUDE.local.md
 
 # Taskfile
 .task/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

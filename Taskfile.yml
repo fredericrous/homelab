@@ -265,7 +265,7 @@ tasks:
       - sh: kubectl get nodes
         msg: "Cluster must be accessible before installing FluxCD"
     vars:
-      FLUX_PATH: '{{.flux_path | default "clusters/homelab/flux-system"}}'
+      FLUX_PATH: '{{.flux_path | default "clusters/homelab"}}'
     cmds:
       - |
         # Skip if FluxCD is already installed
@@ -330,7 +330,7 @@ tasks:
     desc: "Create cluster and bootstrap FluxCD"
     deps: [check-prereq]
     vars:
-      FLUX_PATH: '{{.flux_path | default "clusters/homelab/flux-system"}}'
+      FLUX_PATH: '{{.flux_path | default "clusters/homelab"}}'
     cmds:
       - |
         # Create cluster if kubeconfig doesn't exist

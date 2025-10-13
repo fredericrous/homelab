@@ -17,14 +17,3 @@ worker.yaml
 configs/
 .schematic_base_id
 .schematic_gpu_id
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db

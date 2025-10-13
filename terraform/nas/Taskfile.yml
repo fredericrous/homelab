@@ -166,7 +166,7 @@ tasks:
     cmds:
       - |
         echo "🔐 Triggering Vault auto-unseal..."
-        
+
         # Check if auto-unseal job exists and create manual trigger if needed
         if kubectl get job -n vault vault-auto-unseal &>/dev/null; then
           echo "   Auto-unseal job already exists, checking status..."
@@ -195,7 +195,7 @@ tasks:
       - echo "✅ Infrastructure layer ready"
 
   wait-for-apps:
-    desc: Wait for applications layer to be ready  
+    desc: Wait for applications layer to be ready
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
@@ -367,20 +367,20 @@ tasks:
     cmds:
       - |
         echo "🔐 Unsealing Vault using GPG-encrypted key..."
-        
+
         if vault status | grep -q "Sealed.*false"; then
           echo "✅ Vault is already unsealed"
           exit 0
         fi
-        
+
         if ! vault status &>/dev/null; then
           echo "❌ Cannot connect to Vault at {{.VAULT_ADDR}}"
           exit 1
         fi
-        
+
         UNSEAL_KEY=$(gpg --quiet --batch --decrypt {{.TASK_DIR}}/unseal/unseal-keys.txt.gpg 2>/dev/null)
         vault operator unseal "$UNSEAL_KEY"
-        
+
         echo "✅ Vault unsealed successfully"
 
   vault-auto-unseal:
@@ -522,7 +522,7 @@ tasks:
             echo "🔒 PKI Status: ❌ Not initialized"
             echo "   Run: task nas:vault-pki"
           fi
-          
+
           # Check auto-unseal status
           echo ""
           if kubectl -n vault get job vault-auto-unseal &>/dev/null 2>&1; then
@@ -669,10 +669,10 @@ tasks:
       - |
         echo "⏳ Waiting for bootstrap job to complete..."
         kubectl wait --for=condition=complete job/vault-bootstrap -n vault --timeout=600s
-        
+
         echo "📋 Bootstrap job logs:"
         kubectl logs job/vault-bootstrap -n vault
-        
+
         echo "✅ Vault bootstrap completed!"
         echo "📂 Files now available at /VMs/kubernetes/vault/ on NAS"
       - |
