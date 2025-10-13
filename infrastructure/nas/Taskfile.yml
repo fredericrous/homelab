@@ -79,13 +79,13 @@ tasks:
         echo "⏳ Waiting for FluxCD to sync repository and controllers to be ready..."
         for i in {1..60}; do
           if kubectl get kustomization nas-platform-foundation -n flux-system >/dev/null 2>&1; then
-            infrastructure_status=$(kubectl get kustomization nas-platform-foundation -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
-            if [ "$infrastructure_status" = "True" ]; then
-              echo "✅ Infrastructure layer is ready"
+            platform_status=$(kubectl get kustomization nas-platform-foundation -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+            if [ "$platform_status" = "True" ]; then
+              echo "✅ Platform foundation layer is ready"
               break
             fi
           fi
-          echo "  Waiting for infrastructure layer... ($i/60)"
+          echo "  Waiting for platform foundation layer... ($i/60)"
           sleep 5
         done
 
@@ -388,7 +388,7 @@ tasks:
     cmds:
       - echo "⏳ Waiting for FluxCD to deploy infrastructure..."
       - |
-        echo "Waiting for infrastructure kustomization to be ready..."
+        echo "Waiting for platform foundation kustomization to be ready..."
         kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/nas-platform-foundation 2>/dev/null || {
           echo "⚠️  Infrastructure layer not ready yet, checking status..."
           kubectl get kustomization nas-platform-foundation -n flux-system 2>/dev/null || echo "nas-platform-foundation kustomization not found"
@@ -428,18 +428,18 @@ tasks:
         fi
 
   wait-for-infrastructure:
-    desc: Wait for infrastructure layer to be ready
+    desc: Wait for platform foundation layer to be ready
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
-      - echo "⏳ Waiting for infrastructure layer..."
+      - echo "⏳ Waiting for platform foundation layer..."
       - |
         timeout 600 bash -c '
         while ! kubectl get kustomization -n flux-system nas-platform-foundation -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" | grep -q "True"; do
-          echo "Infrastructure layer not ready yet..."
+          echo "Platform foundation layer not ready yet..."
           sleep 10
         done'
-      - echo "✅ Infrastructure layer ready"
+      - echo "✅ Platform foundation layer ready"
 
   wait-for-apps:
     desc: Wait for applications layer to be ready
@@ -894,7 +894,7 @@ tasks:
     cmds:
       - echo "⏳ Waiting for FluxCD to deploy infrastructure..."
       - |
-        echo "Waiting for infrastructure kustomization to be ready..."
+        echo "Waiting for platform foundation kustomization to be ready..."
         kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/nas-platform-foundation 2>/dev/null || {
           echo "⚠️  Infrastructure layer not ready yet, checking status..."
           kubectl get kustomization nas-platform-foundation -n flux-system 2>/dev/null || echo "nas-platform-foundation kustomization not found"
