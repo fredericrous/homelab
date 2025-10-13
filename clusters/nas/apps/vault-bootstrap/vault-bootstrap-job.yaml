@@ -186,13 +186,13 @@ spec:
       volumes:
         - name: vault-nfs
           hostPath:
-            path: /VMs
+            path: /share/VMs
             type: Directory
         - name: scripts
           configMap:
             name: vault-auto-unseal-script
             defaultMode: 0755
-      backoffLimit: 3
+  backoffLimit: 3
 ---
 apiVersion: v1
 kind: ConfigMap
