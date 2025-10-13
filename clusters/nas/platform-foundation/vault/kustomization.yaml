@@ -7,5 +7,5 @@ resources:
   - vault-helmrelease.yaml
   - vault-pv.yaml
 
-patchesStrategicMerge:
+patches:
   - vault-helmrelease-patch.yaml
