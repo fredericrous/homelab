@@ -8,4 +8,4 @@ resources:
   - vault-pv.yaml
 
 patches:
-  - vault-helmrelease-patch.yaml
+  - path: vault-helmrelease-patch.yaml
