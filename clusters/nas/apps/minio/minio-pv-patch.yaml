@@ -7,8 +7,17 @@ metadata:
     app: minio
     type: local
 spec:
+  storageClassName: nas-local
   capacity:
     storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
   hostPath:
     path: /share/VMs/kubernetes/minio
     type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: Exists
