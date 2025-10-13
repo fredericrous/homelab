@@ -1,18 +1,21 @@
 ---
+# Create specific PV for MinIO with correct path and size
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: nas-local-pv
+  name: minio-nas-pv
   labels:
+    app: minio
     type: local
 spec:
-  storageClassName: nas-local
   capacity:
-    storage: 10Gi
+    storage: 100Gi
   accessModes:
     - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nas-local
   hostPath:
-    path: /share/VMs/kubernetes/data
+    path: /share/VMs/kubernetes/minio
     type: DirectoryOrCreate
   nodeAffinity:
     required:
