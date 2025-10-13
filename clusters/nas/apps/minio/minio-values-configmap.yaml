@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-values
+  namespace: flux-system
+data:
+  values.yaml: |
+    mode: standalone
+    
+    rootUser: admin
+    rootPassword: changeme123
+    
+    persistence:
+      enabled: true
+      storageClass: nas-local
+      size: 100Gi
+    
+    service:
+      type: NodePort
+      port: 9000
+      nodePort: 31900
+    
+    consoleService:
+      type: NodePort
+      port: 9001
+      nodePort: 31901
+    
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 100m
+      limits:
+        memory: 2Gi
+        cpu: 500m
+    
+    environment:
+      MINIO_PROMETHEUS_AUTH_TYPE: "public"

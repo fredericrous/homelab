@@ -1,18 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: minio
 
 resources:
   - ../../platform-foundation/base
   - namespace.yaml
-
-helmCharts:
-  - name: minio
-    repo: https://charts.min.io/
-    version: 5.0.15
-    releaseName: minio
-    namespace: minio
-    valuesFile: values.yaml
+  - minio-helm-repo.yaml
+  - minio-helmrelease.yaml
+  - minio-values-configmap.yaml
 
 patchesStrategicMerge:
   - minio-pv-patch.yaml
