@@ -84,7 +84,7 @@ tasks:
         echo "📋 FluxCD Configuration:"
         echo "  Owner: $FLUXCD_OWNER"
         echo "  Repository: $FLUXCD_REPOSITORY"
-        echo "  Path: clusters/nas/flux-system"
+        echo "  Path: clusters/nas (will create flux-system inside)"
         echo "  Branch: main"
         echo ""
 
@@ -93,7 +93,7 @@ tasks:
           --owner="$FLUXCD_OWNER" \
           --repository="$FLUXCD_REPOSITORY" \
           --branch=main \
-          --path="clusters/nas/flux-system" \
+          --path="clusters/nas" \
           --personal \
           --token-auth \
           --components="source-controller,kustomize-controller,helm-controller"
