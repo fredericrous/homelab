@@ -18,12 +18,12 @@ data:
     service:
       type: NodePort
       port: 9000
-      nodePort: 31900
+      nodePort: 61900
     
     consoleService:
       type: NodePort
       port: 9001
-      nodePort: 31901
+      nodePort: 61901
     
     resources:
       requests:
