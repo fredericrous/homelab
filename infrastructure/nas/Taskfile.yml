@@ -90,6 +90,10 @@ tasks:
         }
 
         echo "✅ Cluster created and FluxCD bootstrapped successfully!"
+        echo ""
+        echo "Next steps to complete setup:"
+        echo "  task nas:vault-secrets          # Setup MinIO password and AWS credentials"
+        echo "  task nas:vault-transit          # Configure transit unseal for main K8s"
 
   install-fluxcd:
     desc: Install FluxCD GitOps controller with GitHub bootstrap (minimal source-watcher only)
@@ -520,50 +524,6 @@ tasks:
     silent: true
 
 
-  vault-init:
-    desc: Initialize Vault manually (legacy method)
-    env:
-      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
-    preconditions:
-      - sh: kubectl get statefulset -n vault vault &>/dev/null
-        msg: "Vault not deployed yet. Run 'task deploy' first"
-    cmds:
-      - |
-        echo "⚠️  DEPRECATED: Use GitOps 'task nas:bootstrap' for automated setup"
-        echo ""
-        if kubectl -n vault get secret vault-keys &>/dev/null 2>&1; then
-          echo "✅ Vault is already initialized"
-          exit 0
-        fi
-
-        echo "🔐 Initializing Vault..."
-        echo ""
-        echo "Run these commands manually:"
-        echo ""
-        echo "export VAULT_ADDR={{.VAULT_ADDR}}"
-        echo "vault operator init -key-shares=5 -key-threshold=3"
-        echo ""
-        echo "⚠️  SAVE ALL 5 unseal keys and the root token!"
-        echo ""
-        echo "Then unseal Vault:"
-        echo "vault operator unseal <key-1>"
-        echo "vault operator unseal <key-2>"
-        echo "vault operator unseal <key-3>"
-        echo ""
-        echo "Login with root token:"
-        echo "vault login <root-token>"
-        echo ""
-        echo "📝 IMPORTANT: Add the root token to your .env file:"
-        echo "QNAP_VAULT_TOKEN=<root-token>"
-        echo ""
-        echo "This token is required for the main cluster deployment to access NAS vault during bootstrap."
-        echo ""
-        echo "Enable KV v2 secrets engine:"
-        echo "vault secrets enable -path=secret kv-v2"
-        echo ""
-        echo "Then run:"
-        echo "  task nas:vault-secrets          # Setup MinIO password and AWS credentials"
-        echo "  task nas:vault-transit          # Configure transit unseal for main K8s"
 
   vault-secrets:
     desc: Setup Vault secrets for MinIO and AWS
@@ -889,25 +849,3 @@ tasks:
         ignore_error: true
       - echo "✅ Cleanup complete"
 
-  vault-bootstrap:
-    desc: Bootstrap Vault with GPG encryption via Kubernetes Job
-    env:
-      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
-    preconditions:
-      - sh: kubectl get statefulset -n vault vault-vault-nas >/dev/null 2>&1
-        msg: "Vault StatefulSet not found. Run 'task nas:wait-for-vault-ready' first"
-    cmds:
-      - echo "🔄 Deploying Vault bootstrap job to NAS cluster..."
-      - kubectl apply -k {{.MANIFESTS_DIR}}/apps/vault-bootstrap
-      - |
-        echo "⏳ Waiting for bootstrap job to complete..."
-        kubectl wait --for=condition=complete job/vault-bootstrap -n vault --timeout=600s
-
-        echo "📋 Bootstrap job logs:"
-        kubectl logs job/vault-bootstrap -n vault
-
-        echo "✅ Vault bootstrap completed!"
-        echo "📂 GPG-encrypted files now available at /share/VMs/kubernetes/vault/ on NAS"
-      - |
-        echo "🧹 Cleaning up bootstrap job..."
-        kubectl delete job vault-bootstrap -n vault --ignore-not-found=true
