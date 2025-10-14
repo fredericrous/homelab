@@ -12,10 +12,10 @@ if [ ! -f ../talosconfig ]; then
     exit 1
 fi
 
-export TALOSCONFIG="../talosconfig"
+export TALOSCONFIG="../../talosconfig"
 
 # Get control plane IP
-CP_IP=$(grep -A2 'controlplane:' ../talosconfig | grep 'endpoint:' | awk -F'https://' '{print $2}' | awk -F':' '{print $1}' || echo "192.168.1.67")
+CP_IP=$(grep -A2 'controlplane:' ../../talosconfig | grep 'endpoint:' | awk -F'https://' '{print $2}' | awk -F':' '{print $1}' || echo "192.168.1.67")
 
 echo "📍 Control plane IP: $CP_IP"
 echo ""
@@ -41,8 +41,8 @@ talosctl -n $CP_IP logs kubelet | tail -20 || echo "Kubelet not running yet"
 echo ""
 
 # If kubeconfig exists, check k8s status
-if [ -f ../kubeconfig ]; then
-    export KUBECONFIG="../kubeconfig"
+if [ -f ../../kubeconfig ]; then
+    export KUBECONFIG="../../kubeconfig"
     echo ""
     echo "☸️  Kubernetes Status:"
     echo "Nodes:"

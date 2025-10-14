@@ -188,7 +188,7 @@ tasks:
       - task: vault-transit
       - echo "🎉 NAS cluster installation complete and verified!"
       - echo ""
-      - echo "📋 Next: Main cluster can now be installed with automated transit unseal:"
+      - echo "📋 Next - Main cluster can now be installed with automated transit unseal:"
       - echo "   task install"
 
 

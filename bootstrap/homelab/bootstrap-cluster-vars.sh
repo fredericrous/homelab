@@ -7,9 +7,13 @@ set -euo pipefail
 trap 'echo ""; echo "❌ bootstrap cluster vars interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
+# Get the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # Check if .env file exists
-if [ ! -f .env ]; then
-  echo "ERROR: .env file not found"
+if [ ! -f "$PROJECT_ROOT/.env" ]; then
+  echo "ERROR: .env file not found at $PROJECT_ROOT/.env"
   exit 1
 fi
 
@@ -48,7 +52,7 @@ while IFS= read -r line; do
 
   # Add to kubectl command
   KUBECTL_CMD="$KUBECTL_CMD --from-literal=$key=\"$value\""
-done < .env
+done < "$PROJECT_ROOT/.env"
 
 # QNAP_VAULT_TOKEN is now managed by External Secrets Operator - no need to add here
 
