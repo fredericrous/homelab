@@ -360,6 +360,12 @@ tasks:
           exit 1
         }
 
+        echo "🔧 Applying cluster kustomization to deploy applications..."
+        kubectl apply -f ../../kubernetes/homelab/flux-system/cluster-kustomization.yaml || {
+          echo "❌ Failed to apply cluster kustomization"
+          exit 1
+        }
+
         echo "✅ FluxCD installed and configured successfully!"
 
   bootstrap:
