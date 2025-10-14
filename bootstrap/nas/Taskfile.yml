@@ -184,7 +184,12 @@ tasks:
       - kubectl wait --for=condition=complete job/vault-bootstrap -n vault --timeout=600s
       - echo "✅ Vault initialized and ready!"
       - task: verify-vault-unseal
+      - echo "🔧 Auto-configuring transit backend for main cluster..."
+      - task: vault-transit
       - echo "🎉 NAS cluster installation complete and verified!"
+      - echo ""
+      - echo "📋 Next: Main cluster can now be installed with automated transit unseal:"
+      - echo "   task install"
 
 
   # Helper task to check prerequisites

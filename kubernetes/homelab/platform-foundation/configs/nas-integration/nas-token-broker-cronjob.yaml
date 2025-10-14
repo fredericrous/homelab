@@ -1,0 +1,249 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nas-token-broker
+  namespace: nas-integration
+  labels:
+    homelab.io/component: nas-integration
+  annotations:
+    homelab.io/description: "Fetches fresh NAS Vault tokens and updates main cluster Vault"
+spec:
+  schedule: "*/10 * * * *"  # Every 10 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120  # 2 minutes max
+      template:
+        metadata:
+          labels:
+            homelab.io/component: nas-token-broker
+        spec:
+          serviceAccountName: nas-token-broker
+          restartPolicy: Never
+          containers:
+          - name: token-broker
+            image: curlimages/curl:8.5.0
+            command: ["/bin/sh", "-c"]
+            args:
+            - |
+              set -euo pipefail
+              
+              echo "🔄 NAS Token Broker - $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              
+              # Configuration
+              NAS_VAULT_ADDR="http://192.168.1.42:61200"
+              MAIN_VAULT_ADDR="http://vault-vault.vault.svc.cluster.local:8200"
+              MAX_RETRIES=2
+              TIMEOUT=5
+              
+              # Structured logging
+              log() {
+                echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"token-broker\",\"event\":\"$1\",\"status\":\"$2\",\"details\":\"$3\"}"
+              }
+              
+              # Fetch current NAS token with circuit breaker pattern
+              fetch_nas_token() {
+                log "nas_token_fetch" "starting" "target:$NAS_VAULT_ADDR"
+                
+                for attempt in $(seq 1 $MAX_RETRIES); do
+                  log "nas_token_fetch" "attempt" "attempt:$attempt/$MAX_RETRIES"
+                  
+                  # Fast-fail network call
+                  if TOKEN_RESPONSE=$(curl -sS \
+                      --connect-timeout 2 \
+                      --max-time $TIMEOUT \
+                      --retry 0 \
+                      -H "X-Vault-Token: $CURRENT_NAS_TOKEN" \
+                      "$NAS_VAULT_ADDR/v1/secret/data/tokens/root" 2>/dev/null); then
+                    
+                    # Extract token from response
+                    NEW_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.data.data.token // empty')
+                    
+                    if [[ -n "$NEW_TOKEN" && "$NEW_TOKEN" != "null" ]]; then
+                      log "nas_token_fetch" "success" "token_updated"
+                      echo "$NEW_TOKEN"
+                      return 0
+                    else
+                      log "nas_token_fetch" "invalid_response" "attempt:$attempt,no_token_in_response"
+                    fi
+                  else
+                    log "nas_token_fetch" "network_error" "attempt:$attempt,nas_unreachable"
+                  fi
+                  
+                  # Exponential backoff between retries
+                  if [[ $attempt -lt $MAX_RETRIES ]]; then
+                    sleep_time=$((attempt * 2))
+                    log "nas_token_fetch" "retry_delay" "sleeping:${sleep_time}s"
+                    sleep $sleep_time
+                  fi
+                done
+                
+                log "nas_token_fetch" "failed" "all_attempts_exhausted"
+                return 1
+              }
+              
+              # Update main cluster Vault
+              update_main_vault() {
+                local new_token="$1"
+                
+                log "main_vault_update" "starting" "target:$MAIN_VAULT_ADDR"
+                
+                # Authenticate with main cluster Vault using Kubernetes auth
+                MAIN_VAULT_TOKEN=$(curl -sS \
+                  --max-time $TIMEOUT \
+                  -X POST \
+                  -d "{\"role\":\"nas-token-broker\",\"jwt\":\"$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\"}" \
+                  "$MAIN_VAULT_ADDR/v1/auth/kubernetes/login" | jq -r '.auth.client_token')
+                
+                if [[ -z "$MAIN_VAULT_TOKEN" || "$MAIN_VAULT_TOKEN" == "null" ]]; then
+                  log "main_vault_update" "auth_failed" "cannot_authenticate_with_main_vault"
+                  return 1
+                fi
+                
+                # Store the new token in main cluster Vault
+                if curl -sS \
+                    --max-time $TIMEOUT \
+                    -H "X-Vault-Token: $MAIN_VAULT_TOKEN" \
+                    -X POST \
+                    -d "{\"data\":{\"token\":\"$new_token\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"source\":\"nas-token-broker\"}}" \
+                    "$MAIN_VAULT_ADDR/v1/secret/data/nas/vault-token" >/dev/null; then
+                  
+                  log "main_vault_update" "success" "token_stored_in_main_vault"
+                  return 0
+                else
+                  log "main_vault_update" "failed" "cannot_store_token"
+                  return 1
+                fi
+              }
+              
+              # Create Kubernetes event for monitoring
+              create_event() {
+                local event_type="$1"
+                local reason="$2"
+                local message="$3"
+                
+                kubectl create event "nas-token-broker-$reason" \
+                  --namespace=nas-integration \
+                  --reason="$reason" \
+                  --message="$message" \
+                  --type="$event_type" 2>/dev/null || true
+              }
+              
+              # Main execution
+              main() {
+                # Get current NAS token from existing secret (for authentication)
+                if ! CURRENT_NAS_TOKEN=$(kubectl get secret nas-vault-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d); then
+                  log "initialization" "failed" "cannot_read_current_nas_token"
+                  create_event "Warning" "TokenReadFailed" "Cannot read current NAS token from secret"
+                  exit 1
+                fi
+                
+                # Validate current token format
+                if [[ ! "$CURRENT_NAS_TOKEN" =~ ^hvs\. ]]; then
+                  log "initialization" "failed" "invalid_current_token_format"
+                  create_event "Warning" "InvalidToken" "Current NAS token has invalid format"
+                  exit 1
+                fi
+                
+                log "initialization" "success" "current_token_valid"
+                
+                # Attempt to fetch fresh token from NAS
+                if FRESH_TOKEN=$(fetch_nas_token); then
+                  
+                  # Only update if token actually changed
+                  if [[ "$FRESH_TOKEN" != "$CURRENT_NAS_TOKEN" ]]; then
+                    log "token_comparison" "changed" "token_rotation_detected"
+                    
+                    if update_main_vault "$FRESH_TOKEN"; then
+                      log "broker_cycle" "success" "token_updated_successfully"
+                      create_event "Normal" "TokenUpdated" "Successfully updated NAS token in main cluster Vault"
+                      
+                      # Update the local secret for next cycle
+                      kubectl create secret generic nas-vault-token \
+                        --from-literal=token="$FRESH_TOKEN" \
+                        --from-literal=updated-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                        --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+                    else
+                      log "broker_cycle" "failed" "cannot_update_main_vault"
+                      create_event "Warning" "UpdateFailed" "Failed to update main cluster Vault with new token"
+                      exit 1
+                    fi
+                  else
+                    log "token_comparison" "unchanged" "no_rotation_needed"
+                    log "broker_cycle" "success" "token_still_valid"
+                  fi
+                else
+                  # NAS is unreachable - this is expected during maintenance
+                  log "broker_cycle" "nas_unreachable" "keeping_existing_token"
+                  create_event "Warning" "NASUnreachable" "NAS Vault unreachable, keeping existing token"
+                  
+                  # Check if existing token is getting old (warn after 2 hours)
+                  if LAST_UPDATE=$(kubectl get secret nas-vault-token -o jsonpath='{.metadata.annotations.homelab\.io/last-refresh}' 2>/dev/null); then
+                    LAST_UPDATE_EPOCH=$(date -d "$LAST_UPDATE" +%s 2>/dev/null || echo "0")
+                    CURRENT_EPOCH=$(date +%s)
+                    AGE_HOURS=$(( (CURRENT_EPOCH - LAST_UPDATE_EPOCH) / 3600 ))
+                    
+                    if [[ $AGE_HOURS -gt 2 ]]; then
+                      log "token_age" "warning" "token_age:${AGE_HOURS}h,threshold:2h"
+                      create_event "Warning" "TokenStale" "NAS token is ${AGE_HOURS}h old, consider manual intervention"
+                    fi
+                  fi
+                  
+                  # Don't exit with error - this allows External Secrets to keep working
+                  exit 0
+                fi
+              }
+              
+              # Execute main function
+              main
+              
+            env:
+            - name: HOME
+              value: /tmp
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 100m
+                memory: 64Mi
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 65534
+              readOnlyRootFilesystem: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nas-token-broker
+  namespace: nas-integration
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nas-token-broker
+  namespace: nas-integration
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nas-token-broker
+  namespace: nas-integration
+subjects:
+- kind: ServiceAccount
+  name: nas-token-broker
+  namespace: nas-integration
+roleRef:
+  kind: Role
+  name: nas-token-broker
+  apiGroup: rbac.authorization.k8s.io

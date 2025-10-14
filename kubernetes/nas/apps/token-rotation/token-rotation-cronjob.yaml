@@ -1,0 +1,188 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vault-token-rotation
+  namespace: vault
+  annotations:
+    description: "Rotates Vault root tokens every 24 hours"
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          serviceAccountName: token-rotator
+          restartPolicy: OnFailure
+          containers:
+          - name: token-rotator
+            image: hashicorp/vault:1.17.2
+            command: ["/bin/sh", "-ec"]
+            args:
+            - |
+              set -euo pipefail
+              
+              # Install required tools
+              apk add --no-cache gnupg jq curl
+              
+              echo "🔄 Starting token rotation process..."
+              
+              # Configuration
+              VAULT_DIR="/share/VMs/kubernetes/vault"
+              GPG_RECIPIENT="admin@daddyshome.fr"
+              export VAULT_ADDR="http://vault-vault-nas.vault.svc.cluster.local:8200"
+              
+              # Check if Vault is accessible and unsealed
+              echo "🔍 Checking Vault status..."
+              if ! curl -f -s "$VAULT_ADDR/v1/sys/health" | jq -e '.sealed == false' >/dev/null; then
+                echo "❌ Vault is not accessible or is sealed"
+                exit 1
+              fi
+              
+              # Authenticate with Kubernetes auth
+              echo "🔑 Authenticating with Vault using Kubernetes auth..."
+              VAULT_TOKEN=$(vault write -format=json auth/kubernetes/login \
+                role=token-rotator \
+                jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                | jq -r '.auth.client_token')
+              
+              if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
+                echo "❌ Failed to authenticate with Vault"
+                exit 1
+              fi
+              
+              export VAULT_TOKEN
+              echo "✅ Successfully authenticated with Vault"
+              
+              # Check current token TTL
+              echo "🕒 Checking current token TTL..."
+              CURRENT_TTL=$(vault token lookup -format=json | jq -r '.data.ttl')
+              echo "Current token TTL: ${CURRENT_TTL}s"
+              
+              # Only rotate if TTL is less than 12 hours (43200 seconds)
+              if [ "$CURRENT_TTL" -gt 43200 ]; then
+                echo "✅ Token TTL is still healthy (${CURRENT_TTL}s > 43200s), skipping rotation"
+                exit 0
+              fi
+              
+              echo "⏰ Token TTL is low (${CURRENT_TTL}s), proceeding with rotation..."
+              
+              # Read current root token from file system
+              echo "📖 Reading current root token..."
+              if [ ! -f "$VAULT_DIR/root-token.txt" ]; then
+                echo "❌ Root token file not found at $VAULT_DIR/root-token.txt"
+                exit 1
+              fi
+              
+              OLD_ROOT_TOKEN=$(cat "$VAULT_DIR/root-token.txt")
+              
+              # Create new root token using the old one
+              echo "🔐 Creating new root token..."
+              export VAULT_TOKEN="$OLD_ROOT_TOKEN"
+              
+              NEW_ROOT_TOKEN=$(vault token create -format=json \
+                -display-name="homelab-nas-root-$(date +%Y%m%d)" \
+                -no-default-policy \
+                -policy=root \
+                | jq -r '.auth.client_token')
+              
+              if [ -z "$NEW_ROOT_TOKEN" ] || [ "$NEW_ROOT_TOKEN" = "null" ]; then
+                echo "❌ Failed to create new root token"
+                exit 1
+              fi
+              
+              echo "✅ Created new root token"
+              
+              # Test the new token
+              echo "🧪 Testing new root token..."
+              export VAULT_TOKEN="$NEW_ROOT_TOKEN"
+              if ! vault token lookup >/dev/null 2>&1; then
+                echo "❌ New root token is not valid"
+                exit 1
+              fi
+              
+              # Import GPG private key for encryption
+              echo "🔑 Importing GPG key for encryption..."
+              if [ -f "$VAULT_DIR/gpg-private-key.asc" ]; then
+                gpg --import "$VAULT_DIR/gpg-private-key.asc"
+              else
+                echo "⚠️  GPG private key not found, skipping encryption"
+                SKIP_ENCRYPTION=true
+              fi
+              
+              # Update root token file
+              echo "💾 Updating root token file..."
+              echo "$NEW_ROOT_TOKEN" > "$VAULT_DIR/root-token.txt"
+              
+              # Update encrypted files if GPG key is available
+              if [ "${SKIP_ENCRYPTION:-false}" != "true" ]; then
+                echo "🔒 Updating encrypted token file..."
+                echo "$NEW_ROOT_TOKEN" | gpg --trust-model always \
+                  --cipher-algo AES256 \
+                  --recipient "$GPG_RECIPIENT" \
+                  --encrypt --armor \
+                  --output "$VAULT_DIR/root-token.txt.gpg"
+              fi
+              
+              # Store the new token in Vault's KV store for backup
+              echo "💾 Storing new token in Vault KV store..."
+              vault kv put secret/tokens/root \
+                token="$NEW_ROOT_TOKEN" \
+                created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                rotated_from="token-rotation-cronjob"
+              
+              # Revoke the old root token (be careful here!)
+              echo "🗑️  Revoking old root token..."
+              if vault token revoke "$OLD_ROOT_TOKEN"; then
+                echo "✅ Successfully revoked old root token"
+              else
+                echo "⚠️  Failed to revoke old root token, but continuing..."
+              fi
+              
+              # Update vault-init.json with new token
+              echo "📝 Updating vault-init.json..."
+              cat > "$VAULT_DIR/vault-init.json" <<EOF
+              {
+                "unseal_keys_b64": ["$(cat $VAULT_DIR/unseal-key.txt)"],
+                "root_token": "$NEW_ROOT_TOKEN",
+                "encrypted": true,
+                "gpg_recipient": "$GPG_RECIPIENT",
+                "last_rotated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              }
+              EOF
+              
+              echo "✅ Token rotation completed successfully!"
+              echo "📊 Token rotation metrics:"
+              echo "  - Old token TTL: ${CURRENT_TTL}s"
+              echo "  - New token created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "  - Next rotation: $(date -d '+1 day' -u +%Y-%m-%dT%H:%M:%SZ)"
+              
+            env:
+            - name: SKIP_CHOWN
+              value: "true"
+            - name: SKIP_SETCAP
+              value: "true"
+            - name: HOME
+              value: /tmp
+            volumeMounts:
+            - name: vault-storage
+              mountPath: /share/VMs
+            securityContext:
+              allowPrivilegeEscalation: true
+              runAsUser: 0
+              runAsGroup: 0
+            resources:
+              requests: 
+                cpu: 100m
+                memory: 128Mi
+              limits: 
+                cpu: 500m
+                memory: 256Mi
+          volumes:
+          - name: vault-storage
+            hostPath: 
+              path: /share/VMs
+              type: Directory

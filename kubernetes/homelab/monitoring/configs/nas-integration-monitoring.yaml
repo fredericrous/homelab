@@ -1,0 +1,274 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nas-integration-alerts
+  namespace: monitoring
+  labels:
+    app: nas-integration
+    prometheus: kube-prometheus
+spec:
+  groups:
+  
+  # ===== EXTERNAL SECRETS OPERATOR MONITORING =====
+  - name: nas-external-secrets
+    interval: 30s
+    rules:
+    
+    - alert: NASExternalSecretSyncFailure
+      expr: |
+        (
+          externalsecret_sync_calls_error{name="nas-vault-token",namespace="nas-integration"} 
+          - 
+          externalsecret_sync_calls_error{name="nas-vault-token",namespace="nas-integration"} offset 5m
+        ) > 0
+      for: 2m
+      labels:
+        severity: warning
+        component: external-secrets
+        service: nas-integration
+      annotations:
+        summary: "NAS External Secret sync failing"
+        description: |
+          The External Secret for NAS Vault token has failed to sync.
+          
+          This means the main cluster cannot get fresh tokens from NAS Vault.
+          Applications may start failing when current token expires.
+          
+          Check External Secrets Operator:
+          kubectl logs -n external-secrets-system -l app.kubernetes.io/name=external-secrets
+          kubectl describe externalsecret nas-vault-token -n nas-integration
+    
+    - alert: NASExternalSecretStale
+      expr: |
+        (time() - externalsecret_sync_calls_total{name="nas-vault-token",namespace="nas-integration"}) > 900
+      for: 1m
+      labels:
+        severity: critical
+        component: external-secrets  
+        service: nas-integration
+      annotations:
+        summary: "NAS External Secret is stale"
+        description: |
+          The NAS External Secret hasn't synced for over 15 minutes.
+          
+          This indicates either:
+          - External Secrets Operator is down
+          - NAS Vault is unreachable
+          - Authentication issues with NAS
+          
+          Manual intervention required.
+    
+    # ===== TOKEN BROKER CRONJOB MONITORING =====
+  - name: nas-token-broker
+    interval: 30s
+    rules:
+    
+    - alert: NASTokenBrokerJobFailure  
+      expr: |
+        (
+          kube_job_status_failed{job_name=~"nas-token-broker-.*",namespace="nas-integration"} == 1
+        )
+      for: 1m
+      labels:
+        severity: warning
+        component: token-broker
+        service: nas-integration
+      annotations:
+        summary: "NAS Token Broker job failed"
+        description: |
+          The NAS Token Broker CronJob has failed.
+          
+          This means we're not refreshing tokens from NAS Vault.
+          Current cached tokens will continue to work until they expire.
+          
+          Check broker logs:
+          kubectl logs -n nas-integration -l homelab.io/component=nas-token-broker --tail=50
+    
+    - alert: NASTokenBrokerNotRunning
+      expr: |
+        (time() - kube_job_status_completion_time{job_name=~"nas-token-broker-.*",namespace="nas-integration"}) > 900
+      for: 5m
+      labels:
+        severity: critical
+        component: token-broker
+        service: nas-integration
+      annotations:
+        summary: "NAS Token Broker hasn't run recently"
+        description: |
+          The NAS Token Broker hasn't completed successfully in over 15 minutes.
+          
+          This could indicate:
+          - CronJob is suspended or misconfigured
+          - Persistent failures connecting to NAS
+          - Kubernetes scheduling issues
+          
+          Check CronJob status:
+          kubectl get cronjob nas-token-broker -n nas-integration
+    
+    # ===== ISTIO/ENVOY CIRCUIT BREAKER MONITORING =====
+  - name: nas-istio-circuit-breaker
+    interval: 30s
+    rules:
+    
+    - alert: NASCircuitBreakerOpen
+      expr: |
+        (
+          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|61200||192.168.1.42"} > 0
+        )
+      for: 30s
+      labels:
+        severity: critical
+        component: istio-circuit-breaker
+        service: nas-integration
+      annotations:
+        summary: "NAS Circuit Breaker is OPEN"
+        description: |
+          Istio has opened the circuit breaker to NAS Vault (192.168.1.42:61200).
+          
+          This means NAS is detected as unhealthy and traffic is being blocked.
+          Applications using NAS integration are now in degraded mode.
+          
+          Check NAS health:
+          curl -f http://192.168.1.42:61200/v1/sys/health
+          
+          Check Envoy outlier detection:
+          kubectl exec -n nas-integration deployment/nas-token-broker -- curl localhost:15000/stats | grep outlier
+    
+    - alert: NASHighErrorRate
+      expr: |
+        (
+          rate(envoy_cluster_upstream_rq_xx{cluster_name="outbound|61200||192.168.1.42",envoy_response_code_class="5"}[5m]) 
+          / 
+          rate(envoy_cluster_upstream_rq_total{cluster_name="outbound|61200||192.168.1.42"}[5m])
+        ) > 0.1
+      for: 2m
+      labels:
+        severity: warning
+        component: istio-traffic
+        service: nas-integration
+      annotations:
+        summary: "High error rate to NAS Vault"
+        description: |
+          More than 10% of requests to NAS Vault are failing.
+          
+          Error rate: {{ $value | humanizePercentage }}
+          
+          Circuit breaker may open soon if errors continue.
+          
+          Check NAS Vault status and logs.
+    
+    # ===== APPLICATION LEVEL MONITORING =====
+  - name: nas-application-integration
+    interval: 30s
+    rules:
+    
+    - alert: NASTokenSecretMissing
+      expr: |
+        (
+          kube_secret_info{namespace="nas-integration",secret="nas-vault-token"} == 0
+        )
+      for: 1m
+      labels:
+        severity: critical
+        component: kubernetes-secret
+        service: nas-integration
+      annotations:
+        summary: "NAS Vault token secret is missing"
+        description: |
+          The Kubernetes secret containing NAS Vault token has disappeared.
+          
+          This will cause immediate failures for any application trying to access NAS.
+          
+          Check External Secrets:
+          kubectl get externalsecret nas-vault-token -n nas-integration
+          kubectl describe externalsecret nas-vault-token -n nas-integration
+    
+    - alert: NASTokenSecretStale
+      expr: |
+        (
+          time() - 
+          on(namespace,secret) kube_secret_annotations{namespace="nas-integration",secret="nas-vault-token",annotation="homelab.io/last-refresh"}
+        ) > 1800
+      for: 5m
+      labels:
+        severity: warning
+        component: token-freshness
+        service: nas-integration
+      annotations:
+        summary: "NAS token secret is getting stale"
+        description: |
+          The NAS token secret hasn't been refreshed in over 30 minutes.
+          
+          While not immediately critical, this indicates potential issues with:
+          - External Secrets sync process
+          - NAS Vault connectivity
+          - Token broker operation
+          
+          Investigate before token expires completely.
+    
+    # ===== RECOVERY AND HEALTH MONITORING =====
+  - name: nas-recovery-monitoring
+    interval: 30s
+    rules:
+    
+    - alert: NASIntegrationRecovered
+      expr: |
+        (
+          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|61200||192.168.1.42"} == 0
+          and
+          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|61200||192.168.1.42"} offset 5m > 0
+        )
+      for: 30s
+      labels:
+        severity: info
+        component: istio-circuit-breaker
+        service: nas-integration
+      annotations:
+        summary: "NAS Circuit Breaker has recovered"
+        description: |
+          The Istio circuit breaker to NAS has closed - NAS is healthy again.
+          
+          Normal operations have resumed for NAS integration.
+          Token sync and application access should be working normally.
+    
+    - alert: NASTokenBrokerRecovered
+      expr: |
+        (
+          kube_job_status_succeeded{job_name=~"nas-token-broker-.*",namespace="nas-integration"} == 1
+          and
+          increase(kube_job_status_succeeded{job_name=~"nas-token-broker-.*",namespace="nas-integration"}[10m]) > 0
+          and
+          kube_job_status_failed{job_name=~"nas-token-broker-.*",namespace="nas-integration"} offset 10m == 1
+        )
+      for: 30s  
+      labels:
+        severity: info
+        component: token-broker
+        service: nas-integration
+      annotations:
+        summary: "NAS Token Broker has recovered from failures"
+        description: |
+          The NAS Token Broker is working again after previous failures.
+          
+          Token refresh from NAS Vault is operational.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nas-integration-metrics
+  namespace: monitoring
+  labels:
+    app: nas-integration
+spec:
+  namespaceSelector:
+    matchNames:
+    - nas-integration
+    - external-secrets-system
+  selector:
+    matchLabels:
+      homelab.io/component: nas-integration
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s

@@ -15,6 +15,9 @@ fi
 
 echo "Creating cluster-vars secret from .env variables..."
 
+# Note: QNAP_VAULT_TOKEN is now handled by External Secrets Operator
+# No need for auto-retrieval logic - ESO syncs tokens from NAS Vault automatically
+
 # Build kubectl command with all env vars as literal values
 KUBECTL_CMD="kubectl create secret generic cluster-vars --namespace=flux-system"
 
@@ -46,6 +49,8 @@ while IFS= read -r line; do
   # Add to kubectl command
   KUBECTL_CMD="$KUBECTL_CMD --from-literal=$key=\"$value\""
 done < .env
+
+# QNAP_VAULT_TOKEN is now managed by External Secrets Operator - no need to add here
 
 # Debug: Show number of variables found
 NUM_VARS=$(echo "$KUBECTL_CMD" | grep -o "\-\-from-literal" | wc -l)

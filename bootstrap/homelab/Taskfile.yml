@@ -55,8 +55,6 @@ tasks:
     preconditions:
       - sh: kubectl get nodes
         msg: "Cluster must be accessible"
-      - sh: test -n "${VAULT_TRANSIT_TOKEN:-}"
-        msg: "VAULT_TRANSIT_TOKEN must be set in .env file"
     cmds:
       - |
         echo "🔐 Creating vault-transit-token secret..."

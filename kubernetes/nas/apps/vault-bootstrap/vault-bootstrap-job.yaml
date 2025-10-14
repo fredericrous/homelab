@@ -65,7 +65,53 @@ spec:
               echo "📦 Enabling KV v2 secrets engine..."
               vault secrets enable -path=secret kv-v2
               
-              echo "✅ Vault KV v2 secrets engine enabled!"
+              echo "🔐 Configuring Kubernetes authentication..."
+              # Enable Kubernetes auth method
+              vault auth enable kubernetes
+              
+              # Configure Kubernetes auth with cluster info
+              vault write auth/kubernetes/config \
+                token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                kubernetes_host="https://kubernetes.default.svc:443" \
+                kubernetes_ca_cert="$(cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)"
+              
+              echo "📋 Creating token rotation policy..."
+              vault policy write token-rotation-policy - <<EOF
+              # Allow reading own token info
+              path "auth/token/lookup-self" {
+                capabilities = ["read"]
+              }
+              
+              # Allow renewing own token
+              path "auth/token/renew-self" {
+                capabilities = ["update"]
+              }
+              
+              # Allow creating new tokens for rotation
+              path "auth/token/create" {
+                capabilities = ["create", "update"]
+              }
+              
+              # Allow revoking old tokens
+              path "auth/token/revoke" {
+                capabilities = ["update"]
+              }
+              
+              # Allow managing the root token file (for rotation)
+              path "secret/data/tokens/root" {
+                capabilities = ["create", "read", "update"]
+              }
+              EOF
+              
+              echo "👥 Creating token-rotator role..."
+              vault write auth/kubernetes/role/token-rotator \
+                bound_service_account_names=token-rotator \
+                bound_service_account_namespaces=vault \
+                policies=token-rotation-policy \
+                ttl=24h \
+                max_ttl=72h
+              
+              echo "✅ Vault KV v2 secrets engine and Kubernetes auth enabled!"
               echo "💡 Use 'task nas:vault-secrets' to populate secrets"
               
               # Generate GPG key (no passphrase)

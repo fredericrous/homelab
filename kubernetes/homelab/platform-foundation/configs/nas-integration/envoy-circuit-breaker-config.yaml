@@ -1,0 +1,140 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: envoy-nas-circuit-breaker
+  namespace: nas-integration
+  labels:
+    homelab.io/component: envoy-config
+data:
+  envoy-filter.yaml: |
+    apiVersion: networking.istio.io/v1alpha3
+    kind: EnvoyFilter
+    metadata:
+      name: nas-circuit-breaker
+      namespace: istio-system
+    spec:
+      configPatches:
+      - applyTo: HTTP_FILTER
+        match:
+          context: SIDECAR_INBOUND
+          listener:
+            filterChain:
+              filter:
+                name: "envoy.filters.network.http_connection_manager"
+        patch:
+          operation: INSERT_BEFORE
+          value:
+            name: envoy.filters.http.local_ratelimit
+            typed_config:
+              "@type": type.googleapis.com/udpa.type.v1.TypedStruct
+              type_url: type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+              value:
+                stat_prefix: nas_circuit_breaker
+                token_bucket:
+                  max_tokens: 100
+                  tokens_per_fill: 10
+                  fill_interval: 60s
+                filter_enabled:
+                  runtime_key: nas_circuit_breaker_enabled
+                  default_value:
+                    numerator: 100
+                    denominator: HUNDRED
+                filter_enforced:
+                  runtime_key: nas_circuit_breaker_enforced
+                  default_value:
+                    numerator: 100
+                    denominator: HUNDRED
+      - applyTo: HTTP_ROUTE
+        match:
+          context: SIDECAR_INBOUND
+        patch:
+          operation: MERGE
+          value:
+            route:
+              timeout: 5s
+              retry_policy:
+                retry_on: "5xx,reset,connect-failure,refused-stream"
+                num_retries: 2
+                per_try_timeout: 2s
+                retry_back_off:
+                  base_interval: 1s
+                  max_interval: 10s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: nas-vault-circuit-breaker
+  namespace: nas-integration
+spec:
+  host: "192.168.1.42"
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 10
+        connectTimeout: 2s
+        tcpKeepalive:
+          time: 7200s
+          interval: 75s
+      http:
+        http1MaxPendingRequests: 5
+        http2MaxRequests: 10
+        maxRequestsPerConnection: 2
+        maxRetries: 2
+        connectTimeout: 2s
+        h2UpgradePolicy: UPGRADE
+    outlierDetection:
+      # Circuit breaker configuration
+      consecutive5xxErrors: 3
+      consecutiveGatewayErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 100
+      minHealthPercent: 0
+      splitExternalLocalOriginErrors: true
+    # Load balancing for multiple NAS instances (if applicable)
+    loadBalancer:
+      simple: LEAST_CONN
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nas-vault-routing
+  namespace: nas-integration
+spec:
+  hosts:
+  - nas-vault.nas-integration.svc.cluster.local
+  http:
+  - match:
+    - uri:
+        prefix: /v1/
+    route:
+    - destination:
+        host: "192.168.1.42"
+        port:
+          number: 61200
+    timeout: 5s
+    retries:
+      attempts: 2
+      perTryTimeout: 2s
+      retryOn: 5xx,reset,connect-failure,refused-stream
+    fault:
+      delay:
+        percentage:
+          value: 0.1  # 0.1% of requests get a delay (for testing)
+        fixedDelay: 100ms
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nas-vault
+  namespace: nas-integration
+  labels:
+    homelab.io/component: nas-integration
+spec:
+  type: ExternalName
+  externalName: "192.168.1.42"
+  ports:
+  - name: vault-api
+    port: 61200
+    protocol: TCP
