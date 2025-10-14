@@ -3,12 +3,4 @@ kind: Kustomization
 resources:
 - gotk-components-full.yaml
 - gotk-sync.yaml
-- ../controllers.yaml
-- ../platform-foundation.yaml
-- ../security.yaml
-- ../serverless.yaml
-- ../data-cache.yaml
-- ../ml-serving.yaml
-- ../data-storage.yaml
-- ../apps.yaml
-- ../monitoring.yaml
+- cluster-kustomization.yaml

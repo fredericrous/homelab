@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - controllers.yaml
+  - platform-foundation.yaml
+  - security.yaml
+  - serverless.yaml
+  - data-cache.yaml
+  - ml-serving.yaml
+  - data-storage.yaml
+  - apps.yaml
+  - monitoring.yaml
