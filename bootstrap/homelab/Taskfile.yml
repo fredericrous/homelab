@@ -9,6 +9,10 @@ vars:
 env:
   KUBECONFIG: '{{.KUBECONFIG}}'
   SHELL: /bin/bash
+  FLUXCD_GITHUB_TOKEN: '{{.FLUXCD_GITHUB_TOKEN}}'
+  FLUXCD_OWNER: '{{.FLUXCD_OWNER}}'
+  FLUXCD_REPOSITORY: '{{.FLUXCD_REPOSITORY}}'
+  VAULT_TRANSIT_TOKEN: '{{.VAULT_TRANSIT_TOKEN}}'
 
 tasks:
   # Helper task to check prerequisites
@@ -284,10 +288,7 @@ tasks:
 
         echo "🚀 Installing FluxCD..."
 
-        # Check for GitHub token in environment or .env file
-        if [ -z "${FLUXCD_GITHUB_TOKEN:-}" ] && [ -f {{.ROOT_DIR}}/.env ]; then
-          source {{.ROOT_DIR}}/.env
-        fi
+        # GitHub token should be available from environment
 
         # Validate required environment variables
         if [ -z "${FLUXCD_OWNER:-}" ]; then
