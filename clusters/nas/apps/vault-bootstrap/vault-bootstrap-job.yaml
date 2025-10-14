@@ -59,6 +59,15 @@ spec:
               echo "🔓 Unsealing Vault..."
               vault operator unseal "$UNSEAL_KEY"
               
+              echo "🔑 Authenticating with Vault..."
+              export VAULT_TOKEN="$ROOT_TOKEN"
+              
+              echo "📦 Enabling KV v2 secrets engine..."
+              vault secrets enable -path=secret kv-v2
+              
+              echo "✅ Vault KV v2 secrets engine enabled!"
+              echo "💡 Use 'task nas:vault-secrets' to populate secrets"
+              
               # Generate GPG key (no passphrase)
               printf '%%echo Generating homelab vault key\nKey-Type: RSA\nKey-Length: 2048\nSubkey-Type: RSA\nSubkey-Length: 2048\nName-Real: Homelab Vault Admin\nName-Email: admin@daddyshome.fr\nExpire-Date: 2y\n%%no-protection\n%%commit\n%%echo GPG key generation complete\n' > /tmp/gpg-batch
               
