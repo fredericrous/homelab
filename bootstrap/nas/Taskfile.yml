@@ -82,7 +82,7 @@ tasks:
           echo "⚠️  Layers kustomization not ready, checking status..."
           kubectl get kustomization nas-layers -n flux-system 2>/dev/null || echo "nas-layers not found yet"
         }
-        
+
         # Now wait for platform-foundation to be ready
         echo "⏳ Waiting for platform foundation layer to be ready..."
         kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/nas-platform-foundation 2>/dev/null || {
@@ -432,23 +432,23 @@ tasks:
         # Check if CronJob exists
         if kubectl get cronjob vault-auto-unseal -n vault &>/dev/null; then
           echo "   ✅ Auto-unseal CronJob is deployed"
-          
+
           # Get CronJob details
           SCHEDULE=$(kubectl get cronjob vault-auto-unseal -n vault -o jsonpath='{.spec.schedule}')
           LAST_SCHEDULE=$(kubectl get cronjob vault-auto-unseal -n vault -o jsonpath='{.status.lastScheduleTime}')
           ACTIVE=$(kubectl get cronjob vault-auto-unseal -n vault -o jsonpath='{.status.active}')
-          
+
           echo "   📋 Schedule: $SCHEDULE"
           echo "   📋 Last run: $LAST_SCHEDULE"
           echo "   📋 Active jobs: ${ACTIVE:-0}"
-          
+
           # Check recent job executions
           echo "   📊 Recent auto-unseal job results:"
           kubectl get jobs -n vault --sort-by=.metadata.creationTimestamp | grep vault-auto-unseal | tail -3 | while read job rest; do
             status=$(kubectl get job $job -n vault -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || echo "Unknown")
             echo "     $job: $status"
           done
-          
+
         else
           echo "   ❌ Auto-unseal CronJob not found. Should be deployed by FluxCD."
         fi
@@ -537,7 +537,7 @@ tasks:
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
-      - '{{.TASK_DIR}}/scripts/ensure-minio-secret.sh'
+      - '{{.TASK_DIR}}/ensure-minio-secret.sh'
     silent: true
 
   post-deploy:
@@ -553,7 +553,7 @@ tasks:
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
-      - '{{.TASK_DIR}}/scripts/create-aws-secret.sh'
+      - '{{.TASK_DIR}}/create-aws-secret.sh'
     silent: true
 
 
@@ -566,7 +566,7 @@ tasks:
       - sh: vault token lookup &>/dev/null
         msg: "Not authenticated to Vault. Run: vault login <root-token>"
     cmds:
-      - '{{.TASK_DIR}}/scripts/vault-secrets-setup.sh'
+      - '{{.TASK_DIR}}/vault-secrets-setup.sh'
 
   vault-unseal:
     desc: Unseal Vault using GPG-encrypted key
@@ -618,7 +618,7 @@ tasks:
       - sh: vault token lookup &>/dev/null
         msg: "Not authenticated to Vault. Run: vault login <root-token>"
     cmds:
-      - '{{.TASK_DIR}}/scripts/vault-transit-setup.sh'
+      - '{{.TASK_DIR}}/vault-transit-setup.sh'
 
 
   vault-pki:
@@ -630,8 +630,8 @@ tasks:
         msg: "Not authenticated to Vault. Run: vault login <root-token>"
     cmds:
       - echo "Setting up PKI for mTLS certificates..."
-      - chmod +x {{.TASK_DIR}}/scripts/generate-pki.sh
-      - '{{.TASK_DIR}}/scripts/generate-pki.sh'
+      - chmod +x {{.TASK_DIR}}/generate-pki.sh
+      - '{{.TASK_DIR}}/generate-pki.sh'
     status:
       - vault kv get secret/pki/ca &>/dev/null || false
 
@@ -654,7 +654,7 @@ tasks:
           fi
 
           # Source the functions from generate-pki.sh
-          source {{.TASK_DIR}}/scripts/generate-pki.sh
+          source {{.TASK_DIR}}/generate-pki.sh
 
           # Generate the certificate
           generate_client_cert "{{.USERNAME}}" "{{.EMAIL}}"
@@ -663,7 +663,7 @@ tasks:
           echo "📥 Download your certificate:"
           echo "  export VAULT_ADDR={{.VAULT_ADDR}}"
           echo "  vault login  # If not already logged in"
-          echo "  {{.TASK_DIR}}/scripts/download-cert.sh {{.USERNAME}}"
+          echo "  {{.TASK_DIR}}/download-cert.sh {{.USERNAME}}"
         shell: bash
 
   show-info:
@@ -713,7 +713,7 @@ tasks:
             echo "📥 Download client certificates:"
             echo "   export VAULT_ADDR={{.VAULT_ADDR}}"
             echo "   vault login"
-            echo "   {{.TASK_DIR}}/scripts/download-cert.sh admin"
+            echo "   {{.TASK_DIR}}/download-cert.sh admin"
             echo ""
             echo "🆕 Generate new certificates:"
             echo "   task nas:generate-client-cert -- <username> <email>"
