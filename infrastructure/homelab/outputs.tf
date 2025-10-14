@@ -25,8 +25,8 @@ output "vm_info" {
 output "talos_config_files" {
   description = "Generated configuration files"
   value = {
-    kubeconfig  = "${path.module}/../kubeconfig"
-    talosconfig = "${path.module}/../talosconfig"
+    kubeconfig  = "${path.module}/../../kubeconfig"
+    talosconfig = "${path.module}/../../talosconfig"
   }
 }
 

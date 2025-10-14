@@ -6,21 +6,25 @@ set -euo pipefail
 trap 'echo ""; echo "❌ bootstrap vault transit secret interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
+# Get the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # Use provided token or load from environment
 TRANSIT_TOKEN="${1:-${VAULT_TRANSIT_TOKEN:-}}"
 
 # If not provided and not in environment, try .env file
-if [ -z "$TRANSIT_TOKEN" ] && [ -f .env ]; then
-  source .env
+if [ -z "$TRANSIT_TOKEN" ] && [ -f "$PROJECT_ROOT/.env" ]; then
+  source "$PROJECT_ROOT/.env"
   TRANSIT_TOKEN="${VAULT_TRANSIT_TOKEN:-}"
 fi
 
 # If token is still not available, try to retrieve using simplified approach
 if [ -z "$TRANSIT_TOKEN" ]; then
   echo "Vault transit token not found in env/args. Checking External Secrets..."
-  if [ -f "./bootstrap/homelab/simplified-token-retrieval.sh" ]; then
+  if [ -f "$SCRIPT_DIR/simplified-token-retrieval.sh" ]; then
     # Get NAS token first, then use it to get transit token from NAS Vault
-    if QNAP_VAULT_TOKEN=$(./bootstrap/homelab/simplified-token-retrieval.sh 2>/dev/null); then
+    if QNAP_VAULT_TOKEN=$("$SCRIPT_DIR/simplified-token-retrieval.sh" 2>/dev/null); then
       echo "✅ Retrieved NAS token, fetching transit token..."
       # Fetch transit token from NAS Vault using the retrieved token
       TRANSIT_TOKEN=$(curl -s \
