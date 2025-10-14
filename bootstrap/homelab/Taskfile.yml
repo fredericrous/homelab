@@ -2,7 +2,7 @@ version: '3'
 
 vars:
   ROOT_DIR: '../..'
-  TERRAFORM_DIR: '../../infrastructure/homelab'
+  TERRAFORM_DIR: '{{.ROOT_DIR}}/infrastructure/homelab'
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
   TALOSCONFIG: '{{.ROOT_DIR}}/talosconfig'
 
@@ -22,7 +22,7 @@ tasks:
           exit 1
         fi
       - |
-        if [ ! -f "../../.env" ]; then
+        if [ ! -f "{{.ROOT_DIR}}/.env" ]; then
           echo "ERROR: .env file not found. Copy .env.example and update with your values"
           exit 1
         fi
@@ -99,7 +99,7 @@ tasks:
       - |
         # Extract IPs from terraform output
         VM_IPS=($(terraform output -json | jq -r '.talos_client_configuration.value.nodes[]'))
-        ../../bootstrap/homelab/wait-vms-ready.sh "${VM_IPS[@]}"
+        {{.ROOT_DIR}}/bootstrap/homelab/wait-vms-ready.sh "${VM_IPS[@]}"
       - terraform apply -var="configure_talos=true" -auto-approve
 
   kubeconfig:
@@ -252,9 +252,9 @@ tasks:
     cmds:
       - |
         # Extract control plane IP from terraform output and pass to script
-        cd ../../infrastructure/homelab
+        cd {{.ROOT_DIR}}/infrastructure/homelab
         export CONTROL_PLANE_IP=$(terraform output -json | jq -r '.talos_client_configuration.value.endpoints[0]')
-        cd ../../bootstrap/homelab
+        cd {{.ROOT_DIR}}/bootstrap/homelab
         ./install-cilium.sh
 
   install-fluxcd:
@@ -285,8 +285,8 @@ tasks:
         echo "🚀 Installing FluxCD..."
 
         # Check for GitHub token in environment or .env file
-        if [ -z "${FLUXCD_GITHUB_TOKEN:-}" ] && [ -f ../../.env ]; then
-          source ../../.env
+        if [ -z "${FLUXCD_GITHUB_TOKEN:-}" ] && [ -f {{.ROOT_DIR}}/.env ]; then
+          source {{.ROOT_DIR}}/.env
         fi
 
         # Validate required environment variables
@@ -506,10 +506,10 @@ tasks:
     deps: [check-prereq]
     prompt: This will destroy the entire cluster and VMs. Are you sure?
     cmds:
-      - echo "🗑️  Destroying VMs..."
+      - echo "🗑 Destroying VMs..."
       - terraform destroy -auto-approve
       - echo "🧹 Cleaning up configs..."
-      - rm -f {{.KUBECONFIG}} {{.TALOSCONFIG}}
+      - rm -f ../../kubeconfig ../../talosconfig
       - ../../bootstrap/homelab/cleanup-vms.sh
       - |
         echo
