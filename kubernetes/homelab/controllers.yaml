@@ -8,7 +8,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./clusters/homelab/controllers
+  path: ./kubernetes/homelab/controllers
   prune: true
   wait: true
   # No dependencies - controllers must be deployed first

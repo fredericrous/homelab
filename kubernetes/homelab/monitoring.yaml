@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 30m
-  path: ./clusters/homelab/monitoring
+  path: ./kubernetes/homelab/monitoring
   prune: true
   sourceRef:
     kind: GitRepository

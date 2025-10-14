@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 10m
   timeout: 15m
-  path: "./clusters/homelab/data-cache/configs/redis"
+  path: "./kubernetes/homelab/data-cache/configs/redis"
   prune: true
   sourceRef:
     kind: GitRepository

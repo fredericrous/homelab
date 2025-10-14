@@ -8,7 +8,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./clusters/homelab/ml-serving
+  path: ./kubernetes/homelab/ml-serving
   prune: true
   wait: true
   dependsOn:

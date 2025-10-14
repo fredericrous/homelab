@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 10m
   timeout: 15m
-  path: "./clusters/homelab/data-storage/configs/postgres-cluster"
+  path: "./kubernetes/homelab/data-storage/configs/postgres-cluster"
   prune: true
   sourceRef:
     kind: GitRepository

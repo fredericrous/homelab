@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 10m
   timeout: 10m
-  path: ./clusters/homelab/apps/nextcloud
+  path: ./kubernetes/homelab/apps/nextcloud
   prune: true
   sourceRef:
     kind: GitRepository

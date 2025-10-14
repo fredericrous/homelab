@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 10m
   timeout: 5m
-  path: ./clusters/homelab/apps/stremio
+  path: ./kubernetes/homelab/apps/stremio
   prune: true
   sourceRef:
     kind: GitRepository
