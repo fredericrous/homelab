@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./clusters/homelab/apps/authelia
+  path: ./kubernetes/homelab/apps/authelia
   prune: true
   sourceRef:
     kind: GitRepository

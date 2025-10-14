@@ -20,7 +20,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./clusters/homelab/flux-system
+  path: ./kubernetes/homelab/flux-system
   prune: true
   sourceRef:
     kind: GitRepository

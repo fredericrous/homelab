@@ -9,7 +9,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./clusters/homelab/apps/stalwart
+  path: ./kubernetes/homelab/apps/stalwart
   prune: true
   wait: true
   dependsOn:

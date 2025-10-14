@@ -20,7 +20,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./clusters/nas/flux-system
+  path: ./kubernetes/nas/flux-system
   prune: true
   sourceRef:
     kind: GitRepository

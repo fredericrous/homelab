@@ -8,7 +8,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./clusters/homelab/apps
+  path: ./kubernetes/homelab/apps
   prune: true
   wait: false
   dependsOn:

@@ -15,7 +15,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./clusters/homelab/apps/openwebui
+  path: ./kubernetes/homelab/apps/openwebui
   prune: true
   wait: true
   dependsOn:

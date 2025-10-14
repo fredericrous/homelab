@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  path: ./clusters/homelab/apps/lldap
+  path: ./kubernetes/homelab/apps/lldap
   prune: true
   sourceRef:
     kind: GitRepository

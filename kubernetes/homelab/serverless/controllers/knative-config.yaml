@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 10m
   timeout: 15m
-  path: "./clusters/homelab/serverless/configs/knative"
+  path: "./kubernetes/homelab/serverless/configs/knative"
   prune: true
   sourceRef:
     kind: GitRepository

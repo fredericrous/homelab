@@ -8,7 +8,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./clusters/homelab/data-storage
+  path: ./kubernetes/homelab/data-storage
   prune: true
   wait: true
   # Temporarily removing dependency to break circular dependency

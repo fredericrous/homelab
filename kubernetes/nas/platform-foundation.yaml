@@ -1,5 +1,5 @@
 ---
-# NAS Platform Foundation Layer  
+# NAS Platform Foundation Layer
 # Core platform services that enable applications
 apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
 kind: Kustomization
@@ -8,7 +8,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./clusters/nas/platform-foundation
+  path: ./kubernetes/nas/platform-foundation
   prune: true
   sourceRef:
     kind: GitRepository

@@ -5,9 +5,9 @@
 ### 2024-12-21 - Initial Setup
 - ✅ Created flux-migration branch
 - ✅ Set up directory structure:
-  - clusters/homelab/flux-system/
-  - clusters/homelab/infrastructure/{sources,configs,controllers}/
-  - clusters/homelab/apps/{base,overlays}/
+  - kubernetes/homelab/flux-system/
+  - kubernetes/homelab/infrastructure/{sources,configs,controllers}/
+  - kubernetes/homelab/apps/{base,overlays}/
 - ✅ Created cluster-config.yaml ConfigMap with all environment values from .env
 - ✅ Ran AVP placeholder scan - found 14 placeholders (13 secrets, 1 config)
 - ✅ Validated Flux prerequisites with `flux check --pre` - all passed
