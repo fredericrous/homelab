@@ -178,9 +178,12 @@ tasks:
     cmds:
       - task: status
       - task: wait-for-vault-ready
-      - task: vault-bootstrap
+      - echo "🚀 Deploying Vault bootstrap job via GitOps..."
+      - kubectl apply -k {{.MANIFESTS_DIR}}/apps/vault-bootstrap
+      - echo "⏳ Waiting for Vault bootstrap job to complete..."
+      - kubectl wait --for=condition=complete job/vault-bootstrap -n vault --timeout=600s
       - echo "✅ Vault initialized and ready!"
-      - task: trigger-auto-unseal
+      - task: verify-vault-unseal
       - echo "🎉 NAS cluster installation complete and verified!"
 
 
@@ -410,8 +413,8 @@ tasks:
       - kubectl -n vault wait --for=condition=PodScheduled pod -l app.kubernetes.io/name=vault --timeout=300s
       - echo "✅ Vault infrastructure is deployed and ready for initialization"
 
-  trigger-auto-unseal:
-    desc: Trigger auto-unseal job (managed by FluxCD)
+  verify-vault-unseal:
+    desc: Check Vault auto-unseal CronJob status and verify Vault is unsealed
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     preconditions:
@@ -419,19 +422,43 @@ tasks:
         msg: "Encrypted unseal key not found. Vault bootstrap may have failed."
     cmds:
       - |
-        echo "🔐 Triggering Vault auto-unseal..."
+        echo "🔍 Checking Vault auto-unseal system status..."
 
-        # Check if auto-unseal job exists and create manual trigger if needed
-        if kubectl get job -n vault vault-auto-unseal &>/dev/null; then
-          echo "   Auto-unseal job already exists, checking status..."
-          if kubectl get job -n vault vault-auto-unseal -o jsonpath='{.status.conditions[0].type}' | grep -q "Complete"; then
-            echo "   ✅ Auto-unseal already completed"
+        # Check if CronJob exists
+        if kubectl get cronjob vault-auto-unseal -n vault &>/dev/null; then
+          echo "   ✅ Auto-unseal CronJob is deployed"
+          
+          # Get CronJob details
+          SCHEDULE=$(kubectl get cronjob vault-auto-unseal -n vault -o jsonpath='{.spec.schedule}')
+          LAST_SCHEDULE=$(kubectl get cronjob vault-auto-unseal -n vault -o jsonpath='{.status.lastScheduleTime}')
+          ACTIVE=$(kubectl get cronjob vault-auto-unseal -n vault -o jsonpath='{.status.active}')
+          
+          echo "   📋 Schedule: $SCHEDULE"
+          echo "   📋 Last run: $LAST_SCHEDULE"
+          echo "   📋 Active jobs: ${ACTIVE:-0}"
+          
+          # Check recent job executions
+          echo "   📊 Recent auto-unseal job results:"
+          kubectl get jobs -n vault --sort-by=.metadata.creationTimestamp | grep vault-auto-unseal | tail -3 | while read job rest; do
+            status=$(kubectl get job $job -n vault -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || echo "Unknown")
+            echo "     $job: $status"
+          done
+          
+        else
+          echo "   ❌ Auto-unseal CronJob not found. Should be deployed by FluxCD."
+        fi
+
+        # Check actual Vault seal status
+        echo "   🔍 Checking Vault seal status..."
+        if kubectl exec -n vault vault-vault-nas-0 -- vault status &>/dev/null; then
+          SEALED=$(kubectl exec -n vault vault-vault-nas-0 -- vault status -format=json | jq -r '.sealed')
+          if [ "$SEALED" = "false" ]; then
+            echo "   ✅ Vault is unsealed and operational"
           else
-            echo "   ⏳ Auto-unseal job is running..."
+            echo "   ⚠️  Vault is sealed - auto-unseal should handle this"
           fi
         else
-          echo "   ❌ Auto-unseal job not found. FluxCD should have deployed it."
-          echo "   Manual trigger: kubectl -n vault create job vault-manual-unseal-$(date +%s) --from=job/vault-auto-unseal"
+          echo "   ❌ Cannot check Vault status - may not be ready"
         fi
 
   wait-for-infrastructure:
