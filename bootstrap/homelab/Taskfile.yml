@@ -266,7 +266,7 @@ tasks:
       - sh: kubectl get nodes
         msg: "Cluster must be accessible before installing FluxCD"
     vars:
-      FLUX_PATH: '{{.flux_path | default "kubernetes/homelab"}}'
+      FLUX_PATH: '{{.flux_path | default "kubernetes/homelab/flux-system"}}'
     cmds:
       - |
         # Check if FluxCD is properly installed and working
@@ -357,12 +357,6 @@ tasks:
         echo "✅ FluxCD bootstrap completed, verifying installation..."
         kubectl get pods -n flux-system || {
           echo "❌ FluxCD pods not found after bootstrap"
-          exit 1
-        }
-
-        echo "🔧 Applying cluster kustomization to deploy applications..."
-        kubectl apply -f ../../kubernetes/homelab/flux-system/cluster-kustomization.yaml || {
-          echo "❌ Failed to apply cluster kustomization"
           exit 1
         }
 
