@@ -15,11 +15,36 @@ if [ -z "$TRANSIT_TOKEN" ] && [ -f .env ]; then
   TRANSIT_TOKEN="${VAULT_TRANSIT_TOKEN:-}"
 fi
 
+# If token is still not available, try to retrieve using simplified approach
+if [ -z "$TRANSIT_TOKEN" ]; then
+  echo "Vault transit token not found in env/args. Checking External Secrets..."
+  if [ -f "./bootstrap/homelab/simplified-token-retrieval.sh" ]; then
+    # Get NAS token first, then use it to get transit token from NAS Vault
+    if QNAP_VAULT_TOKEN=$(./bootstrap/homelab/simplified-token-retrieval.sh 2>/dev/null); then
+      echo "✅ Retrieved NAS token, fetching transit token..."
+      # Fetch transit token from NAS Vault using the retrieved token
+      TRANSIT_TOKEN=$(curl -s \
+        -H "X-Vault-Token: $QNAP_VAULT_TOKEN" \
+        "http://192.168.1.42:61200/v1/secret/data/k8s-transit" | \
+        jq -r '.data.data.token' 2>/dev/null || echo "")
+      
+      if [ -n "$TRANSIT_TOKEN" ] && [ "$TRANSIT_TOKEN" != "null" ]; then
+        echo "✅ Successfully retrieved transit token from NAS Vault"
+      else
+        echo "❌ Could not retrieve transit token from NAS Vault"
+        TRANSIT_TOKEN=""
+      fi
+    fi
+  fi
+fi
+
 # If token is still not available, prompt for it
 if [ -z "$TRANSIT_TOKEN" ]; then
-  echo "Vault transit token not found in arguments, environment, or .env file."
+  echo "Auto-retrieval failed. Vault transit token not found in arguments, environment, or .env file."
   echo ""
-  echo "Please enter your Vault transit token:"
+  echo "Options:"
+  echo "1. Run 'task nas:vault-transit' to generate the token"
+  echo "2. Or manually enter your Vault transit token:"
   read -s TRANSIT_TOKEN
   echo ""
 

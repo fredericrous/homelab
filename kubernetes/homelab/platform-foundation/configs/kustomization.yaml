@@ -13,3 +13,4 @@ resources:
   - rook-ceph-cluster/
   - vault-transit/
   - vault/
+  - nas-integration/

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nas-integration
+  labels:
+    name: nas-integration
+    homelab.io/component: platform-foundation

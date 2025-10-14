@@ -1,0 +1,272 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nas-integration-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app: grafana
+data:
+  nas-integration.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "NAS Integration Monitoring",
+        "description": "Comprehensive monitoring for NAS integration using External Secrets, Istio Circuit Breaker, and Token Broker",
+        "tags": ["nas", "external-secrets", "istio", "circuit-breaker"],
+        "timezone": "browser",
+        "refresh": "30s",
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "panels": [
+          {
+            "id": 1,
+            "title": "NAS Integration Health Overview",
+            "type": "stat",
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+            "targets": [
+              {
+                "expr": "up{job=\"external-secrets-webhook\"}",
+                "legendFormat": "External Secrets Operator",
+                "refId": "A"
+              },
+              {
+                "expr": "kube_secret_info{namespace=\"nas-integration\",secret=\"nas-vault-token\"}",
+                "legendFormat": "NAS Token Secret Exists",
+                "refId": "B"
+              },
+              {
+                "expr": "1 - bool(envoy_cluster_outlier_detection_ejections_active{cluster_name=\"outbound|61200||192.168.1.42\"} > 0)",
+                "legendFormat": "Circuit Breaker Closed",
+                "refId": "C"
+              },
+              {
+                "expr": "kube_job_status_succeeded{job_name=~\"nas-token-broker-.*\",namespace=\"nas-integration\"} > 0",
+                "legendFormat": "Token Broker Success",
+                "refId": "D"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [
+                  {"options": {"0": {"text": "DOWN"}}, "type": "value"},
+                  {"options": {"1": {"text": "UP"}}, "type": "value"}
+                ],
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "steps": [
+                    {"color": "red", "value": 0},
+                    {"color": "green", "value": 1}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"]
+              }
+            }
+          },
+          {
+            "id": 2,
+            "title": "External Secrets Sync Status",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "targets": [
+              {
+                "expr": "externalsecret_sync_calls_total{name=\"nas-vault-token\",namespace=\"nas-integration\"}",
+                "legendFormat": "Total Sync Calls",
+                "refId": "A"
+              },
+              {
+                "expr": "externalsecret_sync_calls_error{name=\"nas-vault-token\",namespace=\"nas-integration\"}",
+                "legendFormat": "Sync Errors",
+                "refId": "B"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Count",
+                "min": 0
+              }
+            ],
+            "legend": {
+              "show": true
+            }
+          },
+          {
+            "id": 3,
+            "title": "Token Broker Job Status",
+            "type": "graph", 
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+            "targets": [
+              {
+                "expr": "kube_job_status_succeeded{job_name=~\"nas-token-broker-.*\",namespace=\"nas-integration\"}",
+                "legendFormat": "Successful Jobs",
+                "refId": "A"
+              },
+              {
+                "expr": "kube_job_status_failed{job_name=~\"nas-token-broker-.*\",namespace=\"nas-integration\"}",
+                "legendFormat": "Failed Jobs", 
+                "refId": "B"
+              },
+              {
+                "expr": "kube_job_status_active{job_name=~\"nas-token-broker-.*\",namespace=\"nas-integration\"}",
+                "legendFormat": "Active Jobs",
+                "refId": "C"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Jobs",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Istio Circuit Breaker Status",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+            "targets": [
+              {
+                "expr": "envoy_cluster_outlier_detection_ejections_active{cluster_name=\"outbound|61200||192.168.1.42\"}",
+                "legendFormat": "Circuit Breaker Open (1=Open, 0=Closed)",
+                "refId": "A"
+              },
+              {
+                "expr": "rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|61200||192.168.1.42\"}[5m])",
+                "legendFormat": "Request Rate (req/sec)",
+                "refId": "B"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Status / Rate",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "NAS Request Success Rate",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+            "targets": [
+              {
+                "expr": "rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|61200||192.168.1.42\",envoy_response_code_class=\"2\"}[5m]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|61200||192.168.1.42\"}[5m]) * 100",
+                "legendFormat": "Success Rate %",
+                "refId": "A"
+              },
+              {
+                "expr": "rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|61200||192.168.1.42\",envoy_response_code_class=\"5\"}[5m]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|61200||192.168.1.42\"}[5m]) * 100",
+                "legendFormat": "Error Rate %",
+                "refId": "B"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Percentage",
+                "min": 0,
+                "max": 100
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "Token Age and Freshness",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+            "targets": [
+              {
+                "expr": "(time() - on(namespace,secret) kube_secret_annotations{namespace=\"nas-integration\",secret=\"nas-vault-token\",annotation=\"homelab.io/last-refresh\"}) / 60",
+                "legendFormat": "Token Age (minutes)",
+                "refId": "A"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Minutes",
+                "min": 0
+              }
+            ],
+            "thresholds": [
+              {
+                "value": 30,
+                "colorMode": "critical",
+                "op": "gt"
+              },
+              {
+                "value": 15,
+                "colorMode": "warning", 
+                "op": "gt"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "title": "Recent Events",
+            "type": "logs",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+            "targets": [
+              {
+                "expr": "{namespace=\"nas-integration\"}",
+                "refId": "A"
+              }
+            ],
+            "options": {
+              "showTime": true,
+              "showLabels": true,
+              "wrapLogMessage": true
+            }
+          },
+          {
+            "id": 8,
+            "title": "NAS Integration SLA",
+            "type": "singlestat",
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 32},
+            "targets": [
+              {
+                "expr": "(1 - (rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|61200||192.168.1.42\",envoy_response_code_class=\"5\"}[24h]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|61200||192.168.1.42\"}[24h]))) * 100",
+                "refId": "A"
+              }
+            ],
+            "valueName": "current",
+            "format": "percent",
+            "thresholds": "95,99",
+            "colors": ["red", "yellow", "green"]
+          },
+          {
+            "id": 9,
+            "title": "Mean Time Between Failures",
+            "type": "singlestat",
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 32},
+            "targets": [
+              {
+                "expr": "24 * 60 / (rate(kube_job_status_failed{job_name=~\"nas-token-broker-.*\",namespace=\"nas-integration\"}[24h]) * 60 * 60 * 24)",
+                "refId": "A"
+              }
+            ],
+            "valueName": "current",
+            "format": "h",
+            "thresholds": "1,24"
+          }
+        ],
+        "annotations": {
+          "list": [
+            {
+              "name": "NAS Events",
+              "datasource": "Prometheus",
+              "expr": "ALERTS{alertname=~\"NAS.*\"}",
+              "titleFormat": "{{alertname}}",
+              "textFormat": "{{instance}}: {{summary}}"
+            }
+          ]
+        }
+      }
+    }
