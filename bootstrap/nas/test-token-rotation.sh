@@ -68,7 +68,7 @@ echo "1. View rotation logs: kubectl logs -n vault -l job-name=vault-token-rotat
 echo "2. Trigger manual rotation:"
 echo "   kubectl apply -f kubernetes/nas/apps/token-rotation/manual-rotation-job.yaml"
 echo "3. Check current root token age:"
-echo "   ./bootstrap/homelab/auto-retrieve-qnap-token.sh && echo 'Token retrieved successfully'"
+echo "   ./bootstrap/homelab/simplified-token-retrieval.sh && echo 'Token retrieved successfully'"
 
 # Ask user if they want to trigger manual rotation
 read -p "🤔 Do you want to trigger a manual token rotation now? (y/N): " -r
@@ -87,7 +87,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "✅ Manual token rotation completed!"
     echo "🧪 Testing token retrieval with new token..."
     
-    if ./bootstrap/homelab/auto-retrieve-qnap-token.sh >/dev/null 2>&1; then
+    if ./bootstrap/homelab/simplified-token-retrieval.sh >/dev/null 2>&1; then
         echo "✅ New token retrieval successful!"
     else
         echo "❌ New token retrieval failed - check rotation logs"
