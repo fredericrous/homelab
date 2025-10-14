@@ -410,7 +410,7 @@ tasks:
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     preconditions:
-      - sh: test -f '{{.TASK_DIR}}/unseal/unseal-keys.txt.gpg'
+      - sh: docker exec qnap-k3s test -f /share/VMs/kubernetes/vault/unseal-keys.txt.gpg
         msg: "Encrypted unseal key not found. Vault bootstrap may have failed."
     cmds:
       - |
@@ -580,7 +580,7 @@ tasks:
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     preconditions:
-      - sh: test -f '{{.TASK_DIR}}/unseal/unseal-keys.txt.gpg'
+      - sh: docker exec qnap-k3s test -f /share/VMs/kubernetes/vault/unseal-keys.txt.gpg
         msg: "Encrypted unseal key not found. Run 'task nas:vault-bootstrap' first"
     cmds:
       - |
@@ -607,7 +607,7 @@ tasks:
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     preconditions:
-      - sh: test -f '{{.TASK_DIR}}/unseal/unseal-keys.txt.gpg'
+      - sh: docker exec qnap-k3s test -f /share/VMs/kubernetes/vault/unseal-keys.txt.gpg
         msg: "Encrypted unseal key not found. Run 'task nas:vault-bootstrap' first"
     cmds:
       - echo "📦 Deploying Vault auto-unseal job..."
