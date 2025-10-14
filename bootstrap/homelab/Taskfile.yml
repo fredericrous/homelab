@@ -9,10 +9,6 @@ vars:
 env:
   KUBECONFIG: '{{.KUBECONFIG}}'
   SHELL: /bin/bash
-  FLUXCD_GITHUB_TOKEN: '{{.FLUXCD_GITHUB_TOKEN}}'
-  FLUXCD_OWNER: '{{.FLUXCD_OWNER}}'
-  FLUXCD_REPOSITORY: '{{.FLUXCD_REPOSITORY}}'
-  VAULT_TRANSIT_TOKEN: '{{.VAULT_TRANSIT_TOKEN}}'
 
 tasks:
   # Helper task to check prerequisites
@@ -273,11 +269,24 @@ tasks:
       FLUX_PATH: '{{.flux_path | default "kubernetes/homelab"}}'
     cmds:
       - |
-        # Skip if FluxCD is already installed
-        if kubectl get ns flux-system >/dev/null 2>&1; then
-          echo "✅ FluxCD is already installed"
+        # Check if FluxCD is properly installed and working
+        if kubectl get ns flux-system >/dev/null 2>&1 && \
+           kubectl get deployment source-controller -n flux-system >/dev/null 2>&1 && \
+           kubectl get deployment kustomize-controller -n flux-system >/dev/null 2>&1 && \
+           kubectl get gitrepository flux-system -n flux-system >/dev/null 2>&1; then
+          echo "✅ FluxCD is already installed and working"
           echo "Run 'task homelab:verify' to check infrastructure status"
           exit 0
+        elif kubectl get ns flux-system >/dev/null 2>&1; then
+          echo "⚠️ flux-system namespace exists but FluxCD is not properly installed"
+          echo "🔧 Cleaning up incomplete installation..."
+          kubectl delete namespace flux-system --ignore-not-found=true
+          echo "⏳ Waiting for namespace deletion..."
+          while kubectl get ns flux-system >/dev/null 2>&1; do
+            echo "  Waiting for flux-system namespace to be deleted..."
+            sleep 2
+          done
+          echo "✅ Cleanup complete, proceeding with fresh installation"
         fi
 
         # Install flux CLI if needed
@@ -287,6 +296,13 @@ tasks:
         fi
 
         echo "🚀 Installing FluxCD..."
+
+        # Debug: Show environment variables
+        echo "🔍 Debug: Environment variables:"
+        echo "  FLUXCD_OWNER: ${FLUXCD_OWNER:-<not set>}"
+        echo "  FLUXCD_REPOSITORY: ${FLUXCD_REPOSITORY:-<not set>}"
+        echo "  FLUXCD_GITHUB_TOKEN: ${FLUXCD_GITHUB_TOKEN:+<set>}${FLUXCD_GITHUB_TOKEN:-<not set>}"
+        echo ""
 
         # GitHub token should be available from environment
 
