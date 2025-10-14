@@ -22,7 +22,7 @@ spec:
               chmod 755 /share/VMs/kubernetes/vault/ || echo "Chmod failed, continuing..."
               
               # Install vault CLI and GPG
-              apk add --no-cache gnupg jq curl unzip
+              apk add --no-cache gnupg jq curl unzip wget
               
               # Install vault CLI
               curl -sL https://releases.hashicorp.com/vault/1.17.2/vault_1.17.2_linux_amd64.zip -o /tmp/vault.zip
@@ -36,12 +36,13 @@ spec:
               GPG_RECIPIENT="admin@daddyshome.fr"
               export VAULT_ADDR="http://vault-vault-nas.vault.svc.cluster.local:8200"
               
-              # Wait for Vault to be ready
-              echo "⏳ Waiting for Vault to be ready..."
-              until vault status >/dev/null 2>&1; do
-                echo "Waiting for Vault..."
+              # Wait for Vault API to be available
+              echo "⏳ Waiting for Vault API to be available..."
+              until wget -qO- ${VAULT_ADDR}/v1/sys/seal-status >/dev/null 2>&1; do
+                echo "Waiting for Vault API..."
                 sleep 5
               done
+              echo "✅ Vault API is available"
               
               # Initialize Vault
               echo "🔐 Initializing Vault with single key..."
