@@ -34,7 +34,9 @@ get_vm_name() {
 }
 
 # Wait for all VMs to respond
-MAX_RETRIES=60
+# Configurable timeouts (can be overridden via environment variables)
+VM_WAIT_MINUTES=${VM_WAIT_MINUTES:-5}  # 5 minutes default wait time
+MAX_RETRIES=$((VM_WAIT_MINUTES * 12))  # 12 attempts per minute (5s intervals)
 RETRY_COUNT=0
 
 echo "Monitoring ${#VM_IPS[@]} VMs: ${VM_IPS[*]}"

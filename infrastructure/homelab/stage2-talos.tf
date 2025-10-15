@@ -73,27 +73,66 @@ resource "null_resource" "bootstrap_cluster" {
       echo "🔍 Checking if cluster needs bootstrap..."
 
       # Use the talosconfig from root directory
-      TALOSCONFIG="${path.module}/../talosconfig"
+      TALOSCONFIG="${path.module}/../../talosconfig"
 
       # First check if kubectl works - that's the best indicator
-      if kubectl --kubeconfig="${path.module}/../kubeconfig" get nodes >/dev/null 2>&1; then
+      if kubectl --kubeconfig="${path.module}/../../kubeconfig" get nodes >/dev/null 2>&1; then
         echo "✅ Cluster is already bootstrapped (kubectl works)"
         exit 0
       fi
 
+      # Brief API readiness check before bootstrap
+      echo "🔍 Verifying Talos API connectivity..."
+      
+      for i in $(seq 1 12); do  # 2 minutes max (12 * 10s)
+        if talosctl --talosconfig="$TALOSCONFIG" -n ${local.all_nodes.controlplane.ip} version >/dev/null 2>&1; then
+          echo "✅ Talos API ready"
+          break
+        fi
+        
+        if [ $i -eq 12 ]; then
+          echo "❌ Talos API not responding after 2 minutes"
+          echo "🔧 Debug info:"
+          talosctl --talosconfig="$TALOSCONFIG" -n ${local.all_nodes.controlplane.ip} version 2>&1 || true
+          exit 1
+        fi
+        
+        [ $i -eq 1 ] && echo "⏳ Waiting for API..." || echo -n "."
+        sleep 10
+      done
+
       # Try to bootstrap, but handle "already exists" error gracefully
       echo "🚀 Attempting to bootstrap Talos cluster..."
-      if talosctl --talosconfig="$TALOSCONFIG" bootstrap -n ${local.all_nodes.controlplane.ip} 2>&1 | tee /tmp/bootstrap.log; then
+      
+      # Capture both exit code and output
+      bootstrap_exit_code=0
+      talosctl --talosconfig="$TALOSCONFIG" bootstrap -n ${local.all_nodes.controlplane.ip} 2>&1 | tee /tmp/bootstrap.log || bootstrap_exit_code=$?
+      
+      if [ $bootstrap_exit_code -eq 0 ]; then
         echo "✅ Bootstrap completed successfully"
       else
-        # Check if it failed because already bootstrapped
+        echo "⚠️  Bootstrap command exited with code: $bootstrap_exit_code"
+        echo "📋 Bootstrap output:"
+        cat /tmp/bootstrap.log
+        
+        # Check if it failed because already bootstrapped (expected errors)
         if grep -q "etcd data directory is not empty" /tmp/bootstrap.log || \
-           grep -q "AlreadyExists" /tmp/bootstrap.log; then
-          echo "✅ Cluster was already bootstrapped"
+           grep -q "AlreadyExists" /tmp/bootstrap.log || \
+           grep -q "already bootstrapped" /tmp/bootstrap.log; then
+          echo "✅ Cluster was already bootstrapped (expected error)"
           exit 0
+        # Check for certificate/TLS errors that indicate timing issues
+        elif grep -q "authentication handshake failed" /tmp/bootstrap.log || \
+             grep -q "certificate signed by unknown authority" /tmp/bootstrap.log || \
+             grep -q "connection error" /tmp/bootstrap.log; then
+          echo "⚠️  Bootstrap failed due to certificate/connectivity issues"
+          echo "🔍 This usually indicates a timing issue where Talos certificates aren't ready yet"
+          echo "💡 Try running 'terraform apply' again or manually run:"
+          echo "   talosctl --talosconfig=./talosconfig bootstrap -n ${local.all_nodes.controlplane.ip}"
+          exit 1
         else
-          echo "❌ Bootstrap failed"
-          cat /tmp/bootstrap.log
+          echo "❌ Bootstrap failed with unexpected error"
+          echo "🔍 Full error details above - please investigate"
           exit 1
         fi
       fi

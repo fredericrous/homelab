@@ -11,6 +11,5 @@ resources:
   - external-secrets.yaml
   - pvc.yaml
   - helm-release.yaml
-  - virtualservice.yaml
   - peerauthentication.yaml
   - httproute.yaml

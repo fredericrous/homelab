@@ -1,17 +1,17 @@
-# Check for cached schematic IDs first
+# Check for cached schematic IDs first (with version check)
 data "local_file" "schematic_base_cache" {
-  count    = fileexists("${path.module}/.schematic_base_id") ? 1 : 0
-  filename = "${path.module}/.schematic_base_id"
+  count    = fileexists("${path.module}/.schematic_base_id_${local.talos_version}") ? 1 : 0
+  filename = "${path.module}/.schematic_base_id_${local.talos_version}"
 }
 
 data "local_file" "schematic_gpu_cache" {
-  count    = fileexists("${path.module}/.schematic_gpu_id") ? 1 : 0
-  filename = "${path.module}/.schematic_gpu_id"
+  count    = fileexists("${path.module}/.schematic_gpu_id_${local.talos_version}") ? 1 : 0
+  filename = "${path.module}/.schematic_gpu_id_${local.talos_version}"
 }
 
-# Generate schematic IDs dynamically from YAML files only if not cached
+# Generate schematic IDs dynamically from YAML files only if not cached for this version
 data "external" "schematic_base" {
-  count   = fileexists("${path.module}/.schematic_base_id") ? 0 : 1
+  count   = fileexists("${path.module}/.schematic_base_id_${local.talos_version}") ? 0 : 1
   program = ["python3", "${path.module}/scripts/talos_factory_id.py"]
 
   query = {
@@ -20,7 +20,7 @@ data "external" "schematic_base" {
 }
 
 data "external" "schematic_gpu" {
-  count   = fileexists("${path.module}/.schematic_gpu_id") ? 0 : 1
+  count   = fileexists("${path.module}/.schematic_gpu_id_${local.talos_version}") ? 0 : 1
   program = ["python3", "${path.module}/scripts/talos_factory_id.py"]
 
   query = {
@@ -28,21 +28,44 @@ data "external" "schematic_gpu" {
   }
 }
 
-# Cache the schematic IDs for future runs
+# Cache the schematic IDs for future runs (with version in filename)
 resource "local_file" "schematic_base_cache" {
-  count    = fileexists("${path.module}/.schematic_base_id") ? 0 : 1
-  filename = "${path.module}/.schematic_base_id"
+  count    = fileexists("${path.module}/.schematic_base_id_${local.talos_version}") ? 0 : 1
+  filename = "${path.module}/.schematic_base_id_${local.talos_version}"
   content  = data.external.schematic_base[0].result.id
 }
 
 resource "local_file" "schematic_gpu_cache" {
-  count    = fileexists("${path.module}/.schematic_gpu_id") ? 0 : 1
-  filename = "${path.module}/.schematic_gpu_id"
+  count    = fileexists("${path.module}/.schematic_gpu_id_${local.talos_version}") ? 0 : 1
+  filename = "${path.module}/.schematic_gpu_id_${local.talos_version}"
   content  = data.external.schematic_gpu[0].result.id
 }
 
+# Clean up old cache files without version (one-time migration)
+resource "null_resource" "cleanup_old_cache" {
+  provisioner "local-exec" {
+    command = <<-EOT
+      # Remove old cache files that don't have version in filename
+      rm -f "${path.module}/.schematic_base_id"
+      rm -f "${path.module}/.schematic_gpu_id"
+    EOT
+  }
+
+  # Only run this once by creating a marker file
+  provisioner "local-exec" {
+    when    = destroy
+    command = "rm -f ${path.module}/.cache_cleanup_done"
+  }
+}
+
+resource "local_file" "cache_cleanup_marker" {
+  depends_on = [null_resource.cleanup_old_cache]
+  filename   = "${path.module}/.cache_cleanup_done"
+  content    = "Cache cleanup completed at ${timestamp()}"
+}
+
 locals {
-  talos_version = "v1.10.6"
+  talos_version = var.talos_version
 
   # Use cached IDs if available, otherwise use dynamically generated ones
   base_schematic_id = length(data.local_file.schematic_base_cache) > 0 ? trimspace(data.local_file.schematic_base_cache[0].content) : data.external.schematic_base[0].result.id

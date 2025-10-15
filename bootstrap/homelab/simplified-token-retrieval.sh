@@ -8,7 +8,8 @@ echo "🔄 Simplified Token Retrieval via External Secrets"
 # Configuration
 NAMESPACE="nas-integration"
 SECRET_NAME="nas-vault-token"
-MAX_WAIT_TIME=300  # 5 minutes
+# Configurable timeouts (can be overridden via environment variables)
+TOKEN_WAIT_MINUTES=${TOKEN_WAIT_MINUTES:-5}  # 5 minutes default wait time
 CHECK_INTERVAL=5   # 5 seconds
 
 # Check if kubectl is available
@@ -33,8 +34,9 @@ while true; do
     current_time=$(date +%s)
     elapsed=$((current_time - wait_start_time))
     
-    if [[ $elapsed -gt $MAX_WAIT_TIME ]]; then
-        echo "❌ Timeout waiting for token sync after ${MAX_WAIT_TIME}s"
+    max_wait_seconds=$((TOKEN_WAIT_MINUTES * 60))
+    if [[ $elapsed -gt $max_wait_seconds ]]; then
+        echo "❌ Timeout waiting for token sync after ${max_wait_seconds}s"
         
         # Show diagnostic information
         echo "🔍 Diagnostics:"
@@ -69,10 +71,10 @@ while true; do
             echo "$TOKEN"
             exit 0
         else
-            echo "⏳ Token format invalid, waiting for refresh... (${elapsed}s/${MAX_WAIT_TIME}s)"
+            echo "⏳ Token format invalid, waiting for refresh... (${elapsed}s/${max_wait_seconds}s)"
         fi
     else
-        echo "⏳ Waiting for token to be available... (${elapsed}s/${MAX_WAIT_TIME}s)"
+        echo "⏳ Waiting for token to be available... (${elapsed}s/${max_wait_seconds}s)"
     fi
     
     sleep $CHECK_INTERVAL

@@ -28,5 +28,4 @@ resources:
   - service-headless.yaml
   - destinationrule.yaml
   - peerauthentication.yaml
-  - virtualservice.yaml
   - httproute.yaml
