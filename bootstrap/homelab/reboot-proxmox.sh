@@ -71,7 +71,9 @@ echo
 echo "Waiting for host to go down..."
 
 # Wait for the host to actually shut down (can take 10-30 seconds)
-MAX_WAIT=30
+# Configurable timeout (can be overridden via environment variables)
+SHUTDOWN_WAIT_SECONDS=${SHUTDOWN_WAIT_SECONDS:-30}  # 30 seconds default
+MAX_WAIT=$SHUTDOWN_WAIT_SECONDS
 WAIT_COUNT=0
 
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do

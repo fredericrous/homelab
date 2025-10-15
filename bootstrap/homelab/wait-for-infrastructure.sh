@@ -5,22 +5,58 @@
 trap 'echo ""; echo "❌ Infrastructure verification interrupted by user"; exit 130' INT TERM
 trap 'echo "DEBUG: Script failed at line $LINENO"' ERR
 
+# Configurable timeouts (can be overridden via environment variables)
+KUSTOMIZATION_WAIT_MINUTES=${KUSTOMIZATION_WAIT_MINUTES:-1}    # 1 minute for kustomization discovery
+CONTROLLERS_WAIT_MINUTES=${CONTROLLERS_WAIT_MINUTES:-10}       # 10 minutes for controllers
+PLATFORM_WAIT_MINUTES=${PLATFORM_WAIT_MINUTES:-10}            # 10 minutes for platform foundation
+CEPH_WAIT_MINUTES=${CEPH_WAIT_MINUTES:-10}                     # 10 minutes for Ceph components
+SECURITY_WAIT_MINUTES=${SECURITY_WAIT_MINUTES:-10}             # 10 minutes for security components
+
 echo "⏳ Waiting for infrastructure components to be ready..."
+echo "🕒 Timeouts: Kustomization=${KUSTOMIZATION_WAIT_MINUTES}m, Controllers=${CONTROLLERS_WAIT_MINUTES}m, Platform=${PLATFORM_WAIT_MINUTES}m, Ceph=${CEPH_WAIT_MINUTES}m, Security=${SECURITY_WAIT_MINUTES}m"
 
 # Wait for Flux to create the kustomizations first
 echo "Waiting for kustomizations to be created..."
-for i in {1..30}; do
+kustomization_attempts=$((KUSTOMIZATION_WAIT_MINUTES * 30))  # 30 attempts per minute (2s intervals)
+platform_found=false
+for i in $(seq 1 $kustomization_attempts); do
   if kubectl get kustomization platform-foundation -n flux-system >/dev/null 2>&1; then
     echo "✓ platform-foundation kustomization found"
+    platform_found=true
     break
   fi
-  echo "Waiting for platform-foundation kustomization... ($i/30)"
+  echo "Waiting for platform-foundation kustomization... ($i/$kustomization_attempts)"
   sleep 2
 done
 
+# Check if platform-foundation was found
+if [ "$platform_found" = "false" ]; then
+  echo "❌ platform-foundation kustomization not created after ${KUSTOMIZATION_WAIT_MINUTES} minutes"
+  echo "🔍 FluxCD bootstrap may have failed. Checking FluxCD status:"
+  echo "FluxCD pods:"
+  kubectl get pods -n flux-system 2>/dev/null || echo "flux-system namespace not found"
+  echo "Available kustomizations:"
+  kubectl get kustomizations -n flux-system 2>/dev/null || echo "No kustomizations found"
+  echo "💡 Try: 'kubectl logs -n flux-system deployment/source-controller' for more details"
+  exit 1
+fi
+
 # Wait for controllers layer first (includes operators)
 echo "Waiting for controllers layer..."
-if ! kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/controllers 2>/dev/null; then
+
+# First check if controllers kustomization exists
+if ! kubectl get kustomization controllers -n flux-system >/dev/null 2>&1; then
+  echo "❌ Controllers kustomization not found"
+  echo "🔍 Available kustomizations:"
+  kubectl get kustomizations -n flux-system 2>/dev/null || echo "No kustomizations found"
+  echo "💡 FluxCD may not have fully bootstrapped yet. Check:"
+  echo "   kubectl logs -n flux-system deployment/kustomize-controller"
+  exit 1
+fi
+
+# Now wait for it to be ready
+controllers_timeout=$((CONTROLLERS_WAIT_MINUTES * 60))s
+if ! kubectl wait --for=condition=ready --timeout=${controllers_timeout} -n flux-system kustomization/controllers 2>/dev/null; then
   echo "⚠️  Controllers layer not ready yet, checking status..."
   kubectl get kustomization controllers -n flux-system 2>/dev/null || echo "Controllers kustomization not found"
   echo "⚠️  Cannot proceed without controllers - operators must be deployed first"
@@ -29,7 +65,8 @@ fi
 
 # Wait for platform foundation (includes actual Ceph cluster, Vault, ESO, Istio)
 echo "Waiting for platform foundation components..."
-kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/platform-foundation 2>/dev/null || {
+platform_timeout=$((PLATFORM_WAIT_MINUTES * 60))s
+kubectl wait --for=condition=ready --timeout=${platform_timeout} -n flux-system kustomization/platform-foundation 2>/dev/null || {
   echo "⚠️  Platform foundation not ready yet, checking status..."
   kubectl get kustomization platform-foundation -n flux-system 2>/dev/null || echo "Platform-foundation kustomization not found"
 }
@@ -44,7 +81,8 @@ else
   echo "StorageClasses not found, waiting for Rook-Ceph deployment..."
 fi
 echo "Waiting for Rook operator to be ready..."
-kubectl wait --for=condition=available --timeout=300s deployment/rook-ceph-operator -n rook-ceph 2>/dev/null || {
+ceph_timeout=$((CEPH_WAIT_MINUTES * 60))s
+kubectl wait --for=condition=available --timeout=${ceph_timeout} deployment/rook-ceph-operator -n rook-ceph 2>/dev/null || {
   echo "⚠️  Rook operator not ready yet"
   kubectl get pods -n rook-ceph -l app=rook-ceph-operator 2>/dev/null || echo "Rook operator not found"
 }
@@ -164,7 +202,8 @@ spec:
 EOF
 
 # Wait for test PVC to be bound
-for i in {1..60}; do  # 5 minutes total
+storage_test_attempts=$((CEPH_WAIT_MINUTES * 12))  # 12 attempts per minute (5s intervals)
+for i in $(seq 1 $storage_test_attempts); do
   pvc_status=$(kubectl get pvc test-rook-health -n default -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
   if [ "$pvc_status" = "Bound" ]; then
     echo "✅ Ceph storage provisioning is working"
@@ -196,39 +235,41 @@ fi
 
 # Wait for security layer (includes cert-manager)
 echo "Waiting for security layer..."
-kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/security 2>/dev/null || {
+security_timeout=$((SECURITY_WAIT_MINUTES * 60))s
+kubectl wait --for=condition=ready --timeout=${security_timeout} -n flux-system kustomization/security 2>/dev/null || {
   echo "⚠️  Security layer not ready yet, checking status..."
   kubectl get kustomization security -n flux-system 2>/dev/null || echo "Security kustomization not found"
 }
 
 # Wait for data-storage layer (includes CloudNativePG)
 echo "Waiting for data-storage layer..."
-kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/data-storage 2>/dev/null || {
+kubectl wait --for=condition=ready --timeout=${platform_timeout} -n flux-system kustomization/data-storage 2>/dev/null || {
   echo "⚠️  Data-storage layer not ready yet, checking status..."
   kubectl get kustomization data-storage -n flux-system 2>/dev/null || echo "Data-storage kustomization not found"
 }
 
 # Wait for Vault HelmRelease
 echo "Waiting for Vault..."
-kubectl wait --for=condition=ready --timeout=600s -n flux-system helmrelease/vault 2>/dev/null || {
+kubectl wait --for=condition=ready --timeout=${platform_timeout} -n flux-system helmrelease/vault 2>/dev/null || {
   echo "⚠️  Vault not ready yet"
   kubectl get helmrelease vault -n flux-system 2>/dev/null || echo "Vault HelmRelease not found"
 }
 
 # Wait for Vault to be initialized
 echo "Waiting for Vault initialization..."
-for i in {1..60}; do
+vault_init_attempts=$((PLATFORM_WAIT_MINUTES * 6))  # 6 attempts per minute (10s intervals)
+for i in $(seq 1 $vault_init_attempts); do
   if kubectl get secret vault-admin-token -n vault >/dev/null 2>&1; then
     echo "✅ Vault is initialized"
     break
   fi
-  echo "Waiting for Vault initialization... ($i/60)"
+  echo "Waiting for Vault initialization... ($i/$vault_init_attempts)"
   sleep 10
 done
 
 # Wait for ESO
 echo "Waiting for External Secrets Operator..."
-kubectl wait --for=condition=ready --timeout=300s -n flux-system helmrelease/external-secrets 2>/dev/null || {
+kubectl wait --for=condition=ready --timeout=${platform_timeout} -n flux-system helmrelease/external-secrets 2>/dev/null || {
   echo "⚠️  ESO not ready yet"
   kubectl get helmrelease external-secrets -n flux-system 2>/dev/null || echo "ESO HelmRelease not found"
 }

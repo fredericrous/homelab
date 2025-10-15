@@ -7,7 +7,6 @@ resources:
   - service-account.yaml
   - rbac.yaml
   - gateway.yaml
-  - virtualservice.yaml
   - certificate.yaml
 
 # Configuration for mTLS component

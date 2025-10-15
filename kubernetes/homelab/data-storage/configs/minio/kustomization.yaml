@@ -8,7 +8,6 @@ resources:
   - vault-admin-token-reflector.yaml
   - minio-standalone.yaml
   - minio-service.yaml
-  - virtualservice.yaml
   - job-bucket-setup.yaml
   - minio-certificate.yaml
   - minio-istio-gateway.yaml

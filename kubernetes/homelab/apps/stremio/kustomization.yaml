@@ -21,7 +21,6 @@ resources:
   - stremio-ca-secret.yaml
   - build-rbac.yaml
   - buildkit-job.yaml
-  - virtualservice.yaml
   - httproute-web.yaml
   - httproute-server.yaml
 
