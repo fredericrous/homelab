@@ -19,25 +19,65 @@ tasks:
   # Homelab shortcuts (most common commands)
   up:
     desc: Create homelab cluster infrastructure (VMs + Talos + CNI)
+    dotenv: ['.env']
     cmds:
       - task homelab:up
 
   install:
     desc: Full homelab installation (cluster + GitOps + apps)
+    dotenv: ['.env']
     cmds:
-      - task homelab:install
+      - task: homelab:install
+        vars:
+          GITHUB_TOKEN: '{{.FLUXCD_GITHUB_TOKEN}}'
+          GITHUB_OWNER: '{{.FLUXCD_OWNER}}'
+          GITHUB_REPOSITORY: '{{.FLUXCD_REPOSITORY}}'
 
   bootstrap:
     desc: Create homelab cluster and bootstrap FluxCD
+    dotenv: ['.env']
     cmds:
-      - task homelab:bootstrap
+      - task: homelab:bootstrap
+        vars:
+          GITHUB_TOKEN: '{{.FLUXCD_GITHUB_TOKEN}}'
+          GITHUB_OWNER: '{{.FLUXCD_OWNER}}'
+          GITHUB_REPOSITORY: '{{.FLUXCD_REPOSITORY}}'
 
   verify:
     desc: Verify all homelab infrastructure components are ready
+    dotenv: ['.env']
     cmds:
       - task homelab:verify
 
   uninstall:
     desc: Uninstall homelab cluster (cluster + VMs + configs)
+    dotenv: ['.env']
     cmds:
       - task homelab:uninstall
+
+  reboot:
+    desc: Reboot homelab host (proxmox)
+    dotenv: ['.env']
+    cmds:
+      - task homelab:reboot
+
+  # NAS shortcuts (less common commands)
+  nas-install:
+    desc: Full NAS installation (cluster + GitOps + apps)
+    dotenv: ['.env']
+    cmds:
+      - task: nas:install
+        vars:
+          GITHUB_TOKEN: '{{.FLUXCD_GITHUB_TOKEN}}'
+          GITHUB_OWNER: '{{.FLUXCD_OWNER}}'
+          GITHUB_REPOSITORY: '{{.FLUXCD_REPOSITORY}}'
+
+  nas-bootstrap:
+    desc: Create NAS cluster and bootstrap FluxCD
+    dotenv: ['.env']
+    cmds:
+      - task: nas:bootstrap
+        vars:
+          GITHUB_TOKEN: '{{.FLUXCD_GITHUB_TOKEN}}'
+          GITHUB_OWNER: '{{.FLUXCD_OWNER}}'
+          GITHUB_REPOSITORY: '{{.FLUXCD_REPOSITORY}}'
