@@ -33,13 +33,25 @@ tasks:
   install:
     desc: Full NAS installation (cluster + GitOps + apps)
     deps: [check-prereq]
+    vars:
+      GITHUB_TOKEN: '{{.GITHUB_TOKEN}}'
+      GITHUB_OWNER: '{{.GITHUB_OWNER}}'
+      GITHUB_REPOSITORY: '{{.GITHUB_REPOSITORY}}'
     cmds:
       - task: bootstrap
+        vars:
+          GITHUB_TOKEN: '{{.GITHUB_TOKEN}}'
+          GITHUB_OWNER: '{{.GITHUB_OWNER}}'
+          GITHUB_REPOSITORY: '{{.GITHUB_REPOSITORY}}'
       - task: verify
 
   bootstrap:
     desc: Create cluster and bootstrap GitOps
     deps: [check-prereq]
+    vars:
+      GITHUB_TOKEN: '{{.GITHUB_TOKEN}}'
+      GITHUB_OWNER: '{{.GITHUB_OWNER}}'
+      GITHUB_REPOSITORY: '{{.GITHUB_REPOSITORY}}'
     cmds:
       - |
         # Create cluster if kubeconfig doesn't exist or can't connect
@@ -59,7 +71,10 @@ tasks:
 
         # Install FluxCD
         echo "🚀 Installing FluxCD GitOps..."
-        task install-fluxcd
+        task install-fluxcd \
+          GITHUB_TOKEN="{{.GITHUB_TOKEN}}" \
+          GITHUB_OWNER="{{.GITHUB_OWNER}}" \
+          GITHUB_REPOSITORY="{{.GITHUB_REPOSITORY}}"
 
         # Wait for flux-system namespace to be created
         echo "⏳ Waiting for flux-system namespace..."
@@ -98,8 +113,15 @@ tasks:
 
   install-fluxcd:
     desc: Install FluxCD GitOps controller with GitHub bootstrap (minimal source-watcher only)
+    vars:
+      GITHUB_TOKEN: '{{.GITHUB_TOKEN}}'
+      GITHUB_OWNER: '{{.GITHUB_OWNER}}'
+      GITHUB_REPOSITORY: '{{.GITHUB_REPOSITORY}}'
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+      FLUXCD_GITHUB_TOKEN: '{{.GITHUB_TOKEN}}'
+      FLUXCD_OWNER: '{{.GITHUB_OWNER}}'
+      FLUXCD_REPOSITORY: '{{.GITHUB_REPOSITORY}}'
     cmds:
       - |
         # Skip if FluxCD is already installed
@@ -115,11 +137,6 @@ tasks:
         fi
 
         echo "🚀 Installing FluxCD on NAS cluster..."
-
-        # Check for GitHub token in environment or .env file
-        if [ -z "${FLUXCD_GITHUB_TOKEN:-}" ] && [ -f ../../.env ]; then
-          source ../../.env
-        fi
 
         # Validate required environment variables
         if [ -z "${FLUXCD_OWNER:-}" ]; then
