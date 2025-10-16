@@ -67,7 +67,7 @@ metadata:
   name: nas-vault-circuit-breaker
   namespace: nas-integration
 spec:
-  host: "192.168.1.42"
+  host: nas-vault.nas-integration.svc.cluster.local
   trafficPolicy:
     connectionPool:
       tcp:
@@ -109,7 +109,7 @@ spec:
         prefix: /v1/
     route:
     - destination:
-        host: "192.168.1.42"
+        host: nas-vault.nas-integration.svc.cluster.local
         port:
           number: 61200
     timeout: 5s
