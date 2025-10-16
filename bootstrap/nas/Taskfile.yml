@@ -611,6 +611,22 @@ tasks:
 
         echo "✅ Vault unsealed successfully"
 
+  vault:restart:
+    desc: Restart vault pod to ensure it's responsive
+    env:
+      KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
+    cmds:
+      - |
+        echo "🔄 Restarting vault pod in NAS cluster..."
+        if kubectl get pods -n vault -l app.kubernetes.io/name=vault >/dev/null 2>&1; then
+          kubectl delete pods -n vault -l app.kubernetes.io/name=vault
+          echo "⏳ Waiting for vault pod to restart..."
+          kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vault -n vault --timeout=60s
+          echo "✅ Vault pod restarted successfully"
+        else
+          echo "⚠️  No vault pods found in NAS cluster - may not be deployed yet"
+        fi
+
   vault-auto-unseal:
     desc: Deploy auto-unseal job for Vault
     deps: [deploy-vault]
