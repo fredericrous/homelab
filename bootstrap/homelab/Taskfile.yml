@@ -408,6 +408,10 @@ tasks:
           echo "✅ Cilium CNI is already installed"
         fi
 
+        # Ensure NAS vault is ready for transit unsealing
+        echo "🔐 Ensuring NAS vault is ready for transit unsealing..."
+        task nas:vault:restart
+        
         # Install FluxCD (just the installation, no waiting)
         echo "🚀 Installing FluxCD GitOps..."
         task install-fluxcd \

@@ -15,3 +15,8 @@ spec:
           runAsNonRoot: true
           runAsUser: 100
           runAsGroup: 1000
+    
+    # Expose vault externally for homelab cluster transit unsealing
+    ui:
+      serviceType: NodePort
+      serviceNodePort: 61200
