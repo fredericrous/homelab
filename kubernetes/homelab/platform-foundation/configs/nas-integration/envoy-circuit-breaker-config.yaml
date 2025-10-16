@@ -95,34 +95,6 @@ spec:
     loadBalancer:
       simple: LEAST_CONN
 ---
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  name: nas-vault-routing
-  namespace: nas-integration
-spec:
-  hosts:
-  - nas-vault.nas-integration.svc.cluster.local
-  http:
-  - match:
-    - uri:
-        prefix: /v1/
-    route:
-    - destination:
-        host: nas-vault.nas-integration.svc.cluster.local
-        port:
-          number: 61200
-    timeout: 5s
-    retries:
-      attempts: 2
-      perTryTimeout: 2s
-      retryOn: 5xx,reset,connect-failure,refused-stream
-    fault:
-      delay:
-        percentage:
-          value: 0.1  # 0.1% of requests get a delay (for testing)
-        fixedDelay: 100ms
----
 apiVersion: v1
 kind: Service
 metadata:
