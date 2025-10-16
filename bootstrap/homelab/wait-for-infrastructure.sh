@@ -88,12 +88,13 @@ kubectl wait --for=condition=available --timeout=${ceph_timeout} deployment/rook
 }
 
 echo "Waiting for CephCluster resource to be created..."
-for i in {1..60}; do
+ceph_cluster_attempts=$((CEPH_WAIT_MINUTES * 12))  # 12 attempts per minute (5s intervals)
+for i in $(seq 1 $ceph_cluster_attempts); do
   if kubectl get cephcluster rook-ceph -n rook-ceph >/dev/null 2>&1; then
     echo "✓ CephCluster resource found"
     break
   fi
-  echo "Waiting for CephCluster... ($i/60)"
+  echo "Waiting for CephCluster... ($i/$ceph_cluster_attempts)"
   sleep 5
 done
 
@@ -102,7 +103,8 @@ echo "Waiting for Ceph monitors to be running..."
 expected_mons=$(kubectl get cephcluster rook-ceph -n rook-ceph -o jsonpath='{.spec.mon.count}' 2>/dev/null || echo "1")
 echo "Expected monitors: $expected_mons"
 
-for i in {1..120}; do
+ceph_monitor_attempts=$((CEPH_WAIT_MINUTES * 12))  # 12 attempts per minute (5s intervals)
+for i in $(seq 1 $ceph_monitor_attempts); do
   # Count running monitors
   running_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | grep -c "Running" || echo "0")
   running_mons=$(echo "$running_mons" | head -n1 | tr -d '\n\r ')
@@ -112,7 +114,7 @@ for i in {1..120}; do
     echo "✅ Ceph monitors are running ($running_mons/$expected_mons)"
     break
   elif [ "$total_mons" -gt 0 ]; then
-    echo "Waiting for monitors: $running_mons/$expected_mons running ($i/120)"
+    echo "Waiting for monitors: $running_mons/$expected_mons running ($i/$ceph_monitor_attempts)"
 
     # Show monitor status every 30 iterations (2.5 minutes)
     if [ $((i % 30)) -eq 0 ]; then
@@ -122,14 +124,15 @@ for i in {1..120}; do
       kubectl top nodes 2>/dev/null || echo "  Metrics not available"
     fi
   else
-    echo "Waiting for monitor pods to be created... ($i/120)"
+    echo "Waiting for monitor pods to be created... ($i/$ceph_monitor_attempts)"
   fi
 
   sleep 5
 done
 
 echo "Waiting for Ceph OSDs to be ready..."
-for i in {1..120}; do
+ceph_osd_attempts=$((CEPH_WAIT_MINUTES * 12))  # 12 attempts per minute (5s intervals)
+for i in $(seq 1 $ceph_osd_attempts); do
   running_osds=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c "Running" || echo "0")
   running_osds=$(echo "$running_osds" | head -n1 | tr -d '\n\r ')
   total_osds=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
@@ -139,7 +142,7 @@ for i in {1..120}; do
     break
   fi
 
-  echo "Waiting for OSDs: $running_osds/$total_osds running ($i/120)"
+  echo "Waiting for OSDs: $running_osds/$total_osds running ($i/$ceph_osd_attempts)"
 
   # Show OSD status every 30 iterations (2.5 minutes)
   if [ $((i % 30)) -eq 0 ] && [ "$total_osds" -gt 0 ]; then
@@ -210,7 +213,7 @@ for i in $(seq 1 $storage_test_attempts); do
     kubectl delete pvc test-rook-health -n default --wait=false >/dev/null 2>&1
     break
   fi
-  echo "Testing storage provisioning: $pvc_status ($i/60)"
+  echo "Testing storage provisioning: $pvc_status ($i/$storage_test_attempts)"
 
   # Show more details every 20 iterations (100 seconds)
   if [ $((i % 20)) -eq 0 ] && [ "$i" -gt 1 ]; then
@@ -276,12 +279,13 @@ kubectl wait --for=condition=ready --timeout=${platform_timeout} -n flux-system 
 
 # Wait for cert-manager-env-config secret to be created by VaultStaticSecret
 echo "Waiting for cert-manager credentials from Vault..."
-for i in {1..60}; do
+cert_manager_attempts=$((SECURITY_WAIT_MINUTES * 12))  # 12 attempts per minute (5s intervals)
+for i in $(seq 1 $cert_manager_attempts); do
   if kubectl get secret cert-manager-env-config -n flux-system >/dev/null 2>&1; then
     echo "✅ cert-manager credentials secret created"
     break
   fi
-  echo "Waiting for VaultStaticSecret to create cert-manager-env-config... ($i/60)"
+  echo "Waiting for VaultStaticSecret to create cert-manager-env-config... ($i/$cert_manager_attempts)"
   sleep 5
 done
 
