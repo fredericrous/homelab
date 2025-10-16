@@ -81,7 +81,6 @@ spec:
         http2MaxRequests: 10
         maxRequestsPerConnection: 2
         maxRetries: 2
-        connectTimeout: 2s
         h2UpgradePolicy: UPGRADE
     outlierDetection:
       # Circuit breaker configuration
