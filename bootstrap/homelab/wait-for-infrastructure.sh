@@ -107,8 +107,8 @@ ceph_monitor_attempts=$((CEPH_WAIT_MINUTES * 12))  # 12 attempts per minute (5s 
 for i in $(seq 1 $ceph_monitor_attempts); do
   # Count running monitors
   running_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | grep -c "Running" || echo "0")
-  running_mons=$(echo "$running_mons" | head -n1 | tr -d '\n\r ')
-  total_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
+  running_mons=$(echo "$running_mons" | head -n1 | xargs)
+  total_mons=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --no-headers 2>/dev/null | wc -l | xargs || echo "0")
 
   if [ "$running_mons" -ge "$expected_mons" ] && [ "$running_mons" -gt 0 ]; then
     echo "✅ Ceph monitors are running ($running_mons/$expected_mons)"
@@ -134,8 +134,8 @@ echo "Waiting for Ceph OSDs to be ready..."
 ceph_osd_attempts=$((CEPH_WAIT_MINUTES * 12))  # 12 attempts per minute (5s intervals)
 for i in $(seq 1 $ceph_osd_attempts); do
   running_osds=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | grep -c "Running" || echo "0")
-  running_osds=$(echo "$running_osds" | head -n1 | tr -d '\n\r ')
-  total_osds=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
+  running_osds=$(echo "$running_osds" | head -n1 | xargs)
+  total_osds=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd --no-headers 2>/dev/null | wc -l | xargs || echo "0")
 
   if [ "$running_osds" -gt 0 ]; then
     echo "✅ Found $running_osds running OSD(s)"
@@ -150,7 +150,7 @@ for i in $(seq 1 $ceph_osd_attempts); do
     kubectl get pods -n rook-ceph -l app=rook-ceph-osd -o wide 2>/dev/null || echo "  No OSD pods found"
 
     # Check if OSD prepare jobs are still running
-    prepare_jobs=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd-prepare --no-headers 2>/dev/null | grep -v "Completed" | wc -l | tr -d '\n\r ' || echo "0")
+    prepare_jobs=$(kubectl get pods -n rook-ceph -l app=rook-ceph-osd-prepare --no-headers 2>/dev/null | grep -v "Completed" | wc -l | xargs || echo "0")
     if [ "$prepare_jobs" -gt 0 ]; then
       echo "  ⏳ $prepare_jobs OSD prepare job(s) still running"
     fi
@@ -179,8 +179,8 @@ fi
 echo "Checking Ceph CSI driver readiness..."
 csi_ready=$(kubectl get pods -n rook-ceph -l app=csi-rbdplugin --no-headers 2>/dev/null | grep -c "Running" 2>/dev/null || echo "0")
 csi_total=$(kubectl get pods -n rook-ceph -l app=csi-rbdplugin --no-headers 2>/dev/null | wc -l 2>/dev/null || echo "0")
-csi_ready=$(echo "$csi_ready" | tr -d '\n\r ')
-csi_total=$(echo "$csi_total" | tr -d '\n\r ')
+csi_ready=$(echo "$csi_ready" | xargs)
+csi_total=$(echo "$csi_total" | xargs)
 if [ "$csi_ready" -eq "$csi_total" ] && [ "$csi_total" -gt 0 ]; then
   echo "✅ Ceph CSI driver ready ($csi_ready/$csi_total pods running)"
 else
