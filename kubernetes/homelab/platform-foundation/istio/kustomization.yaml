@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - istio-eastwest-gateway.yaml
+  - expose-services.yaml
 
 patches:
 - path: network-topology.yaml
