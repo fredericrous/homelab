@@ -65,10 +65,10 @@ spec:
   location: MESH_EXTERNAL
   resolution: STATIC
   endpoints:
-  - address: 192.168.1.42  # QNAP host IP with HostNetwork
+  - address: 10.43.212.81  # NAS vault service ClusterIP
     network: nas-network
     ports:
-      http-vault: 8200  # Direct vault port via HostNetwork
+      http-vault: 8200
 
 ---
 # Workload Entry for NAS vault
