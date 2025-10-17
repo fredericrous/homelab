@@ -25,6 +25,14 @@ spec:
     remediation:
       retries: 3
   values:
+    # Remote cluster configuration
+    global:
+      meshID: nas-mesh
+      network: nas-network
+      multiCluster:
+        clusterName: nas
+      # Use service discovery for remote pilot address - will be resolved via east-west gateway
+      remotePilotAddress: istio-eastwestgateway.istio-system.svc.homelab.local:15010
     # Minimal resources for NAS
     pilot:
       resources:
@@ -34,14 +42,6 @@ spec:
         limits:
           cpu: 200m
           memory: 256Mi
-    global:
-      meshID: nas-mesh
-      network: nas-network
-      # Cross-cluster mesh configuration
-      meshConfig:
-        defaultConfig:
-          discoveryAddress: istiod.istio-system.svc:15010
-    # Enable cross-cluster discovery
-    env:
-      PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION: true
-      PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: true
+      env:
+        PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION: true
+        PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: true

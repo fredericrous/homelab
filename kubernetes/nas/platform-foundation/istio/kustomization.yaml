@@ -8,3 +8,4 @@ resources:
   - istiod.yaml
   - ztunnel.yaml
   - istio-eastwest-gateway.yaml
+  - network-topology.yaml
