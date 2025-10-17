@@ -35,9 +35,11 @@ spec:
     # Security configuration
     meshConfig:
       defaultConfig:
-        # Enable ambient mode
+        # Enable ambient mode and DNS capture for cross-cluster
         proxyMetadata:
           ISTIO_META_ENABLE_HBONE: "true"
+          ISTIO_META_DNS_CAPTURE: "true"
+          ISTIO_META_DNS_AUTO_ALLOCATE: "true"
       # Extension providers for external authorization
       extensionProviders:
       - name: authelia
