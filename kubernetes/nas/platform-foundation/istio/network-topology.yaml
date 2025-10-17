@@ -1,5 +1,5 @@
 ---
-# Network topology configuration for NAS cluster (remote)
+# Network topology patch for NAS cluster (remote)
 apiVersion: v1
 kind: Namespace
 metadata:
