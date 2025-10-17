@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - istio-eastwest-gateway.yaml
+  - network-topology.yaml

@@ -59,7 +59,10 @@ spec:
           - set-cookie
           headersToDownstreamOnAllow:
           - set-cookie
-    # External traffic policy
+    # Primary cluster configuration for multi-cluster mesh
     global:
-      meshID: cluster.local
-      network: cluster.local
+      meshID: nas-mesh  # Same mesh ID as NAS cluster
+      network: homelab-network
+      multiCluster:
+        clusterName: homelab
+      externalIstiod: true  # Enable for cross-cluster discovery
