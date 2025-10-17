@@ -6,3 +6,4 @@ resources:
   - nas-token-external-secret.yaml
   - nas-token-broker-cronjob.yaml
   - envoy-circuit-breaker-config.yaml
+  - istio-remote-secret-nas.yaml
