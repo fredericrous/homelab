@@ -29,7 +29,7 @@ stringData:
         token: ""
 
 ---
-# ServiceEntry for NAS vault service discovery
+# ServiceEntry for NAS vault cross-cluster service discovery
 apiVersion: networking.istio.io/v1beta1
 kind: ServiceEntry
 metadata:
@@ -39,32 +39,32 @@ metadata:
     app: cross-cluster-discovery
 spec:
   hosts:
-  - vault-vault-nas-ui.vault.nas.local
+  - vault-vault-nas-ui.vault.svc.cluster.local
   ports:
   - number: 8200
     name: http-vault
     protocol: HTTP
   location: MESH_EXTERNAL
-  resolution: DNS
+  resolution: STATIC
   endpoints:
-  - address: 192.168.1.42
+  - address: 192.168.1.42  # QNAP host IP with HostNetwork
     network: nas-network
     ports:
-      http-vault: 61200
+      http-vault: 8200  # Direct vault port via HostNetwork
 
 ---
-# Service for easier local access
-apiVersion: v1
-kind: Service
+# Workload Entry for NAS vault
+apiVersion: networking.istio.io/v1beta1
+kind: WorkloadEntry
 metadata:
-  name: nas-vault
-  namespace: nas-integration
+  name: nas-vault-workload
+  namespace: vault
   labels:
-    app: nas-integration
+    app: nas-vault
+    version: v1
 spec:
-  type: ExternalName
-  externalName: vault-vault-nas-ui.vault.nas.local
+  address: 192.168.1.42  # QNAP host IP with HostNetwork
+  network: nas-network
   ports:
-  - name: http-vault
-    port: 8200
-    protocol: TCP
+    http-vault: 8200  # Direct vault port via HostNetwork
+  serviceAccount: vault-vault-nas
