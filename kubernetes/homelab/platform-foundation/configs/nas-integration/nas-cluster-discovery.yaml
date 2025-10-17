@@ -1,0 +1,70 @@
+---
+# Cross-cluster secret to enable homelab cluster to discover NAS services
+apiVersion: v1
+kind: Secret
+metadata:
+  name: istio-remote-secret-nas
+  namespace: istio-system
+  labels:
+    istio/cluster: nas
+type: Opaque
+stringData:
+  nas: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - cluster:
+        certificate-authority-data: ""
+        server: https://192.168.1.42:6443
+      name: nas
+    contexts:
+    - context:
+        cluster: nas
+        user: nas
+      name: nas
+    current-context: nas
+    users:
+    - name: nas
+      user:
+        token: ""
+
+---
+# ServiceEntry for NAS vault service discovery
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: nas-vault-discovery
+  namespace: vault
+  labels:
+    app: cross-cluster-discovery
+spec:
+  hosts:
+  - vault-vault-nas-ui.vault.nas.local
+  ports:
+  - number: 8200
+    name: http-vault
+    protocol: HTTP
+  location: MESH_EXTERNAL
+  resolution: DNS
+  endpoints:
+  - address: 192.168.1.42
+    network: nas-network
+    ports:
+      http-vault: 61200
+
+---
+# Service for easier local access
+apiVersion: v1
+kind: Service
+metadata:
+  name: nas-vault
+  namespace: nas-integration
+  labels:
+    app: nas-integration
+spec:
+  type: ExternalName
+  externalName: vault-vault-nas-ui.vault.nas.local
+  ports:
+  - name: http-vault
+    port: 8200
+    protocol: TCP
