@@ -24,3 +24,7 @@ spec:
   values:
     name: istio-eastwestgateway
     networkGateway: nas-network
+    # Specify proper Istio proxy image
+    image:
+      repository: docker.io/istio/proxyv2
+      tag: 1.24.1
