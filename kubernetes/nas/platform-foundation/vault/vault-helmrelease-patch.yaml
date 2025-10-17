@@ -15,7 +15,11 @@ spec:
           runAsNonRoot: true
           runAsUser: 100
           runAsGroup: 1000
+      
+      # Use host networking for cross-cluster access
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
     
-    # Use ClusterIP - Istio handles cross-cluster connectivity
+    # Keep ClusterIP for internal cluster access
     ui:
       serviceType: ClusterIP
