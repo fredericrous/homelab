@@ -10,7 +10,7 @@ spec:
       app.kubernetes.io/name: vault
       component: server
   transitVault:
-    address: http://192.168.1.42:61200
+    address: http://vault-vault-nas-ui.vault.nas.local:8200
     secretRef:
       name: vault-transit-token
       key: token

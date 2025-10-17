@@ -16,7 +16,6 @@ spec:
           runAsUser: 100
           runAsGroup: 1000
     
-    # Expose vault externally for homelab cluster transit unsealing
+    # Use ClusterIP - Istio handles cross-cluster connectivity
     ui:
-      serviceType: NodePort
-      serviceNodePort: 61200
+      serviceType: ClusterIP

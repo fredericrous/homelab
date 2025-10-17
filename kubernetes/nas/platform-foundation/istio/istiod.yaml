@@ -1,0 +1,47 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istiod
+  namespace: flux-system
+spec:
+  targetNamespace: istio-system
+  interval: 10m
+  dependsOn:
+    - name: istio-base
+      namespace: flux-system
+  chart:
+    spec:
+      chart: istiod
+      version: 1.24.2
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # Minimal resources for NAS
+    pilot:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+    global:
+      meshID: nas-mesh
+      network: nas-network
+      # Cross-cluster mesh configuration
+      meshConfig:
+        defaultConfig:
+          discoveryAddress: istiod.istio-system.svc:15010
+    # Enable cross-cluster discovery
+    env:
+      PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION: true
+      PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: true
