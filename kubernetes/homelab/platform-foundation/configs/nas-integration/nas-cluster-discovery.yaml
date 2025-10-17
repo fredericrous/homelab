@@ -29,6 +29,24 @@ stringData:
         token: ""
 
 ---
+# Service for NAS vault cross-cluster access
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-vault-nas-ui
+  namespace: vault
+  labels:
+    app: nas-vault
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service for ServiceEntry
+  ports:
+  - port: 8200
+    targetPort: 8200
+    protocol: TCP
+    name: http-vault
+
+---
 # ServiceEntry for NAS vault cross-cluster service discovery
 apiVersion: networking.istio.io/v1beta1
 kind: ServiceEntry
