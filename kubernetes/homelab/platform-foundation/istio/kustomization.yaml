@@ -3,4 +3,9 @@ kind: Kustomization
 
 resources:
   - istio-eastwest-gateway.yaml
-  - network-topology.yaml
+
+patches:
+- path: network-topology.yaml
+  target:
+    kind: Namespace
+    name: istio-system
