@@ -1,0 +1,18 @@
+---
+# DNS anchor Service for NAS vault in homelab cluster
+# Creates DNS record for vault-vault-nas-ui.vault.svc.cluster.local
+# Istio will route to NAS cluster endpoints via east-west gateway
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-vault-nas-ui
+  namespace: vault
+  labels:
+    istio.io/exportTo: "*"
+spec:
+  ports:
+  - name: http
+    port: 8200
+    targetPort: 8200
+    protocol: TCP
+  clusterIP: None  # Headless service - no selector, just DNS
