@@ -288,24 +288,46 @@ test_network_connectivity() {
 
 # Load configuration with validation
 load_config() {
-  local config_file="${1:-$(dirname "${BASH_SOURCE[0]}")/../config.env}"
+  # Determine the script directory (where the calling script is located)
+  local calling_script_dir
+  if [[ -n "${BASH_SOURCE[1]:-}" ]]; then
+    calling_script_dir="$(cd "$(dirname "${BASH_SOURCE[1]}")" && pwd)"
+  else
+    calling_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  fi
   
+  local config_file="${1:-${calling_script_dir}/config.env}"
+  
+  # First try to load root .env file for standard variables
+  local root_env_file="${calling_script_dir}/../../.env"
+  if [[ -f "$root_env_file" ]]; then
+    log_debug "Loading root environment from: $root_env_file"
+    source "$root_env_file"
+  fi
+  
+  # Then load bootstrap-specific config
   if [[ -f "$config_file" ]]; then
-    log_debug "Loading configuration from: $config_file"
+    log_debug "Loading bootstrap configuration from: $config_file"
     source "$config_file"
     
     # Validate required configuration
     local required_vars=("HOMELAB_IP" "NAS_IP" "VALIDATION_TIMEOUT")
     for var in "${required_vars[@]}"; do
-      if [[ -z "${!var:-}" ]]; then
+      local var_value
+      eval "var_value=\${${var}:-}"
+      if [[ -z "$var_value" ]]; then
         log_error "Required configuration variable not set: $var"
+        log_info "Available values: HOMELAB_IP=${HOMELAB_IP:-unset}, NAS_IP=${NAS_IP:-unset}"
+        log_info "Root env file: $root_env_file (exists: $(test -f "$root_env_file" && echo yes || echo no))"
+        log_info "Config file: $config_file (exists: $(test -f "$config_file" && echo yes || echo no))"
         return 1
       fi
     done
     
-    log_debug "Configuration loaded successfully"
+    log_debug "Configuration loaded successfully: HOMELAB_IP=$HOMELAB_IP, NAS_IP=$NAS_IP"
   else
     log_warning "Configuration file not found: $config_file"
+    log_info "Calling script dir: $calling_script_dir"
     log_info "Using default configuration values"
   fi
 }
