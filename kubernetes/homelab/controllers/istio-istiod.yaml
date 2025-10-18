@@ -68,3 +68,17 @@ spec:
       multiCluster:
         clusterName: homelab
       externalIstiod: true  # Enable for cross-cluster discovery
+      # Configure mesh networks for cross-cluster discovery
+      meshNetworks:
+        homelab-network:
+          endpoints:
+          - fromRegistry: homelab
+          gateways:
+          - address: 192.168.1.67  # Homelab cluster IP
+            port: 15443
+        nas-network:
+          endpoints:
+          - fromRegistry: nas  # Will be discovered via remote secret
+          gateways:
+          - address: 192.168.1.42  # NAS cluster IP
+            port: 61443  # NAS east-west gateway on allowed port

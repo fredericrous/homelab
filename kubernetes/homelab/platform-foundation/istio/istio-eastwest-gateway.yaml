@@ -24,3 +24,16 @@ spec:
   values:
     name: istio-eastwestgateway
     networkGateway: homelab-network
+    service:
+      type: LoadBalancer
+      ports:
+      - name: status-port
+        port: 15021
+        targetPort: 15021
+      - name: tls
+        port: 15443
+        targetPort: 15443
+      - name: istiod
+        port: 15010
+        targetPort: 15010
+      loadBalancerIP: 192.168.1.67  # Use homelab cluster IP
