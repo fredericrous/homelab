@@ -30,6 +30,14 @@ tasks:
           echo "ERROR: .env file not found. Copy .env.example and update with your values"
           exit 1
         fi
+      - |
+        if ! command -v istioctl &> /dev/null; then
+          echo "📦 Installing istioctl for cross-cluster setup..."
+          curl -L https://istio.io/downloadIstio | sh -
+          sudo mv istio-*/bin/istioctl /usr/local/bin/
+          rm -rf istio-*
+          echo "✅ istioctl installed"
+        fi
 
   up:
     desc: Create cluster infrastructure (VMs + Talos + CNI)
@@ -43,7 +51,7 @@ tasks:
       - task: validate-cluster
 
   sync-env-secrets:
-    desc: "Sync environment variables to cluster-vars secret"
+    desc: "Sync environment variables to cluster-vars secret and setup cross-cluster connectivity"
     aliases: [load-env]
     deps: [check-prereq]
     env:
@@ -55,6 +63,9 @@ tasks:
       - |
         echo "🔐 Creating/updating cluster variables secret from .env..."
         ./bootstrap-cluster-vars.sh
+      - |
+        echo "🔗 Setting up cross-cluster connectivity with NAS..."
+        ./ensure-nas-remote-secret.sh
 
   create-vault-transit-secret:
     desc: "Create vault-transit-token secret for Vault auto-unseal"

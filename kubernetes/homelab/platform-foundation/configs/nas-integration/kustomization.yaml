@@ -6,5 +6,5 @@ resources:
   - nas-token-external-secret.yaml
   - nas-token-broker-cronjob.yaml
   - envoy-circuit-breaker-config.yaml
-  - istio-remote-secret-nas.yaml
   - vault-dns-anchor.yaml
+  # istio-remote-secret-nas is generated dynamically by bootstrap process
