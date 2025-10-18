@@ -87,26 +87,52 @@ istioctl x create-remote-secret \
   --service-account istio-reader-homelab \
   --kubeconfig "${NAS_KUBECONFIG_PATH}" > "${TEMP_FILE}"
 
-# Validate the generated secret can access the cluster
+# Validate the generated secret can access the cluster with enhanced security
 echo "   Validating remote secret connectivity..."
 TEMP_KUBECONFIG="$(mktemp)"
+chmod 600 "${TEMP_KUBECONFIG}"  # Secure permissions
 trap 'rm -f "${TEMP_FILE}" "${TEMP_KUBECONFIG}"' EXIT
 
-# Extract kubeconfig from the secret for testing
-kubectl get secret istio-remote-secret-nas --dry-run=client -o yaml > /dev/null 2>&1 || {
+# Extract kubeconfig from the secret for testing (more secure approach)
+if kubectl get secret istio-remote-secret-nas >/dev/null 2>&1; then
+  echo "   Secret already exists, testing existing secret..."
+  kubectl get secret istio-remote-secret-nas -o jsonpath='{.data.nas}' | base64 -d > "${TEMP_KUBECONFIG}"
+else
+  echo "   Applying and testing new secret..."
   # Apply temporarily to test
   kubectl apply -f "${TEMP_FILE}" >/dev/null
+  
+  # Wait for secret to be available
+  for i in {1..10}; do
+    if kubectl get secret istio-remote-secret-nas >/dev/null 2>&1; then
+      break
+    fi
+    echo "     Waiting for secret to be created... ($i/10)"
+    sleep 1
+  done
+  
   kubectl get secret istio-remote-secret-nas -o jsonpath='{.data.nas}' | base64 -d > "${TEMP_KUBECONFIG}"
+fi
+
+# Test connectivity with timeout and better error reporting
+if timeout 10 kubectl --kubeconfig="${TEMP_KUBECONFIG}" get nodes >/dev/null 2>&1; then
+  echo "   ✅ Secret can access NAS cluster"
   
-  if ! kubectl --kubeconfig="${TEMP_KUBECONFIG}" get nodes >/dev/null 2>&1; then
-    kubectl delete secret istio-remote-secret-nas >/dev/null 2>&1 || true
-    echo "❌ Generated secret cannot access NAS cluster"
-    exit 1
+  # Test specific permissions needed for Istio
+  if timeout 5 kubectl --kubeconfig="${TEMP_KUBECONFIG}" auth can-i get pods --all-namespaces >/dev/null 2>&1; then
+    echo "   ✅ Secret has proper RBAC permissions"
+  else
+    echo "   ⚠️  Secret may lack some RBAC permissions - Istio discovery might be limited"
   fi
-  
-  # Clean up test secret - will be recreated properly
+else
+  echo "   ❌ Generated secret cannot access NAS cluster"
   kubectl delete secret istio-remote-secret-nas >/dev/null 2>&1 || true
-}
+  echo "      Check:"
+  echo "      - NAS cluster is accessible: kubectl --kubeconfig=$NAS_KUBECONFIG_PATH get nodes"
+  echo "      - Service account exists: kubectl --kubeconfig=$NAS_KUBECONFIG_PATH get sa istio-reader-homelab"
+  echo "      - Network connectivity: nc -zv $(echo $NAS_KUBECONFIG_PATH | xargs -I {} kubectl --kubeconfig={} config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||' | sed 's|:.*||') 6443"
+  exit 1
+fi
 
 # Ensure the namespace exists before applying the secret
 kubectl create namespace istio-system --dry-run=client -o yaml | kubectl apply -f - >/dev/null
