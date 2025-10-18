@@ -25,14 +25,16 @@ spec:
     remediation:
       retries: 3
   values:
-    # Remote cluster configuration
+    # Remote cluster configuration - NAS is discovered by homelab primary cluster
+    istiodRemote:
+      enabled: true  # This is a remote cluster managed by external istiod
     global:
       meshID: nas-mesh
       network: nas-network
       multiCluster:
         clusterName: nas
-      # Use service discovery for remote pilot address - will be resolved via east-west gateway
-      remotePilotAddress: istio-eastwestgateway.istio-system.svc.homelab.local:15010
+      # Point to homelab cluster's istiod via accessible address
+      remotePilotAddress: "192.168.1.67:15010"
     # Minimal resources for NAS
     pilot:
       resources:

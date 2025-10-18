@@ -17,3 +17,9 @@ spec:
       mode: AUTO_PASSTHROUGH
     hosts:
     - "*.local"
+  - port:
+      number: 15010
+      name: istiod
+      protocol: GRPC_PLAIN
+    hosts:
+    - "*"
