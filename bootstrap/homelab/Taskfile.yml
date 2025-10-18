@@ -410,7 +410,7 @@ tasks:
 
         # Ensure NAS vault is ready for transit unsealing
         echo "🔐 Ensuring NAS vault is ready for transit unsealing..."
-        task nas:vault:restart
+        cd ../../bootstrap/nas && task vault:restart
         
         # Install FluxCD (just the installation, no waiting)
         echo "🚀 Installing FluxCD GitOps..."
