@@ -87,10 +87,6 @@ tasks:
           sleep 2
         done
 
-        # Create required secrets IMMEDIATELY after FluxCD creates namespace
-        echo "🔐 Creating required secrets before reconciliation starts..."
-        task sync-env-secrets
-
         # Wait for layers kustomization to be ready (creates platform-foundation)
         echo "⏳ Waiting for FluxCD to process layers kustomization..."
         kubectl wait --for=condition=ready --timeout=600s -n flux-system kustomization/nas-layers 2>/dev/null || {
@@ -180,13 +176,11 @@ tasks:
       - kubectl get deployment -n flux-system source-controller &>/dev/null
 
   sync-env-secrets:
-    desc: Sync required environment to cluster (placeholder for future)
+    desc: Ensure required secrets exist before Flux reconciliation
     env:
       KUBECONFIG: '{{.KUBECONFIG_QNAP}}'
     cmds:
-      - |
-        echo "📝 NAS cluster environment sync (placeholder)"
-        echo "   Future: Sync any required secrets/config from .env"
+      - echo "🔐 NAS cluster secrets ready (no additional secrets needed)"
 
   verify:
     desc: Verify full NAS cluster deployment
