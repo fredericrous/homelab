@@ -446,6 +446,10 @@ tasks:
         echo "🔐 Creating required secrets before reconciliation starts..."
         task create-vault-transit-secret
         task sync-env-secrets
+        
+        # Validate cross-cluster setup after secrets are created
+        echo "🔍 Validating cross-cluster connectivity..."
+        ./validate-cross-cluster-mesh.sh
 
         # Now wait for the initial sync and controllers to stabilize
         echo "⏳ Waiting for FluxCD to sync repository and controllers to be ready..."
@@ -465,24 +469,34 @@ tasks:
         echo "✅ Cluster created and FluxCD bootstrapped successfully!"
 
   verify:
-    desc: "Verify all infrastructure components are ready"
+    desc: "Verify all infrastructure components are ready with comprehensive testing"
     deps: [check-prereq]
     env:
       KUBECONFIG: '{{.KUBECONFIG}}'
     cmds:
-      - echo "Waiting for all infrastructure components..."
+      - echo "⏳ Waiting for all infrastructure components..."
       - ./wait-for-infrastructure.sh
       - echo ""
-      - echo "✅ All infrastructure ready!"
+      - echo "🔍 Running comprehensive validation suite..."
       - echo ""
-      - echo "Platform Foundation status:"
+      - echo "📋 Step 1: Cross-cluster mesh validation"
+      - ./validate-cross-cluster-mesh.sh
+      - echo ""
+      - echo "📋 Step 2: Vault transit end-to-end smoke test"
+      - ./smoke-test-vault-transit.sh
+      - echo ""
+      - echo "✅ All infrastructure ready and validated!"
+      - echo ""
+      - echo "📊 Platform Foundation status:"
       - kubectl get kustomization -n flux-system | grep -E 'NAME|platform-foundation'
       - echo ""
-      - echo "Infrastructure layers status:"
+      - echo "📊 Infrastructure layers status:"
       - kubectl get kustomization -n flux-system | grep -E 'NAME|security|serverless|data-cache|ml-serving|data-storage'
       - echo ""
-      - echo "Application status:"
+      - echo "📊 Application status:"
       - kubectl get kustomization -n flux-system | grep -E 'apps|lldap|authelia|openwebui' || echo "No applications deployed yet"
+      - echo ""
+      - echo "🎉 Platform is production-ready!"
 
   suspend:
     desc: "Suspend Flux reconciliation (services keep running)"
@@ -551,6 +565,35 @@ tasks:
     deps: [check-prereq]
     cmds:
       - ./force-cleanup-namespaces.sh
+
+  recover:
+    desc: "Recover from bootstrap failures with comprehensive diagnostics"
+    deps: [check-prereq]
+    env:
+      KUBECONFIG: '{{.KUBECONFIG}}'
+    cmds:
+      - echo "🚨 Starting bootstrap recovery..."
+      - ./recover-bootstrap-failure.sh {{.CLI_ARGS}}
+
+  diagnose:
+    desc: "Diagnose bootstrap issues without making changes"
+    deps: [check-prereq] 
+    env:
+      KUBECONFIG: '{{.KUBECONFIG}}'
+    cmds:
+      - ./recover-bootstrap-failure.sh diagnose
+
+  validate:
+    desc: "Run validation suite without full verify"
+    deps: [check-prereq]
+    env:
+      KUBECONFIG: '{{.KUBECONFIG}}'
+    cmds:
+      - echo "🔍 Running cross-cluster validation..."
+      - ./validate-cross-cluster-mesh.sh
+      - echo ""
+      - echo "🧪 Running vault transit smoke test..."
+      - ./smoke-test-vault-transit.sh
 
   uninstall:
     desc: Uninstall everything (cluster + VMs + configs)
