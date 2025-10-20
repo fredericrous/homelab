@@ -29,6 +29,14 @@ spec:
     remediation:
       retries: 3
   values:
+    # Name for the gateway
+    name: istio-eastwestgateway
+    # Labels for cross-cluster discovery
+    labels:
+      istio: eastwestgateway
+      app: istio-eastwestgateway
+      topology.istio.io/network: homelab-network
+    # Service configuration for east-west traffic
     service:
       type: NodePort
       ports:
@@ -40,7 +48,11 @@ spec:
         port: 15443
         targetPort: 15443
         nodePort: 30443
-      - name: istiod
-        port: 15010
-        targetPort: 15010
-        nodePort: 30010
+      - name: tls-istiod
+        port: 15012
+        targetPort: 15012
+        nodePort: 30012
+      - name: tls-webhook
+        port: 15017
+        targetPort: 15017
+        nodePort: 30017

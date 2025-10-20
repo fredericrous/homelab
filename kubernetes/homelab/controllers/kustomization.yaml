@@ -24,5 +24,6 @@ resources:
   - istio-cni.yaml
   - istio-istiod.yaml
   - istio-eastwest-gateway.yaml  # Deploy before ztunnel for proper authentication
+  - istio-eastwest-gateway-resource.yaml  # Gateway resource for cross-cluster traffic
   - istio-ztunnel.yaml
   - istio-sa-fix.yaml
