@@ -29,10 +29,6 @@ spec:
     remediation:
       retries: 3
   values:
-    # Fix image pull issue
-    image:
-      repository: istio/proxyv2
-      tag: 1.27.2
     service:
       type: NodePort
       ports:
