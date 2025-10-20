@@ -1,0 +1,94 @@
+homelab:
+  cluster:
+    name: "homelab"
+    nodes:
+      - "192.168.1.67"
+      - "192.168.1.68" 
+      - "192.168.1.69"
+    distribution: "talos"
+    cni: "cilium"
+    version: "v1.29.0"
+    kubeconfig: "../kubeconfig"
+    networking:
+      pod_cidr: "10.244.0.0/16"
+      service_cidr: "10.96.0.0/12"
+      cluster_dns: "10.96.0.10"
+    timeouts:
+      bootstrap: "10m"
+      infrastructure: "15m"
+      application: "10m"
+      validation: "5m"
+
+  storage:
+    provider: "rook-ceph"
+    replicas: 3
+    size: "100Gi"
+
+  gitops:
+    provider: "fluxcd"
+    repository: "https://github.com/fredericrous/homelab"
+    branch: "main"
+    path: "kubernetes/homelab"
+    owner: "fredericrous"
+
+  networking:
+    service_mesh:
+      enabled: true
+      provider: "istio"
+      version: "1.20.0"
+    ingress:
+      provider: "nginx"
+      class: "nginx"
+      tls: true
+    dns:
+      provider: "external-dns"
+      domains:
+        - "homelab.local"
+
+  security:
+    vault:
+      enabled: true
+      address: "http://192.168.1.42:61200"
+      transit_path: "transit"
+      pki_path: "pki"
+    cert_manager:
+      enabled: true
+      issuers:
+        - name: "letsencrypt-prod"
+          type: "letsencrypt"
+          email: "admin@homelab.local"
+          server: "https://acme-v02.api.letsencrypt.org/directory"
+    tls:
+      enabled: true
+    rbac:
+      enabled: true
+
+  monitoring:
+    prometheus:
+      enabled: true
+      retention: "30d"
+      storage: "50Gi"
+    grafana:
+      enabled: true
+      admin_user: "admin"
+      dashboards:
+        - "cluster-overview"
+        - "application-metrics"
+        - "storage-metrics"
+    alerting:
+      enabled: true
+      channels:
+        - "slack"
+
+  integration:
+    vault:
+      enabled: true
+      address: "http://192.168.1.42:61200"
+      transit_path: "transit"
+    aws:
+      enabled: true
+      region: "us-east-1"
+      s3_bucket: "homelab-backups"
+    ovh:
+      enabled: true
+      endpoint: "ovh-eu"

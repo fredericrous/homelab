@@ -1,0 +1,122 @@
+version: '3'
+
+vars:
+  BINARY_NAME: bootstrap
+  CMD_DIR: ./cmd/bootstrap
+  BUILD_DIR: ./bin
+
+tasks:
+  default:
+    desc: "Build the bootstrap binary"
+    deps: [build]
+
+  clean:
+    desc: "Clean build artifacts"
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - rm -f {{.BINARY_NAME}}
+      - go clean -cache
+
+  deps:
+    desc: "Download and verify dependencies"
+    cmds:
+      - go mod download
+      - go mod verify
+      - go mod tidy
+
+  format:
+    desc: "Format Go code"
+    cmds:
+      - go fmt ./...
+
+  lint:
+    desc: "Run linters"
+    cmds:
+      - go vet ./...
+
+  test:
+    desc: "Run tests"
+    cmds:
+      - go test -v -race ./...
+
+  test-short:
+    desc: "Run short tests"
+    cmds:
+      - go test -short ./...
+
+  build:
+    desc: "Build the bootstrap binary"
+    deps: [deps]
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -o {{.BINARY_NAME}} {{.CMD_DIR}}/main.go
+    generates:
+      - "{{.BINARY_NAME}}"
+
+  build-linux:
+    desc: "Build for Linux"
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - GOOS=linux GOARCH=amd64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-amd64 {{.CMD_DIR}}/main.go
+
+  build-darwin:
+    desc: "Build for macOS"
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - GOOS=darwin GOARCH=amd64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-darwin-amd64 {{.CMD_DIR}}/main.go
+      - GOOS=darwin GOARCH=arm64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-darwin-arm64 {{.CMD_DIR}}/main.go
+
+  build-windows:
+    desc: "Build for Windows"
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - GOOS=windows GOARCH=amd64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-windows-amd64.exe {{.CMD_DIR}}/main.go
+
+  build-all:
+    desc: "Build for multiple platforms"
+    deps: [deps]
+    cmds:
+      - task: build-linux
+      - task: build-darwin
+      - task: build-windows
+
+  install:
+    desc: "Install the bootstrap binary to GOPATH/bin"
+    deps: [build]
+    cmds:
+      - go install {{.CMD_DIR}}/main.go
+
+  dev:
+    desc: "Build and run in development mode"
+    deps: [build]
+    cmds:
+      - ./{{.BINARY_NAME}} {{.CLI_ARGS}}
+
+  verify:
+    desc: "Verify the build works"
+    deps: [build]
+    cmds:
+      - ./{{.BINARY_NAME}} version
+      - ./{{.BINARY_NAME}} --help
+
+  check:
+    desc: "Run all checks (format, lint, test, build)"
+    cmds:
+      - task: format
+      - task: lint
+      - task: test-short
+      - task: build
+      - task: verify
+
+  release:
+    desc: "Prepare a release build"
+    cmds:
+      - task: clean
+      - task: check
+      - task: build-all
+      - echo "Release artifacts built in {{.BUILD_DIR}}/"
+
+  help:
+    desc: "Show available tasks"
+    cmds:
+      - task --list

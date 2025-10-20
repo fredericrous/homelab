@@ -1,0 +1,184 @@
+version: '3'
+
+vars:
+  ROOT_DIR: '..'
+  KUBECONFIG: '{{.TASKFILE_DIR}}/kubeconfig.yaml'
+  CERT_PATH: '{{.TASKFILE_DIR}}/cert'
+  VAULT_ADDR: 'http://192.168.1.42:61200'
+  DOCKER_HOST_NAS: 'tcp://192.168.1.20:2376'
+
+env:
+  SHELL: /bin/bash
+  KUBECONFIG: '{{.KUBECONFIG}}'
+  VAULT_ADDR: '{{.VAULT_ADDR}}'
+  DOCKER_HOST: '{{.DOCKER_HOST_NAS}}'
+  DOCKER_TLS_VERIFY: '1'
+  DOCKER_CERT_PATH: '{{.CERT_PATH}}'
+
+tasks:
+  up:
+    desc: Create K3s cluster infrastructure (Docker Compose + K3s)
+    deps: [check-prereq]
+    cmds:
+      - task: provision
+      - task: configure
+      - task: kubeconfig
+      - task: validate-cluster
+
+  provision:
+    desc: "Start NAS infrastructure using Docker Compose"
+    deps: [check-prereq]
+    cmds:
+      - echo "🐳 Starting NAS infrastructure (K3s + MinIO)..."
+      - |-
+        # Ensure cert directory exists
+        mkdir -p {{.CERT_PATH}}
+      - |-
+        # Download certificates if needed
+        if [ ! -f "{{.CERT_PATH}}/ca.pem" ]; then
+          echo "📜 Downloading Docker certificates..."
+          cd ../bootstrap/scripts/nas
+          ./download-cert.sh
+        fi
+      - |-
+        # Pull latest images
+        echo "📦 Pulling latest images..."
+        docker-compose pull || docker compose pull
+      - |-
+        # Start services
+        echo "🚀 Starting services..."
+        docker-compose up -d || docker compose up -d
+
+  configure:
+    desc: "Configure K3s cluster"
+    deps: [check-prereq]
+    cmds:
+      - echo "⏳ Waiting for K3s to start..."
+      - |-
+        # Wait for K3s container to be running
+        for i in {1..30}; do
+          if docker ps | grep -q k3s; then
+            echo "✅ K3s container is running"
+            break
+          fi
+          echo "  Waiting for K3s container... ($i/30)"
+          sleep 5
+        done
+
+  kubeconfig:
+    desc: "Extract kubeconfig from K3s container"
+    deps: [check-prereq]
+    cmds:
+      - echo "📋 Extracting kubeconfig..."
+      - |-
+        # Wait for kubeconfig to be available
+        for i in {1..30}; do
+          if docker exec k3s-server cat /etc/rancher/k3s/k3s.yaml > {{.KUBECONFIG}} 2>/dev/null; then
+            # Update server IP to point to NAS host
+            sed -i 's/127.0.0.1/192.168.1.20/g' {{.KUBECONFIG}}
+            echo "✅ Kubeconfig extracted and configured"
+            break
+          fi
+          echo "  Waiting for kubeconfig... ($i/30)"
+          sleep 5
+        done
+      - |-
+        # Test connectivity
+        if kubectl version --short &>/dev/null; then
+          echo "✅ Kubernetes API is accessible"
+        else
+          echo "❌ Failed to connect to Kubernetes API"
+          exit 1
+        fi
+
+  validate-cluster:
+    desc: "Validate cluster is ready"
+    deps: [check-prereq]
+    preconditions:
+      - sh: kubectl get nodes
+        msg: "Cluster must be accessible"
+    cmds:
+      - echo "🔍 Validating NAS cluster..."
+      - kubectl get nodes
+      - kubectl get pods -A
+      - |-
+        echo "⏳ Waiting for all system pods to be ready..."
+        kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=5m
+      - echo "✅ NAS cluster validation completed"
+
+  status:
+    desc: "Show NAS cluster status"
+    cmds:
+      - echo "📊 NAS Cluster Status"
+      - echo "===================="
+      - |-
+        echo "Docker Services:"
+        docker-compose ps 2>/dev/null || docker compose ps 2>/dev/null || echo "❌ Docker Compose not running"
+        echo ""
+      - |-
+        if [ -f "{{.KUBECONFIG}}" ]; then
+          echo "✅ Kubeconfig: {{.KUBECONFIG}}"
+          if kubectl version --short &>/dev/null; then
+            echo "✅ API Server: Accessible"
+            echo ""
+            echo "Nodes:"
+            kubectl get nodes
+            echo ""
+            echo "System Pods:"
+            kubectl get pods -n kube-system
+          else
+            echo "❌ API Server: Not accessible"
+          fi
+        else
+          echo "❌ Kubeconfig: Not found"
+        fi
+
+  uninstall:
+    desc: "Stop and remove NAS infrastructure"
+    prompt: "This will stop and remove all NAS containers and data. Are you sure?"
+    cmds:
+      - echo "🐳 Stopping and removing containers..."
+      - |-
+        docker-compose down --volumes --remove-orphans 2>/dev/null || \
+        docker compose down --volumes --remove-orphans 2>/dev/null || \
+        echo "⚠️  Failed to stop some containers"
+      - |-
+        echo "🧹 Cleaning up generated files..."
+        rm -f {{.KUBECONFIG}}
+
+  vault-setup:
+    desc: "Setup Vault secrets and PKI for MinIO and AWS"
+    deps: [check-prereq]
+    preconditions:
+      - sh: kubectl get nodes
+        msg: "Cluster must be accessible"
+    cmds:
+      - |-
+        echo "🔐 Setting up Vault secrets..."
+        cd ../bootstrap/scripts/nas
+        ./vault-secrets-setup.sh
+
+  check-prereq:
+    desc: Check prerequisites
+    silent: true
+    cmds:
+      - |-
+        if ! command -v docker &> /dev/null; then
+          echo "ERROR: docker is required but not installed. Install Docker Desktop or docker-ce"
+          exit 1
+        fi
+      - |-
+        if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+          echo "ERROR: docker-compose is required but not installed"
+          exit 1
+        fi
+      - |-
+        if [ ! -f "{{.ROOT_DIR}}/.env" ]; then
+          echo "ERROR: .env file not found. Copy .env.example and update with your values"
+          exit 1
+        fi
+      - |-
+        if [ ! -f "docker-compose.yml" ]; then
+          echo "ERROR: docker-compose.yml not found in {{.TASKFILE_DIR}}"
+          exit 1
+        fi

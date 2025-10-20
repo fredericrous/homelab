@@ -1,0 +1,53 @@
+nas:
+  cluster:
+    name: "nas"
+    host: "192.168.1.20"
+    port: 2376
+    docker_host: "tcp://192.168.1.20:2376"
+    cert_path: "../infrastructure/nas/cert"
+    kubeconfig: "../infrastructure/nas/kubeconfig.yaml"
+    timeouts:
+      bootstrap: "5m"
+      infrastructure: "10m"
+      application: "5m"
+      validation: "3m"
+
+  storage:
+    minio:
+      enabled: true
+      root_user: "admin"
+      # root_password loaded from Vault secret/minio
+      buckets:
+        - "backups"
+        - "media"
+        - "data"
+
+  gitops:
+    provider: "fluxcd"
+    repository: "https://github.com/fredericrous/homelab"
+    branch: "main"
+    path: "kubernetes/nas"
+    owner: "fredericrous"
+    # token loaded from GITHUB_TOKEN env var
+
+  security:
+    vault:
+      enabled: true
+      address: "http://192.168.1.42:61200"
+      transit_path: "transit"
+      # token loaded from VAULT_TOKEN env var
+    tls:
+      enabled: false  # Internal NAS cluster
+    rbac:
+      enabled: true
+
+  integration:
+    vault:
+      enabled: true
+      address: "http://192.168.1.42:61200" 
+      transit_path: "transit"
+    aws:
+      enabled: true
+      region: "us-east-1"
+      s3_bucket: "homelab-nas-backups"
+      # credentials loaded from Vault secret/velero
