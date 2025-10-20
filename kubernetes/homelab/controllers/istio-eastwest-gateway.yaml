@@ -15,20 +15,24 @@ spec:
   chart:
     spec:
       chart: gateway
-      version: 1.27.2
+      version: "1.27.2"
       sourceRef:
         kind: HelmRepository
         name: istio
         namespace: flux-system
+      interval: 12h
   install:
     remediation:
       retries: 3
+    createNamespace: true
   upgrade:
     remediation:
       retries: 3
   values:
-    name: istio-eastwestgateway
-    networkGateway: homelab-network
+    # Fix image pull issue
+    image:
+      repository: istio/proxyv2
+      tag: 1.27.2
     service:
       type: NodePort
       ports:
