@@ -24,6 +24,8 @@ spec:
   values:
     name: istio-eastwestgateway
     networkGateway: nas-network
+    podAnnotations:
+      sidecar.istio.io/proxyImage: docker.io/istio/proxyv2:1.27.2
     service:
       type: LoadBalancer
       ports:

@@ -5,7 +5,8 @@ metadata:
   annotations:
     reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
   labels:
-    istio-injection: disabled
+    # Select default Istio revision while leaving per-pod annotations to control injection
+    istio.io/rev: default
     # Allow privileged pods for Istio system components
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: privileged
@@ -16,8 +17,8 @@ kind: Namespace
 metadata:
   name: istio-ingress
   labels:
-    # Enable injection for gateway pods to replace 'auto' image
-    istio-injection: enabled
+    # Enable injection for gateway pods via default revision selector
+    istio.io/rev: default
     # Standard security for gateway pods
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: baseline

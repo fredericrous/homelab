@@ -36,6 +36,8 @@ spec:
       istio: eastwestgateway
       app: istio-eastwestgateway
       topology.istio.io/network: homelab-network
+    podAnnotations:
+      sidecar.istio.io/proxyImage: docker.io/istio/proxyv2:1.27.2
     # Service configuration for east-west traffic
     service:
       type: NodePort
