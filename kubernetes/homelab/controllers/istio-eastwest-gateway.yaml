@@ -36,8 +36,16 @@ spec:
       istio: eastwestgateway
       app: istio-eastwestgateway
       topology.istio.io/network: homelab-network
+    env:
+      - name: ISTIO_META_REQUESTED_NETWORK_VIEW
+        value: homelab-network
     podAnnotations:
       sidecar.istio.io/proxyImage: docker.io/istio/proxyv2:1.27.2
+    gateways:
+      istio-ingressgateway:
+        injectionTemplate: gateway
+    global:
+      network: homelab-network
     # Service configuration for east-west traffic
     service:
       type: NodePort

@@ -8,6 +8,8 @@ resources:
   - istiod.yaml
   - ztunnel.yaml
   - istio-eastwest-gateway.yaml
+  - expose-services.yaml
+  - expose-istiod.yaml
 
 patches:
 - path: network-topology.yaml
