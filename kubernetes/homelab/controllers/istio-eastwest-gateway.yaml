@@ -36,14 +36,11 @@ spec:
       istio: eastwestgateway
       app: istio-eastwestgateway
       topology.istio.io/network: homelab-network
+    # Environment variables as object (not array)
     env:
-      - name: ISTIO_META_REQUESTED_NETWORK_VIEW
-        value: homelab-network
-    gateways:
-      istio-ingressgateway:
-        injectionTemplate: gateway
-    global:
-      network: homelab-network
+      ISTIO_META_REQUESTED_NETWORK_VIEW: homelab-network
+    # Injection template annotation
+    injectionTemplate: gateway
     # Service configuration for east-west traffic
     service:
       type: NodePort
