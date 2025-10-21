@@ -31,8 +31,6 @@ spec:
     env:
       - name: ISTIO_META_REQUESTED_NETWORK_VIEW
         value: nas-network
-    podAnnotations:
-      sidecar.istio.io/proxyImage: docker.io/istio/proxyv2:1.27.2
     gateways:
       istio-ingressgateway:
         injectionTemplate: gateway
