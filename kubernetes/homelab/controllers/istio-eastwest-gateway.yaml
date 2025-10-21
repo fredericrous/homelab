@@ -29,18 +29,14 @@ spec:
     remediation:
       retries: 3
   values:
-    # Name for the gateway
-    name: istio-eastwestgateway
     # Labels for cross-cluster discovery
     labels:
       istio: eastwestgateway
       app: istio-eastwestgateway
       topology.istio.io/network: homelab-network
-    # Environment variables as object (not array)
+    # Environment variables as object
     env:
       ISTIO_META_REQUESTED_NETWORK_VIEW: homelab-network
-    # Injection template annotation
-    injectionTemplate: gateway
     # Service configuration for east-west traffic
     service:
       type: NodePort
