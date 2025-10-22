@@ -10,6 +10,7 @@ metadata:
 spec:
   hosts:
   - nas-vault.nas-integration.svc.cluster.local
+  - vault-vault-nas.vault.svc.cluster.local  # For transit unseal
   ports:
   - number: 8200
     name: http-vault
