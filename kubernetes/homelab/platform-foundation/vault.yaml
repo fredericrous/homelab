@@ -49,7 +49,7 @@ spec:
             }
             
             seal "transit" {
-              address = "http://vault-vault-nas.vault.svc.cluster.local:8200"
+              address = "http://192.168.1.42:61200"
               disable_renewal = "false"
               key_name = "autounseal"
               mount_path = "transit"

@@ -1,0 +1,39 @@
+---
+# Service to make NAS Vault accessible to non-mesh pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-vault-nas
+  namespace: vault
+spec:
+  type: ExternalName
+  externalName: nas-vault.nas-integration.svc.cluster.local
+  ports:
+  - port: 8200
+    name: http
+---
+# Also need the service in nas-integration namespace  
+apiVersion: v1
+kind: Service
+metadata:
+  name: nas-vault
+  namespace: nas-integration
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - port: 8200
+    name: http
+---
+# Endpoints to point to actual NAS Vault
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: nas-vault
+  namespace: nas-integration
+subsets:
+- addresses:
+  - ip: 192.168.1.42
+  ports:
+  - port: 61200
+    name: http
