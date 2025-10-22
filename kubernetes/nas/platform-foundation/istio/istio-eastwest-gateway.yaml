@@ -29,13 +29,7 @@ spec:
       app: istio-eastwestgateway
       topology.istio.io/network: nas-network
     env:
-      - name: ISTIO_META_REQUESTED_NETWORK_VIEW
-        value: nas-network
-    gateways:
-      istio-ingressgateway:
-        injectionTemplate: gateway
-    global:
-      network: nas-network
+      ISTIO_META_REQUESTED_NETWORK_VIEW: nas-network
     service:
       type: LoadBalancer
       ports:

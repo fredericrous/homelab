@@ -34,6 +34,7 @@ spec:
       istio: eastwestgateway
       app: istio-eastwestgateway
       topology.istio.io/network: homelab-network
+    networkGateway: homelab-network
     # Environment variables as object
     env:
       ISTIO_META_REQUESTED_NETWORK_VIEW: homelab-network
