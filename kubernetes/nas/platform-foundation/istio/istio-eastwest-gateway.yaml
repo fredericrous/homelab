@@ -27,7 +27,6 @@ spec:
     labels:
       istio: eastwestgateway
       app: istio-eastwestgateway
-      topology.istio.io/network: nas-network
     env:
       ISTIO_META_REQUESTED_NETWORK_VIEW: nas-network
     service:

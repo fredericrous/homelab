@@ -34,7 +34,7 @@ spec:
       multiCluster:
         clusterName: nas
       # Point to homelab cluster's istiod via accessible address
-      remotePilotAddress: "192.168.1.67:15010"
+      remotePilotAddress: "192.168.1.67"
     # Minimal resources for NAS
     pilot:
       resources:
