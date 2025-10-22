@@ -15,4 +15,5 @@ spec:
     name: flux-system
   timeout: 5m0s
   wait: true
+  validation: client
   # No dependencies - infrastructure is foundational
