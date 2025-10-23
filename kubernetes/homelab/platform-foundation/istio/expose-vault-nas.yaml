@@ -1,0 +1,52 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-vault-nas
+  namespace: vault
+spec:
+  type: ExternalName
+  externalName: istio-eastwestgateway.istio-system.svc.cluster.local
+  ports:
+  - port: 8200
+    targetPort: 15443
+    protocol: TCP
+    name: http
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: vault-vault-nas
+  namespace: vault
+spec:
+  host: vault-vault-nas.vault.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: vault-vault-nas
+  namespace: vault
+spec:
+  hosts:
+  - vault-vault-nas.vault.svc.cluster.local
+  http:
+  - match:
+    - headers:
+        host:
+          exact: vault-vault-nas.vault.svc.cluster.local
+    route:
+    - destination:
+        host: istio-eastwestgateway.istio-system.svc.cluster.local
+        port:
+          number: 15443
+      headers:
+        request:
+          set:
+            Host: vault-vault.vault.svc.cluster.local

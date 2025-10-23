@@ -28,6 +28,7 @@ spec:
     # Remote cluster configuration - NAS is discovered by homelab primary cluster
     istiodRemote:
       enabled: true  # This is a remote cluster managed by external istiod
+      injectionURL: "https://istio-eastwestgateway.istio-system.svc:15443/inject"
     global:
       meshID: nas-mesh
       network: nas-network
