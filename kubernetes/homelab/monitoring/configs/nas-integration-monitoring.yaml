@@ -114,7 +114,7 @@ spec:
     - alert: NASCircuitBreakerOpen
       expr: |
         (
-          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|8200||vault-vault-nas.vault.svc.cluster.local"} > 0
+          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|61200||192.168.1.42"} > 0
         )
       for: 30s
       labels:
@@ -130,7 +130,7 @@ spec:
           Applications using NAS integration are now in degraded mode.
           
           Check NAS health:
-          curl -f http://vault-vault-nas.vault.svc.cluster.local:8200/v1/sys/health
+          curl -f http://192.168.1.42:61200/v1/sys/health
           
           Check Envoy outlier detection:
           kubectl exec -n nas-integration deployment/nas-token-broker -- curl localhost:15000/stats | grep outlier
@@ -138,9 +138,9 @@ spec:
     - alert: NASHighErrorRate
       expr: |
         (
-          rate(envoy_cluster_upstream_rq_xx{cluster_name="outbound|8200||vault-vault-nas.vault.svc.cluster.local",envoy_response_code_class="5"}[5m]) 
+          rate(envoy_cluster_upstream_rq_xx{cluster_name="outbound|61200||192.168.1.42",envoy_response_code_class="5"}[5m]) 
           / 
-          rate(envoy_cluster_upstream_rq_total{cluster_name="outbound|8200||vault-vault-nas.vault.svc.cluster.local"}[5m])
+          rate(envoy_cluster_upstream_rq_total{cluster_name="outbound|61200||192.168.1.42"}[5m])
         ) > 0.1
       for: 2m
       labels:
@@ -215,9 +215,9 @@ spec:
     - alert: NASIntegrationRecovered
       expr: |
         (
-          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|8200||vault-vault-nas.vault.svc.cluster.local"} == 0
+          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|61200||192.168.1.42"} == 0
           and
-          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|8200||vault-vault-nas.vault.svc.cluster.local"} offset 5m > 0
+          envoy_cluster_outlier_detection_ejections_active{cluster_name="outbound|61200||192.168.1.42"} offset 5m > 0
         )
       for: 30s
       labels:

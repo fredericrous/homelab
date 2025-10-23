@@ -7,11 +7,6 @@ metadata:
 spec:
   targetNamespace: istio-system
   interval: 10m
-  dependsOn:
-    - name: istio-base
-      namespace: flux-system
-    - name: istiod
-      namespace: flux-system
   chart:
     spec:
       chart: gateway
@@ -35,7 +30,7 @@ spec:
     env:
       ISTIO_META_REQUESTED_NETWORK_VIEW: nas-network
     service:
-      type: NodePort
+      type: LoadBalancer
       ports:
       - name: status-port
         port: 15021
@@ -45,3 +40,4 @@ spec:
         port: 15443
         targetPort: 15443
         nodePort: 61443  # Map to allowed port range
+      loadBalancerIP: 192.168.1.42  # NAS cluster IP
