@@ -6,7 +6,7 @@ metadata:
   namespace: istio-system
 
 ---
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: SecretStore
 metadata:
   name: istio-ca-vault
@@ -14,12 +14,12 @@ metadata:
 spec:
   provider:
     vault:
-      server: http://192.168.1.67:8200
+      server: http://vault-vault-nas.vault.svc.cluster.local:8200
       path: secret
       version: v2
       auth:
         kubernetes:
-          mountPath: /v1/auth/kubernetes
+          mountPath: kubernetes
           role: istio-ca-sync
           serviceAccountRef:
             name: istio-ca-sync
@@ -51,13 +51,13 @@ spec:
   data:
     - secretKey: rootCert
       remoteRef:
-        key: istio/ca
+        key: secret/data/istio/ca
         property: root-cert.pem
     - secretKey: certChain
       remoteRef:
-        key: istio/ca
+        key: secret/data/istio/ca
         property: cert-chain.pem
     - secretKey: key
       remoteRef:
-        key: istio/ca
+        key: secret/data/istio/ca
         property: key.pem

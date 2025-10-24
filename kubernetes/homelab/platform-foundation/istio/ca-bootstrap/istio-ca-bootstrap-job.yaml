@@ -121,13 +121,39 @@ spec:
               openssl req -new -x509 -key root-key.pem -out root-cert.pem \
                 -days 3650 -config root-cert.conf
 
+              # For a self-signed root CA, cert-chain is the same as root-cert
               cp root-cert.pem cert-chain.pem
+              
+              # Rename key file to match Istio's expectation
+              mv root-key.pem key.pem
 
               log "Storing CA material in Vault"
-              curl -sSf -H "X-Vault-Token: $VAULT_TOKEN" \
-                --request POST \
-                --data "{\"data\":{\"root-cert.pem\":\"$(cat root-cert.pem | sed 's/"/\\"/g')\",\"cert-chain.pem\":\"$(cat cert-chain.pem | sed 's/"/\\"/g')\",\"key.pem\":\"$(cat root-key.pem | sed 's/"/\\"/g')\"}}" \
-                "$VAULT_ADDR/v1/secret/data/istio/ca"
+              
+              # Base64 encode the certificates to handle newlines properly
+              ROOT_CERT_B64=$(base64 -w 0 < root-cert.pem)
+              CERT_CHAIN_B64=$(base64 -w 0 < cert-chain.pem)
+              ROOT_KEY_B64=$(base64 -w 0 < key.pem)
+              
+              # Store in Vault with proper JSON encoding
+              VAULT_PAYLOAD=$(jq -n \
+                --arg rootcert "$ROOT_CERT_B64" \
+                --arg certchain "$CERT_CHAIN_B64" \
+                --arg rootkey "$ROOT_KEY_B64" \
+                '{
+                  "data": {
+                    "root-cert.pem": ($rootcert | @base64d),
+                    "cert-chain.pem": ($certchain | @base64d),
+                    "key.pem": ($rootkey | @base64d)
+                  }
+                }')
+              
+              if ! curl -sSf -H "X-Vault-Token: $VAULT_TOKEN" \
+                  --request POST \
+                  --data "$VAULT_PAYLOAD" \
+                  "$VAULT_ADDR/v1/secret/data/istio/ca"; then
+                log "Failed to store CA in Vault"
+                exit 1
+              fi
 
               log "CA generation completed"
               rm -rf /tmp/istio-ca
