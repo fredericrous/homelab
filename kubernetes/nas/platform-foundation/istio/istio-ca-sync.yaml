@@ -1,0 +1,63 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: istio-ca-sync
+  namespace: istio-system
+
+---
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: istio-ca-vault
+  namespace: istio-system
+spec:
+  provider:
+    vault:
+      server: http://192.168.1.67:8200
+      path: secret
+      version: v2
+      auth:
+        kubernetes:
+          mountPath: /v1/auth/kubernetes
+          role: istio-ca-sync
+          serviceAccountRef:
+            name: istio-ca-sync
+            namespace: istio-system
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: istio-cacerts
+  namespace: istio-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: istio-ca-vault
+  target:
+    name: cacerts
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        root-cert.pem: |-
+          {{ .rootCert | toString }}
+        key.pem: |-
+          {{ .key | toString }}
+        cert-chain.pem: |-
+          {{ .certChain | toString }}
+  data:
+    - secretKey: rootCert
+      remoteRef:
+        key: istio/ca
+        property: root-cert.pem
+    - secretKey: certChain
+      remoteRef:
+        key: istio/ca
+        property: cert-chain.pem
+    - secretKey: key
+      remoteRef:
+        key: istio/ca
+        property: key.pem

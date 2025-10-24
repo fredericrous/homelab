@@ -28,13 +28,14 @@ spec:
     # Remote cluster configuration - NAS is discovered by homelab primary cluster
     istiodRemote:
       enabled: true  # This is a remote cluster managed by external istiod
+      injectionURL: "https://192.168.1.68:30443/inject"
     global:
       meshID: nas-mesh
       network: nas-network
       multiCluster:
         clusterName: nas
       # Point to homelab cluster's istiod via accessible address
-      remotePilotAddress: "192.168.1.67"
+      remotePilotAddress: "192.168.1.68"
     # Minimal resources for NAS
     pilot:
       resources:

@@ -4,4 +4,5 @@ resources:
   - vault/
   - vault-config-operator-configs.yaml
   - kyverno-policies/
+  - istio-cacerts-externalsecret.yaml
   # vault-config-operator/ resources are applied by vault-config-operator-configs.yaml Kustomization

@@ -1,5 +1,5 @@
 ---
-# ServiceEntry to expose NAS vault cluster to homelab via Istio ambient mesh
+# ServiceEntry to expose NAS Vault over the east-west gateway
 apiVersion: networking.istio.io/v1beta1
 kind: ServiceEntry
 metadata:
@@ -9,35 +9,17 @@ metadata:
     app: nas-integration
 spec:
   hosts:
-  - nas-vault.nas-integration.svc.cluster.local
-  - vault-vault-nas.vault.svc.cluster.local  # For transit unseal
-  ports:
-  - number: 8200
-    name: http-vault
-    protocol: HTTP
+    - vault-vault-nas.vault.svc.cluster.local
   location: MESH_EXTERNAL
-  resolution: DNS
-  addresses:
-  - 192.168.1.42
-  endpoints:
-  - address: 192.168.1.42
-    ports:
-      http-vault: 61200  # NodePort from NAS K3s cluster
-
----
-# Service to provide DNS resolution within homelab cluster
-apiVersion: v1
-kind: Service
-metadata:
-  name: nas-vault
-  namespace: nas-integration
-  labels:
-    app: nas-integration
-spec:
-  type: ExternalName
-  externalName: nas-vault.nas-integration.svc.cluster.local
   ports:
-  - name: http-vault
-    port: 8200
-    protocol: TCP
-    targetPort: 8200
+    - number: 8200
+      name: http-vault
+      protocol: HTTP
+  resolution: STATIC
+  endpoints:
+    - address: 192.168.1.68
+      ports:
+        http-vault: 61443
+    - address: 192.168.1.69
+      ports:
+        http-vault: 61443

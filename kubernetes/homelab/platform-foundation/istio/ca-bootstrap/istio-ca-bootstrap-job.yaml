@@ -1,0 +1,133 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: istio-ca-bootstrap
+  namespace: istio-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: istio-ca-bootstrap
+  namespace: istio-system
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: istio-ca-bootstrap
+  namespace: istio-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: istio-ca-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: istio-ca-bootstrap
+    namespace: istio-system
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: istio-ca-bootstrap
+  namespace: istio-system
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: istio-ca-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: ca-bootstrap
+          image: alpine:3.20
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault-vault.vault.svc.cluster.local:8200"
+            - name: VAULT_ROLE
+              value: "istio-ca-bootstrap"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              apk add --no-cache curl jq openssl
+
+              # Log helper
+              log() {
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) - $1"
+              }
+
+              # Wait for Vault
+              log "Waiting for Vault..."
+              until curl -sSf "$VAULT_ADDR/v1/sys/health" >/dev/null; do
+                log "Vault not ready yet, sleeping 5s"
+                sleep 5
+              done
+
+              # Login via Kubernetes auth using serviceaccount token
+              log "Authenticating with Vault"
+              SA_JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              VAULT_TOKEN=$(curl -sSf --request POST \
+                --data "{\"role\":\"$VAULT_ROLE\",\"jwt\":\"$SA_JWT\"}" \
+                "$VAULT_ADDR/v1/auth/kubernetes/login" | jq -r '.auth.client_token')
+
+              if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
+                log "Failed to authenticate to Vault"
+                exit 1
+              fi
+
+              export VAULT_TOKEN
+
+              # Check if CA already exists
+              if curl -sSf -H "X-Vault-Token: $VAULT_TOKEN" \
+                  "$VAULT_ADDR/v1/secret/data/istio/ca" >/dev/null 2>&1; then
+                log "Istio CA already present in Vault, skipping"
+                exit 0
+              fi
+
+              log "Generating Istio root CA"
+              mkdir -p /tmp/istio-ca
+              cd /tmp/istio-ca
+
+              openssl genrsa -out root-key.pem 4096
+
+              cat >root-cert.conf <<'EOF'
+              [req]
+              distinguished_name = req_distinguished_name
+              x509_extensions = v3_ca
+              prompt = no
+
+              [req_distinguished_name]
+              C  = FR
+              ST = France
+              L  = Paris
+              O  = Homelab Mesh
+              CN = Homelab Istio Root CA
+
+              [v3_ca]
+              subjectKeyIdentifier = hash
+              authorityKeyIdentifier = keyid:always,issuer
+              basicConstraints = critical, CA:true
+              keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+              EOF
+
+              openssl req -new -x509 -key root-key.pem -out root-cert.pem \
+                -days 3650 -config root-cert.conf
+
+              cp root-cert.pem cert-chain.pem
+
+              log "Storing CA material in Vault"
+              curl -sSf -H "X-Vault-Token: $VAULT_TOKEN" \
+                --request POST \
+                --data "{\"data\":{\"root-cert.pem\":\"$(cat root-cert.pem | sed 's/"/\\"/g')\",\"cert-chain.pem\":\"$(cat cert-chain.pem | sed 's/"/\\"/g')\",\"key.pem\":\"$(cat root-key.pem | sed 's/"/\\"/g')\"}}" \
+                "$VAULT_ADDR/v1/secret/data/istio/ca"
+
+              log "CA generation completed"
+              rm -rf /tmp/istio-ca

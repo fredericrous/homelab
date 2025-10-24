@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - expose-services.yaml
   - expose-istiod.yaml
+  - ca-bootstrap
 
 patches:
 - path: network-topology.yaml
