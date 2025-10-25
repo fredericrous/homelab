@@ -6,9 +6,15 @@ This folder contains the automation for bootstrapping and distributing a shared 
 
 1. **Direct CA Generation (`istio-ca-bootstrap`)**
    * Runs as a Kubernetes Job in the homelab cluster
-   * Generates a 4096-bit RSA root certificate valid for 10 years
+   * Generates a 4096-bit RSA root certificate valid for 1 year (improved rotation)
    * Creates the `cacerts` secret directly in `istio-system` namespace
-   * Idempotent - skips if secret already exists with valid keys
+   * Idempotent with comprehensive validation:
+     - Validates existing certificates before regeneration
+     - Creates automatic backups before any modifications
+     - Uses atomic operations to prevent race conditions
+     - Performs certificate validation (expiry, key size, CA flag, key matching)
+   * Structured JSON logging for better observability
+   * Generation tracking with annotations
 
 2. **Manual CA Sync to NAS**
    * The CA must be manually copied to the NAS cluster
@@ -191,3 +197,46 @@ seal "transit" {
 ```
 
 Only application-level access should use the Istio service mesh addresses.
+
+## Security Improvements
+
+The CA bootstrap job includes several security enhancements:
+
+### 1. Atomic Operations
+- Uses `kubectl patch` with merge operations to prevent race conditions
+- Ensures updates are atomic and consistent
+
+### 2. Automatic Backups
+- Creates timestamped backups before modifying existing CAs
+- Backup secrets are named `cacerts-backup-{timestamp}`
+- Prevents data loss if regeneration fails
+
+### 3. Comprehensive Validation
+- **Certificate format**: Validates X.509 structure
+- **CA flag**: Ensures certificate has `CA:TRUE` extension
+- **Key matching**: Verifies private key matches certificate
+- **Expiry check**: Warns if certificate expires in less than 30 days
+- **Key size**: Ensures minimum 4096-bit RSA keys
+- **Generation tracking**: Maintains generation counter in annotations
+
+### 4. Improved Observability
+- Structured JSON logging for easier parsing
+- Generation tracking with timestamps
+- Detailed error messages for troubleshooting
+
+### Example Log Output
+```json
+{"timestamp":"2024-01-15T10:30:00Z","level":"INFO","message":"Starting Istio CA bootstrap process"}
+{"timestamp":"2024-01-15T10:30:01Z","level":"INFO","message":"Found existing cacerts secret, validating..."}
+{"timestamp":"2024-01-15T10:30:02Z","level":"INFO","message":"Certificate validation passed"}
+{"timestamp":"2024-01-15T10:30:02Z","level":"INFO","message":"Existing CA is valid (generation: 2), exiting"}
+```
+
+### Monitoring Backup Secrets
+```bash
+# List all CA backup secrets
+kubectl --kubeconfig kubeconfig -n istio-system get secrets | grep cacerts-backup
+
+# View a specific backup
+kubectl --kubeconfig kubeconfig -n istio-system get secret cacerts-backup-1705315800 -o yaml
+```

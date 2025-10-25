@@ -14,7 +14,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "create", "update", "patch"]
+    verbs: ["get", "create", "update", "patch", "delete"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -38,7 +38,7 @@ metadata:
   name: istio-ca-bootstrap
   namespace: istio-system
 spec:
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 3600  # Keep for 1 hour for debugging
   backoffLimit: 1
   template:
     metadata:
@@ -55,41 +55,125 @@ spec:
             - |
               set -euo pipefail
               
-              # Install openssl
-              apk add --no-cache openssl
+              # Install required tools
+              apk add --no-cache openssl jq
 
-              # Log helper
+              # Log helper with structured output
               log() {
-                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) - $1"
+                echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"level\":\"$1\",\"message\":\"$2\"}"
               }
 
-              # Check if cacerts already exists
-              if kubectl get secret cacerts -n istio-system >/dev/null 2>&1; then
-                log "cacerts secret already exists, checking validity..."
+              # Validate certificate function
+              validate_certificate() {
+                local cert_file="$1"
+                local key_file="$2"
                 
-                # Verify it has all required keys
-                MISSING_KEYS=""
+                # Check certificate is valid
+                if ! openssl x509 -in "$cert_file" -text -noout >/dev/null 2>&1; then
+                  log "ERROR" "Invalid certificate format"
+                  return 1
+                fi
+                
+                # Check certificate is a CA certificate
+                if ! openssl x509 -in "$cert_file" -text -noout | grep -q "CA:TRUE"; then
+                  log "ERROR" "Certificate is not a CA certificate"
+                  return 1
+                fi
+                
+                # Check key matches certificate
+                cert_modulus=$(openssl x509 -in "$cert_file" -modulus -noout | cut -d= -f2)
+                key_modulus=$(openssl rsa -in "$key_file" -modulus -noout | cut -d= -f2)
+                if [ "$cert_modulus" != "$key_modulus" ]; then
+                  log "ERROR" "Certificate and key do not match"
+                  return 1
+                fi
+                
+                # Check certificate validity period
+                not_after=$(openssl x509 -in "$cert_file" -enddate -noout | cut -d= -f2)
+                not_after_epoch=$(date -d "$not_after" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$not_after" +%s)
+                current_epoch=$(date +%s)
+                days_until_expiry=$(( (not_after_epoch - current_epoch) / 86400 ))
+                
+                if [ $days_until_expiry -lt 30 ]; then
+                  log "ERROR" "Certificate expires in less than 30 days"
+                  return 1
+                fi
+                
+                # Check key size
+                key_size=$(openssl rsa -in "$key_file" -text -noout | grep "Private-Key:" | sed 's/.*(\([0-9]*\) bit.*/\1/')
+                if [ "$key_size" -lt 4096 ]; then
+                  log "ERROR" "Key size is less than 4096 bits"
+                  return 1
+                fi
+                
+                log "INFO" "Certificate validation passed"
+                return 0
+              }
+
+              # Atomic secret update using kubectl patch
+              update_secret_atomically() {
+                local root_cert_b64="$1"
+                local cert_chain_b64="$2"
+                local key_b64="$3"
+                local generation="$4"
+                
+                # Create patch with server-side apply
+                kubectl patch secret cacerts -n istio-system --type='merge' \
+                  -p "{\"data\":{\"root-cert.pem\":\"$root_cert_b64\",\"cert-chain.pem\":\"$cert_chain_b64\",\"key.pem\":\"$key_b64\"},\"metadata\":{\"annotations\":{\"istio.io/ca-generation\":\"$generation\",\"istio.io/ca-generated-at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}" \
+                  2>/dev/null
+              }
+
+              # Main logic
+              log "INFO" "Starting Istio CA bootstrap process"
+              
+              # Check if cacerts already exists and validate it
+              if kubectl get secret cacerts -n istio-system -o json 2>/dev/null > /tmp/existing-secret.json; then
+                log "INFO" "Found existing cacerts secret, validating..."
+                
+                # Extract and decode existing certificates
+                mkdir -p /tmp/existing-ca
+                cd /tmp/existing-ca
+                
+                # Check if all keys exist
+                has_all_keys=true
                 for key in root-cert.pem cert-chain.pem key.pem; do
-                  if ! kubectl get secret cacerts -n istio-system -o jsonpath="{.data.$key}" | grep -q .; then
-                    MISSING_KEYS="$MISSING_KEYS $key"
+                  key_data=$(jq -r ".data.\"$key\" // empty" < /tmp/existing-secret.json)
+                  if [ -z "$key_data" ]; then
+                    log "WARN" "Missing key: $key"
+                    has_all_keys=false
+                  else
+                    echo "$key_data" | base64 -d > "$key"
                   fi
                 done
                 
-                if [ -z "$MISSING_KEYS" ]; then
-                  log "cacerts secret is valid, skipping generation"
+                # If all keys exist, validate the certificate
+                if [ "$has_all_keys" = "true" ] && validate_certificate "root-cert.pem" "key.pem"; then
+                  # Get current generation
+                  current_gen=$(jq -r '.metadata.annotations."istio.io/ca-generation" // "0"' < /tmp/existing-secret.json)
+                  log "INFO" "Existing CA is valid (generation: $current_gen), exiting"
                   exit 0
                 else
-                  log "cacerts secret is missing keys:$MISSING_KEYS, regenerating..."
-                  kubectl delete secret cacerts -n istio-system
+                  log "WARN" "Existing CA is invalid or incomplete, backing up before regeneration"
+                  
+                  # Create backup
+                  backup_name="cacerts-backup-$(date +%s)"
+                  kubectl get secret cacerts -n istio-system -o yaml | \
+                    sed "s/name: cacerts/name: $backup_name/" | \
+                    kubectl apply -f - 2>/dev/null || log "ERROR" "Failed to create backup"
+                  
+                  log "INFO" "Created backup: $backup_name"
                 fi
               fi
 
-              log "Generating Istio root CA"
+              # Generate new CA
+              log "INFO" "Generating new Istio root CA"
               mkdir -p /tmp/istio-ca
               cd /tmp/istio-ca
 
+              # Generate 4096-bit RSA key
               openssl genrsa -out key.pem 4096
 
+              # Create certificate configuration
               cat >root-cert.conf <<'EOF'
               [req]
               distinguished_name = req_distinguished_name
@@ -110,25 +194,62 @@ spec:
               keyUsage = critical, digitalSignature, cRLSign, keyCertSign
               EOF
 
+              # Generate certificate with 1 year validity (365 days) for better rotation practice
               openssl req -new -x509 -key key.pem -out root-cert.pem \
-                -days 3650 -config root-cert.conf
+                -days 365 -config root-cert.conf
 
               # For a self-signed root CA, cert-chain is the same as root-cert
               cp root-cert.pem cert-chain.pem
 
-              log "Creating cacerts secret in istio-system namespace"
-              kubectl create secret generic cacerts \
-                --from-file=root-cert.pem \
-                --from-file=cert-chain.pem \
-                --from-file=key.pem \
-                --namespace=istio-system
+              # Validate the generated certificate
+              if ! validate_certificate "root-cert.pem" "key.pem"; then
+                log "ERROR" "Generated certificate failed validation"
+                exit 1
+              fi
 
-              log "CA generation completed successfully"
-              
-              # Store fingerprint for verification
+              # Calculate fingerprint for logging
               FINGERPRINT=$(openssl x509 -in root-cert.pem -fingerprint -noout)
-              log "Root CA fingerprint: $FINGERPRINT"
+              log "INFO" "Generated CA fingerprint: $FINGERPRINT"
+
+              # Encode certificates for secret
+              ROOT_CERT_B64=$(base64 -w 0 root-cert.pem)
+              CERT_CHAIN_B64=$(base64 -w 0 cert-chain.pem)
+              KEY_B64=$(base64 -w 0 key.pem)
+
+              # Get next generation number
+              if [ -f /tmp/existing-secret.json ]; then
+                current_gen=$(jq -r '.metadata.annotations."istio.io/ca-generation" // "0"' < /tmp/existing-secret.json)
+                next_gen=$((current_gen + 1))
+              else
+                next_gen=1
+              fi
+
+              # Create or update secret atomically
+              if kubectl get secret cacerts -n istio-system >/dev/null 2>&1; then
+                log "INFO" "Updating existing secret atomically (generation: $next_gen)"
+                if update_secret_atomically "$ROOT_CERT_B64" "$CERT_CHAIN_B64" "$KEY_B64" "$next_gen"; then
+                  log "INFO" "CA secret updated successfully"
+                else
+                  log "ERROR" "Failed to update CA secret"
+                  exit 1
+                fi
+              else
+                log "INFO" "Creating new CA secret (generation: $next_gen)"
+                kubectl create secret generic cacerts \
+                  --from-file=root-cert.pem \
+                  --from-file=cert-chain.pem \
+                  --from-file=key.pem \
+                  --namespace=istio-system
+                
+                # Add annotations
+                kubectl annotate secret cacerts -n istio-system \
+                  "istio.io/ca-generation=$next_gen" \
+                  "istio.io/ca-generated-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              fi
+
+              log "INFO" "CA bootstrap completed successfully"
               
-              # Clean up
+              # Clean up sensitive data
               cd /
-              rm -rf /tmp/istio-ca
+              rm -rf /tmp/istio-ca /tmp/existing-ca
+              rm -f /tmp/existing-secret.json
