@@ -66,6 +66,9 @@ tasks:
       - |
         echo "🔗 Setting up cross-cluster connectivity with NAS..."
         ./ensure-nas-remote-secret.sh
+      - |
+        echo "🔐 Setting up shared Istio CA across clusters..."
+        ./ensure-istio-ca.sh || echo "⚠️  CA setup may complete after platform-foundation is deployed"
 
   create-vault-transit-secret:
     desc: "Create vault-transit-token secret for Vault auto-unseal"

@@ -68,17 +68,29 @@ spec:
               # Note: In production, you'd need proper kubeconfig or service account token
               # For now, we'll create a placeholder that should be replaced with actual sync mechanism
               
-              log "Creating placeholder cacerts secret"
-              log "In production, this would copy from homelab cluster"
+              log "Checking for cacerts secret synced by homelab"
               
               # Check if secret already exists
               if kubectl get secret cacerts -n istio-system >/dev/null 2>&1; then
-                log "cacerts secret already exists in NAS cluster"
-                exit 0
+                log "cacerts secret found in NAS cluster"
+                
+                # Verify it has the sync annotation
+                SYNC_FROM=$(kubectl get secret cacerts -n istio-system \
+                  -o jsonpath='{.metadata.annotations.istio\.io/synced-from}' 2>/dev/null || echo "")
+                
+                if [ "$SYNC_FROM" = "homelab" ]; then
+                  log "CA was synced from homelab cluster"
+                  FINGERPRINT=$(kubectl get secret cacerts -n istio-system \
+                    -o jsonpath='{.metadata.annotations.istio\.io/ca-fingerprint}' 2>/dev/null || echo "unknown")
+                  log "CA fingerprint: $FINGERPRINT"
+                  exit 0
+                else
+                  log "WARN: cacerts exists but wasn't synced from homelab"
+                  log "This may be a manually created secret"
+                fi
+              else
+                log "WARN: cacerts secret not found"
+                log "Waiting for homelab cluster to sync the CA..."
+                log "The istio-ca-sync-to-nas job in homelab will create this secret"
+                exit 1
               fi
-              
-              log "ERROR: Manual intervention required"
-              log "Please copy the cacerts secret from homelab to NAS cluster:"
-              log "  kubectl --kubeconfig <homelab> get secret cacerts -n istio-system -o yaml | \\"
-              log "    kubectl --kubeconfig <nas> apply -f -"
-              exit 1

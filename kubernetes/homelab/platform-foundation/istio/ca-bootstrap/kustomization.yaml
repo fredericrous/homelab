@@ -6,3 +6,5 @@ namespace: istio-system
 resources:
   - istio-ca-bootstrap-job.yaml
   - istio-ca-vault-backup.yaml
+  - nas-kubeconfig-secret.yaml
+  - istio-ca-export-job.yaml

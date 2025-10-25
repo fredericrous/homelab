@@ -1,0 +1,167 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: istio-ca-sync
+  namespace: istio-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: istio-ca-sync
+rules:
+  # Read cacerts from istio-system in source cluster
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+    resourceNames: ["cacerts"]
+  # Create/update cacerts in istio-system in target cluster
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: istio-ca-sync-homelab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: istio-ca-sync
+subjects:
+  - kind: ServiceAccount
+    name: istio-ca-sync
+    namespace: istio-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: istio-ca-sync-to-nas
+  namespace: istio-system
+  annotations:
+    # This annotation ensures the job runs after CA bootstrap
+    fluxcd.io/depends-on: "istio-ca-bootstrap"
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 3
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: istio-ca-sync
+      restartPolicy: OnFailure
+      containers:
+        - name: ca-sync
+          image: alpine/k8s:1.29.11
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              
+              # Install required tools
+              apk add --no-cache jq openssl
+              
+              # Log helper
+              log() {
+                echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"level\":\"$1\",\"message\":\"$2\"}"
+              }
+              
+              log "INFO" "Starting CA sync from homelab to NAS"
+              
+              # Wait for cacerts to exist in homelab
+              for i in {1..30}; do
+                if kubectl get secret cacerts -n istio-system >/dev/null 2>&1; then
+                  log "INFO" "Found cacerts in homelab cluster"
+                  break
+                fi
+                log "INFO" "Waiting for cacerts secret... ($i/30)"
+                sleep 10
+              done
+              
+              # Get the CA secret from homelab
+              if ! CA_JSON=$(kubectl get secret cacerts -n istio-system -o json 2>/dev/null); then
+                log "ERROR" "Failed to get cacerts secret from homelab"
+                exit 1
+              fi
+              
+              # Extract and validate certificates
+              ROOT_CERT=$(echo "$CA_JSON" | jq -r '.data."root-cert.pem"' | base64 -d)
+              CERT_CHAIN=$(echo "$CA_JSON" | jq -r '.data."cert-chain.pem"' | base64 -d)
+              KEY_PEM=$(echo "$CA_JSON" | jq -r '.data."key.pem"' | base64 -d)
+              
+              # Calculate fingerprint
+              FINGERPRINT=$(echo "$ROOT_CERT" | openssl x509 -fingerprint -noout)
+              log "INFO" "Source CA fingerprint: $FINGERPRINT"
+              
+              # Check NAS cluster connectivity
+              if [ ! -f /etc/kubeconfig/nas/config ]; then
+                log "ERROR" "NAS kubeconfig not found at /etc/kubeconfig/nas/config"
+                exit 1
+              fi
+              
+              export KUBECONFIG=/etc/kubeconfig/nas/config
+              
+              # Test NAS connectivity
+              if ! kubectl get nodes >/dev/null 2>&1; then
+                log "ERROR" "Cannot connect to NAS cluster"
+                exit 1
+              fi
+              
+              # Check if cacerts already exists in NAS
+              if kubectl get secret cacerts -n istio-system >/dev/null 2>&1; then
+                log "INFO" "cacerts already exists in NAS, checking if update needed"
+                
+                # Get existing fingerprint
+                EXISTING_ROOT=$(kubectl get secret cacerts -n istio-system -o jsonpath='{.data.root-cert\.pem}' | base64 -d)
+                EXISTING_FP=$(echo "$EXISTING_ROOT" | openssl x509 -fingerprint -noout)
+                
+                if [ "$FINGERPRINT" = "$EXISTING_FP" ]; then
+                  log "INFO" "CA in NAS is already up to date"
+                  exit 0
+                fi
+                
+                log "INFO" "CA has changed, updating NAS"
+              fi
+              
+              # Create or update the secret in NAS
+              cat <<EOF | kubectl apply -f -
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: cacerts
+                namespace: istio-system
+                annotations:
+                  istio.io/ca-fingerprint: "${FINGERPRINT#*=}"
+                  istio.io/synced-from: "homelab"
+                  istio.io/synced-at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              type: Opaque
+              data:
+                root-cert.pem: $(echo -n "$ROOT_CERT" | base64 -w 0)
+                cert-chain.pem: $(echo -n "$CERT_CHAIN" | base64 -w 0)
+                key.pem: $(echo -n "$KEY_PEM" | base64 -w 0)
+              EOF
+              
+              log "INFO" "Successfully synced CA to NAS cluster"
+              
+              # Verify the sync
+              NAS_ROOT=$(kubectl get secret cacerts -n istio-system -o jsonpath='{.data.root-cert\.pem}' | base64 -d)
+              NAS_FP=$(echo "$NAS_ROOT" | openssl x509 -fingerprint -noout)
+              
+              if [ "$FINGERPRINT" = "$NAS_FP" ]; then
+                log "INFO" "Verification successful - CA properly synced"
+              else
+                log "ERROR" "Verification failed - fingerprints don't match"
+                exit 1
+              fi
+          volumeMounts:
+            - name: nas-kubeconfig
+              mountPath: /etc/kubeconfig/nas
+              readOnly: true
+      volumes:
+        - name: nas-kubeconfig
+          secret:
+            secretName: nas-kubeconfig
+            items:
+              - key: config
+                path: config

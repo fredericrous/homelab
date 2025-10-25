@@ -16,10 +16,11 @@ This folder contains the automation for bootstrapping and distributing a shared 
    * Structured JSON logging for better observability
    * Generation tracking with annotations
 
-2. **Manual CA Sync to NAS**
-   * The CA must be manually copied to the NAS cluster
-   * Use the provided sync script or copy the secret directly
-   * This ensures both clusters share the same trust anchor
+2. **Automated CA Sync to NAS**
+   * The `istio-ca-sync-to-nas` job automatically syncs the CA to NAS
+   * Uses a mounted NAS kubeconfig secret for cross-cluster access
+   * Validates fingerprints match before and after sync
+   * Adds metadata annotations for tracking
 
 3. **Vault Backup (Optional)**
    * A CronJob (`istio-ca-vault-backup`) runs daily
@@ -100,17 +101,25 @@ kubectl --kubeconfig kubeconfig -n istio-system get secret cacerts
 
 ### 2. Sync CA to NAS Cluster
 
-Since the clusters are initially disconnected, manually copy the CA:
+The CA sync is now automated using the bootstrap script:
 
 ```bash
-# Option 1: Direct copy
-kubectl --kubeconfig kubeconfig get secret cacerts -n istio-system -o yaml | \
-  kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml apply -f -
+# Run the automated CA setup script
+./bootstrap/scripts/homelab/ensure-istio-ca.sh
 
-# Option 2: Using the sync script
-./kubernetes/homelab/platform-foundation/istio/ca-sync-script.sh
+# This script will:
+# 1. Create the NAS kubeconfig secret in homelab
+# 2. Trigger the CA bootstrap job
+# 3. Wait for the CA to be generated
+# 4. Automatically sync the CA to NAS
+# 5. Verify fingerprints match
+# 6. Reconcile Istio components
+```
 
-# Verify the secret was created
+Manual verification:
+```bash
+# Verify the secret was created in both clusters
+kubectl --kubeconfig kubeconfig -n istio-system get secret cacerts
 kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml -n istio-system get secret cacerts
 ```
 
