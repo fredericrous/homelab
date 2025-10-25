@@ -39,9 +39,6 @@ spec:
     # Minimal resources for NAS
     pilot:
       configValidation: false
-      # Disable webhooks in remote cluster
-      env:
-        ENABLE_VALIDATION_WEBHOOK: "false"
       resources:
         requests:
           cpu: 50m
@@ -50,5 +47,7 @@ spec:
           cpu: 200m
           memory: 256Mi
       env:
+        # Disable webhooks in remote cluster
+        ENABLE_VALIDATION_WEBHOOK: "false"
         PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION: true
         PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: true
