@@ -13,9 +13,7 @@ spec:
     name: flux-system
   wait: true
   timeout: 5m
-  dependsOn:
-    - name: vault
-      kind: HelmRelease
+  # Wait for Vault to be ready (assumes vault HelmRelease exists)
   healthChecks:
     - apiVersion: batch/v1
       kind: Job

@@ -1,21 +1,30 @@
 # Istio Root CA Bootstrap (Homelab <-> NAS)
 
-This folder contains the automation for bootstrapping and distributing a shared Istio CA from the homelab Vault so that both the homelab and NAS clusters share a common trust anchor for mTLS communication and remote injection. The high‑level approach:
+This folder contains the automation for bootstrapping and distributing a shared Istio CA between the homelab and NAS clusters. The implementation uses a Vault-independent approach to avoid circular dependencies (Vault needs NAS for transit unseal, but Istio needs CA to establish connectivity).
 
-1. **Homelab bootstrap job (`istio-ca-bootstrap`)**
-   * Runs as a Kubernetes `Job` in the homelab cluster with service account `istio-ca-bootstrap`.
-   * Uses the Vault Kubernetes auth role `istio-ca-bootstrap` to obtain a client token.
-   * Checks for `secret/data/istio/ca`; if missing, generates a new 4096-bit RSA root certificate bundle (`root-cert.pem`, `cert-chain.pem`, `key.pem`) valid for 10 years and writes it to Vault. Subsequent runs become a no‑op (idempotent).
-2. **Homelab ExternalSecret (`istio-system/istio-cacerts`)**
-   * Reads the PEM objects from `secret/istio/ca` and writes a secret named `cacerts` with the exact filenames Istio expects.
-3. **NAS sync (`kubernetes/nas/platform-foundation/istio/istio-ca-sync.yaml`)**
-   * Creates a `SecretStore` that points at the homelab Vault via the Istio service mesh (`vault-vault-nas.vault.svc.cluster.local:8200`).
-   * Uses Kubernetes auth role `istio-ca-sync` to authenticate from NAS cluster.
-   * Mirrors the same PEM files into the NAS `istio-system` namespace as secret `cacerts`.
-4. **Flux dependencies**
-   * The `istio-ca-bootstrap` Kustomization depends on the `vault` HelmRelease.
-   * The `istio-config` Kustomization depends on `istio-ca-bootstrap` and `external-secrets`.
-   * This ensures the CA exists before any Istio components are deployed.
+## Architecture Overview
+
+1. **Direct CA Generation (`istio-ca-bootstrap`)**
+   * Runs as a Kubernetes Job in the homelab cluster
+   * Generates a 4096-bit RSA root certificate valid for 10 years
+   * Creates the `cacerts` secret directly in `istio-system` namespace
+   * Idempotent - skips if secret already exists with valid keys
+
+2. **Manual CA Sync to NAS**
+   * The CA must be manually copied to the NAS cluster
+   * Use the provided sync script or copy the secret directly
+   * This ensures both clusters share the same trust anchor
+
+3. **Vault Backup (Optional)**
+   * A CronJob (`istio-ca-vault-backup`) runs daily
+   * When Vault becomes available, it backs up the CA
+   * Provides long-term storage and potential ExternalSecret integration
+
+4. **No Circular Dependencies**
+   * CA bootstrap doesn't depend on Vault
+   * Istio can start with the CA secret
+   * Vault can use transit unseal via direct IP
+   * Once everything is up, services can use Istio mesh
 
 ## Vault Prerequisites
 
@@ -70,28 +79,32 @@ vault write auth/kubernetes/role/istio-ca-sync \
 
 ## Deployment Steps
 
-The Flux GitOps automation handles the deployment order, but for manual deployment:
-
-### 1. Deploy on Homelab Cluster
+### 1. Bootstrap CA on Homelab Cluster
 
 ```bash
-# Apply the CA bootstrap job
-kubectl --kubeconfig kubeconfig apply -f kubernetes/homelab/platform-foundation/istio/ca-bootstrap-kustomization.yaml
+# Apply the CA bootstrap resources
+kubectl --kubeconfig kubeconfig apply -k kubernetes/homelab/platform-foundation/istio/ca-bootstrap/
 
 # Wait for the job to complete
-kubectl --kubeconfig kubeconfig -n istio-system wait --for=condition=complete job/istio-ca-bootstrap --timeout=5m
+kubectl --kubeconfig kubeconfig -n istio-system wait --for=condition=complete job/istio-ca-bootstrap --timeout=2m
 
 # Verify the secret was created
 kubectl --kubeconfig kubeconfig -n istio-system get secret cacerts
 ```
 
-### 2. Deploy on NAS Cluster
+### 2. Sync CA to NAS Cluster
+
+Since the clusters are initially disconnected, manually copy the CA:
 
 ```bash
-# Apply the Istio configuration (includes CA sync)
-kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml apply -k kubernetes/nas/platform-foundation/istio/
+# Option 1: Direct copy
+kubectl --kubeconfig kubeconfig get secret cacerts -n istio-system -o yaml | \
+  kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml apply -f -
 
-# Verify the secret was synced
+# Option 2: Using the sync script
+./kubernetes/homelab/platform-foundation/istio/ca-sync-script.sh
+
+# Verify the secret was created
 kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml -n istio-system get secret cacerts
 ```
 
@@ -117,6 +130,15 @@ flux --kubeconfig infrastructure/nas/kubeconfig.yaml reconcile helmrelease istio
 
 ## Troubleshooting
 
+### Understanding the Circular Dependency
+
+The system has a circular dependency that this bootstrap process resolves:
+- Homelab Vault needs NAS Vault for transit unseal
+- NAS connectivity through Istio needs the shared CA
+- CA generation originally needed Vault
+
+This is why we generate the CA directly as a Kubernetes secret first, then optionally back it up to Vault later.
+
 ### CA Bootstrap Job Failed
 
 Check the job logs:
@@ -125,25 +147,47 @@ kubectl --kubeconfig kubeconfig -n istio-system logs job/istio-ca-bootstrap
 ```
 
 Common issues:
-- Vault not ready or unreachable
-- Kubernetes auth not configured properly
-- Missing permissions on Vault policy
+- Namespace doesn't exist
+- ServiceAccount missing permissions
+- Job already completed (secret exists)
 
-### ExternalSecret Not Syncing
+### Manual CA Copy Failed
 
-Check the ExternalSecret status:
+If the manual copy between clusters fails:
 ```bash
-kubectl --kubeconfig kubeconfig -n istio-system describe externalsecret istio-cacerts
+# Ensure istio-system namespace exists on NAS
+kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml create ns istio-system
+
+# Check for existing secret
+kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml get secret cacerts -n istio-system
+
+# Force replace if needed
+kubectl --kubeconfig kubeconfig get secret cacerts -n istio-system -o yaml | \
+  kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml replace -f -
 ```
 
-### NAS Can't Access Homelab Vault
+### Vault Backup Not Running
 
-Ensure the ServiceEntry for Vault is applied:
+The Vault backup is optional and only runs when Vault is healthy:
 ```bash
-kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml -n vault get serviceentry vault-vault-nas
+# Check CronJob status
+kubectl --kubeconfig kubeconfig -n istio-system get cronjob istio-ca-vault-backup
+
+# Check recent job runs
+kubectl --kubeconfig kubeconfig -n istio-system get jobs -l job-name=istio-ca-vault-backup
+
+# View logs of a backup job
+kubectl --kubeconfig kubeconfig -n istio-system logs job/istio-ca-vault-backup-<timestamp>
 ```
 
-Check if the east-west gateway is running:
-```bash
-kubectl --kubeconfig infrastructure/nas/kubeconfig.yaml -n istio-system get pods -l app=istio-eastwestgateway
+### Vault Still Using Direct IP
+
+This is intentional! The Vault transit unseal configuration should continue using the direct IP to NAS:
+```yaml
+seal "transit" {
+  address = "http://192.168.1.42:61200"  # This should NOT be changed
+  # ...
+}
 ```
+
+Only application-level access should use the Istio service mesh addresses.

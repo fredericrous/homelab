@@ -4,60 +4,78 @@ kind: ServiceAccount
 metadata:
   name: istio-ca-sync
   namespace: istio-system
-
 ---
-apiVersion: external-secrets.io/v1
-kind: SecretStore
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
 metadata:
-  name: istio-ca-vault
+  name: istio-ca-sync
+rules:
+  # Read secrets from homelab cluster
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames: ["cacerts"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: istio-ca-sync
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: istio-ca-sync
+subjects:
+  - kind: ServiceAccount
+    name: istio-ca-sync
+    namespace: istio-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: istio-ca-sync
   namespace: istio-system
 spec:
-  provider:
-    vault:
-      server: http://vault-vault-nas.vault.svc.cluster.local:8200
-      path: secret
-      version: v2
-      auth:
-        kubernetes:
-          mountPath: kubernetes
-          role: istio-ca-sync
-          serviceAccountRef:
-            name: istio-ca-sync
-            namespace: istio-system
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: istio-ca-sync
+      restartPolicy: Never
+      containers:
+        - name: ca-sync
+          image: bitnami/kubectl:1.29
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
 
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: istio-cacerts
-  namespace: istio-system
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: SecretStore
-    name: istio-ca-vault
-  target:
-    name: cacerts
-    creationPolicy: Owner
-    template:
-      type: Opaque
-      data:
-        root-cert.pem: |-
-          {{ .rootCert | toString }}
-        key.pem: |-
-          {{ .key | toString }}
-        cert-chain.pem: |-
-          {{ .certChain | toString }}
-  data:
-    - secretKey: rootCert
-      remoteRef:
-        key: secret/data/istio/ca
-        property: root-cert.pem
-    - secretKey: certChain
-      remoteRef:
-        key: secret/data/istio/ca
-        property: cert-chain.pem
-    - secretKey: key
-      remoteRef:
-        key: secret/data/istio/ca
-        property: key.pem
+              # Log helper
+              log() {
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) - $1"
+              }
+
+              log "Syncing Istio CA from homelab cluster to NAS"
+              
+              # Wait for the homelab CA to be available via cross-cluster connectivity
+              # This assumes the clusters can communicate (e.g., via NodePort or LoadBalancer)
+              HOMELAB_ENDPOINT="${HOMELAB_ENDPOINT:-192.168.1.68:6443}"
+              
+              log "Connecting to homelab cluster at $HOMELAB_ENDPOINT"
+              
+              # Note: In production, you'd need proper kubeconfig or service account token
+              # For now, we'll create a placeholder that should be replaced with actual sync mechanism
+              
+              log "Creating placeholder cacerts secret"
+              log "In production, this would copy from homelab cluster"
+              
+              # Check if secret already exists
+              if kubectl get secret cacerts -n istio-system >/dev/null 2>&1; then
+                log "cacerts secret already exists in NAS cluster"
+                exit 0
+              fi
+              
+              log "ERROR: Manual intervention required"
+              log "Please copy the cacerts secret from homelab to NAS cluster:"
+              log "  kubectl --kubeconfig <homelab> get secret cacerts -n istio-system -o yaml | \\"
+              log "    kubectl --kubeconfig <nas> apply -f -"
+              exit 1

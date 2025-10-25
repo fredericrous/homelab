@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ca-sync-script
+  namespace: istio-system
+data:
+  sync-ca.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    
+    log() {
+      echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) - $1"
+    }
+    
+    # This script copies the cacerts secret to the NAS cluster
+    # It should be run manually or via CI/CD after the CA is generated
+    
+    HOMELAB_KUBECONFIG="${HOMELAB_KUBECONFIG:-/etc/kubeconfig/homelab/config}"
+    NAS_KUBECONFIG="${NAS_KUBECONFIG:-/etc/kubeconfig/nas/config}"
+    
+    log "Starting CA sync from homelab to NAS cluster"
+    
+    # Check if homelab cacerts exists
+    if ! kubectl --kubeconfig "$HOMELAB_KUBECONFIG" get secret cacerts -n istio-system >/dev/null 2>&1; then
+      log "ERROR: cacerts secret not found in homelab cluster"
+      exit 1
+    fi
+    
+    # Get the secret from homelab
+    log "Fetching cacerts from homelab cluster"
+    SECRET_YAML=$(kubectl --kubeconfig "$HOMELAB_KUBECONFIG" get secret cacerts -n istio-system -o yaml)
+    
+    # Clean up metadata that shouldn't be copied
+    CLEANED_YAML=$(echo "$SECRET_YAML" | \
+      grep -v "^\s*uid:" | \
+      grep -v "^\s*resourceVersion:" | \
+      grep -v "^\s*creationTimestamp:" | \
+      grep -v "^\s*managedFields:" | \
+      grep -v "^\s*selfLink:" | \
+      sed '/^\s*annotations:$/,/^[^ ]/{/^\s*kubectl.kubernetes.io/d;}')
+    
+    # Apply to NAS cluster
+    log "Applying cacerts to NAS cluster"
+    echo "$CLEANED_YAML" | kubectl --kubeconfig "$NAS_KUBECONFIG" apply -f -
+    
+    # Verify
+    log "Verifying CA sync..."
+    HOMELAB_FP=$(kubectl --kubeconfig "$HOMELAB_KUBECONFIG" get secret cacerts -n istio-system -o jsonpath='{.data.root-cert\.pem}' | base64 -d | openssl x509 -fingerprint -noout)
+    NAS_FP=$(kubectl --kubeconfig "$NAS_KUBECONFIG" get secret cacerts -n istio-system -o jsonpath='{.data.root-cert\.pem}' | base64 -d | openssl x509 -fingerprint -noout)
+    
+    if [ "$HOMELAB_FP" = "$NAS_FP" ]; then
+      log "SUCCESS: CA synced successfully"
+      log "Fingerprint: $HOMELAB_FP"
+    else
+      log "ERROR: CA mismatch!"
+      log "Homelab: $HOMELAB_FP"
+      log "NAS: $NAS_FP"
+      exit 1
+    fi

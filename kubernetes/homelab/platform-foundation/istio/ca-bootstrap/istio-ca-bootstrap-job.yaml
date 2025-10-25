@@ -46,57 +46,43 @@ spec:
       restartPolicy: Never
       containers:
         - name: ca-bootstrap
-          image: alpine:3.20
-          env:
-            - name: VAULT_ADDR
-              value: "http://vault-vault.vault.svc.cluster.local:8200"
-            - name: VAULT_ROLE
-              value: "istio-ca-bootstrap"
-          command: ["/bin/sh", "-c"]
+          image: bitnami/kubectl:1.29
+          command: ["/bin/bash", "-c"]
           args:
             - |
               set -euo pipefail
-
-              apk add --no-cache curl jq openssl
 
               # Log helper
               log() {
                 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) - $1"
               }
 
-              # Wait for Vault
-              log "Waiting for Vault..."
-              until curl -sSf "$VAULT_ADDR/v1/sys/health" >/dev/null; do
-                log "Vault not ready yet, sleeping 5s"
-                sleep 5
-              done
-
-              # Login via Kubernetes auth using serviceaccount token
-              log "Authenticating with Vault"
-              SA_JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-              VAULT_TOKEN=$(curl -sSf --request POST \
-                --data "{\"role\":\"$VAULT_ROLE\",\"jwt\":\"$SA_JWT\"}" \
-                "$VAULT_ADDR/v1/auth/kubernetes/login" | jq -r '.auth.client_token')
-
-              if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
-                log "Failed to authenticate to Vault"
-                exit 1
-              fi
-
-              export VAULT_TOKEN
-
-              # Check if CA already exists
-              if curl -sSf -H "X-Vault-Token: $VAULT_TOKEN" \
-                  "$VAULT_ADDR/v1/secret/data/istio/ca" >/dev/null 2>&1; then
-                log "Istio CA already present in Vault, skipping"
-                exit 0
+              # Check if cacerts already exists
+              if kubectl get secret cacerts -n istio-system >/dev/null 2>&1; then
+                log "cacerts secret already exists, checking validity..."
+                
+                # Verify it has all required keys
+                MISSING_KEYS=""
+                for key in root-cert.pem cert-chain.pem key.pem; do
+                  if ! kubectl get secret cacerts -n istio-system -o jsonpath="{.data.$key}" | grep -q .; then
+                    MISSING_KEYS="$MISSING_KEYS $key"
+                  fi
+                done
+                
+                if [ -z "$MISSING_KEYS" ]; then
+                  log "cacerts secret is valid, skipping generation"
+                  exit 0
+                else
+                  log "cacerts secret is missing keys:$MISSING_KEYS, regenerating..."
+                  kubectl delete secret cacerts -n istio-system
+                fi
               fi
 
               log "Generating Istio root CA"
               mkdir -p /tmp/istio-ca
               cd /tmp/istio-ca
 
-              openssl genrsa -out root-key.pem 4096
+              openssl genrsa -out key.pem 4096
 
               cat >root-cert.conf <<'EOF'
               [req]
@@ -118,42 +104,25 @@ spec:
               keyUsage = critical, digitalSignature, cRLSign, keyCertSign
               EOF
 
-              openssl req -new -x509 -key root-key.pem -out root-cert.pem \
+              openssl req -new -x509 -key key.pem -out root-cert.pem \
                 -days 3650 -config root-cert.conf
 
               # For a self-signed root CA, cert-chain is the same as root-cert
               cp root-cert.pem cert-chain.pem
-              
-              # Rename key file to match Istio's expectation
-              mv root-key.pem key.pem
 
-              log "Storing CA material in Vault"
-              
-              # Base64 encode the certificates to handle newlines properly
-              ROOT_CERT_B64=$(base64 -w 0 < root-cert.pem)
-              CERT_CHAIN_B64=$(base64 -w 0 < cert-chain.pem)
-              ROOT_KEY_B64=$(base64 -w 0 < key.pem)
-              
-              # Store in Vault with proper JSON encoding
-              VAULT_PAYLOAD=$(jq -n \
-                --arg rootcert "$ROOT_CERT_B64" \
-                --arg certchain "$CERT_CHAIN_B64" \
-                --arg rootkey "$ROOT_KEY_B64" \
-                '{
-                  "data": {
-                    "root-cert.pem": ($rootcert | @base64d),
-                    "cert-chain.pem": ($certchain | @base64d),
-                    "key.pem": ($rootkey | @base64d)
-                  }
-                }')
-              
-              if ! curl -sSf -H "X-Vault-Token: $VAULT_TOKEN" \
-                  --request POST \
-                  --data "$VAULT_PAYLOAD" \
-                  "$VAULT_ADDR/v1/secret/data/istio/ca"; then
-                log "Failed to store CA in Vault"
-                exit 1
-              fi
+              log "Creating cacerts secret in istio-system namespace"
+              kubectl create secret generic cacerts \
+                --from-file=root-cert.pem \
+                --from-file=cert-chain.pem \
+                --from-file=key.pem \
+                --namespace=istio-system
 
-              log "CA generation completed"
+              log "CA generation completed successfully"
+              
+              # Store fingerprint for verification
+              FINGERPRINT=$(openssl x509 -in root-cert.pem -fingerprint -noout)
+              log "Root CA fingerprint: $FINGERPRINT"
+              
+              # Clean up
+              cd /
               rm -rf /tmp/istio-ca
