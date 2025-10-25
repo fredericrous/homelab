@@ -92,20 +92,5 @@ spec:
       minHealthPercent: 0
       splitExternalLocalOriginErrors: true
     # Load balancing for multiple NAS instances (if applicable)
-    loadBalancer:
-      simple: LEAST_CONN
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nas-vault
-  namespace: nas-integration
-  labels:
-    homelab.io/component: nas-integration
-spec:
-  type: ExternalName
-  externalName: "192.168.1.42"
-  ports:
-  - name: vault-api
-    port: 61200
-    protocol: TCP
+      loadBalancer:
+        simple: LEAST_CONN

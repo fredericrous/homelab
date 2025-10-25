@@ -38,6 +38,10 @@ spec:
       remotePilotAddress: "192.168.1.68"
     # Minimal resources for NAS
     pilot:
+      configValidation: false
+      # Disable webhooks in remote cluster
+      env:
+        ENABLE_VALIDATION_WEBHOOK: "false"
       resources:
         requests:
           cpu: 50m

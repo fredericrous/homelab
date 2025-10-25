@@ -10,8 +10,24 @@ HOMELAB_KUBECONFIG="${KUBECONFIG:-${ROOT_DIR}/kubeconfig}"
 
 log_info "Ensuring Istio CA is set up across clusters..."
 
+# Helper to read a key from .env without exporting everything
+get_env_value() {
+    local key="$1"
+    local env_file="${ROOT_DIR}/.env"
+    if [[ -f "$env_file" ]]; then
+        local line
+        line=$(grep -E "^[[:space:]]*${key}=" "$env_file" | tail -n 1 || true)
+        if [[ -n "$line" ]]; then
+            line="${line#*=}"
+            line="$(echo "$line" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+            echo "$line"
+        fi
+    fi
+}
+
 # Check prerequisites
 check_command kubectl
+check_command vault
 check_file "$HOMELAB_KUBECONFIG" "Homelab kubeconfig"
 check_file "$NAS_KUBECONFIG" "NAS kubeconfig"
 
@@ -45,18 +61,37 @@ get_ca_fingerprint() {
         base64 -d | openssl x509 -fingerprint -noout 2>/dev/null | cut -d= -f2 || echo ""
 }
 
-# Step 1: Create NAS kubeconfig secret in homelab
-log_info "Creating NAS kubeconfig secret in homelab cluster..."
+# Step 1: Push NAS kubeconfig into Vault for ExternalSecret
+VAULT_ADDR="${VAULT_ADDR:-$(get_env_value VAULT_ADDR)}"
+VAULT_ADDR="${VAULT_ADDR:-http://vault-vault.vault.svc.cluster.local:8200}"
+export VAULT_ADDR
+
+VAULT_TOKEN="${VAULT_TOKEN:-$(get_env_value VAULT_TOKEN)}"
+export VAULT_TOKEN
+
+if [ -z "${VAULT_TOKEN:-}" ]; then
+    # Last resort: try to read admin token from the cluster if Vault is already initialized
+    ADMIN_TOKEN=$(kubectl --kubeconfig="$HOMELAB_KUBECONFIG" -n vault get secret vault-admin-token \
+        -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+    if [[ -n "$ADMIN_TOKEN" ]]; then
+        VAULT_TOKEN="$ADMIN_TOKEN"
+        export VAULT_TOKEN
+        log_success "Discovered Vault admin token from cluster secret"
+    fi
+fi
+
+if [ -z "${VAULT_TOKEN:-}" ]; then
+    log_error "VAULT_TOKEN is required to push NAS kubeconfig into Vault (secret/kubeconfigs/nas). Set it in .env or export it before running."
+    exit 1
+fi
+
+log_info "Publishing NAS kubeconfig to Vault path secret/kubeconfigs/nas..."
+vault kv put secret/kubeconfigs/nas kubeconfig=@"${NAS_KUBECONFIG}"
+log_success "NAS kubeconfig stored in Vault"
+
+# Ensure ExternalSecret target namespace exists so nas-kubeconfig secret can materialize
 kubectl --kubeconfig="$HOMELAB_KUBECONFIG" create namespace istio-system --dry-run=client -o yaml | \
     kubectl --kubeconfig="$HOMELAB_KUBECONFIG" apply -f - >/dev/null
-
-# Create the secret with actual kubeconfig
-kubectl --kubeconfig="$HOMELAB_KUBECONFIG" -n istio-system create secret generic nas-kubeconfig \
-    --from-file=config="$NAS_KUBECONFIG" \
-    --dry-run=client -o yaml | \
-    kubectl --kubeconfig="$HOMELAB_KUBECONFIG" apply -f - >/dev/null
-
-log_success "NAS kubeconfig secret created"
 
 # Step 2: Trigger Flux reconciliation for CA bootstrap
 log_info "Reconciling CA bootstrap kustomization..."

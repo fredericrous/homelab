@@ -19,21 +19,8 @@ metadata:
   name: nas-vault
   namespace: nas-integration
 spec:
-  type: ClusterIP
-  clusterIP: None
+  type: ExternalName
+  externalName: vault-vault-nas.vault.svc.nas.local
   ports:
   - port: 8200
-    name: http
----
-# Endpoints to point to actual NAS Vault
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: nas-vault
-  namespace: nas-integration
-subsets:
-- addresses:
-  - ip: 192.168.1.42
-  ports:
-  - port: 61200
     name: http

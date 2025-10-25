@@ -18,7 +18,7 @@ This folder contains the automation for bootstrapping and distributing a shared 
 
 2. **Automated CA Sync to NAS**
    * The `istio-ca-sync-to-nas` job automatically syncs the CA to NAS
-   * Uses a mounted NAS kubeconfig secret for cross-cluster access
+   * NAS kubeconfig is sourced from Vault via ExternalSecrets (no manual kubectl apply)
    * Validates fingerprints match before and after sync
    * Adds metadata annotations for tracking
 
@@ -101,14 +101,14 @@ kubectl --kubeconfig kubeconfig -n istio-system get secret cacerts
 
 ### 2. Sync CA to NAS Cluster
 
-The CA sync is now automated using the bootstrap script:
+The CA sync is now automated inside `bootstrap homelab bootstrap` (it calls the script below). You can also run it manually if you need to re-sync outside the bootstrap flow:
 
 ```bash
 # Run the automated CA setup script
 ./bootstrap/scripts/homelab/ensure-istio-ca.sh
 
 # This script will:
-# 1. Create the NAS kubeconfig secret in homelab
+# 1. Push the NAS kubeconfig to Vault (secret/kubeconfigs/nas) — the script will read VAULT_TOKEN from .env or the vault-admin secret automatically
 # 2. Trigger the CA bootstrap job
 # 3. Wait for the CA to be generated
 # 4. Automatically sync the CA to NAS

@@ -15,8 +15,10 @@ import (
 
 // Waiter handles waiting for infrastructure components to be ready
 type Waiter struct {
-	client   *k8s.Client
-	timeouts TimeoutConfig
+	client                   *k8s.Client
+	timeouts                 TimeoutConfig
+	platformKustomization    string
+	controllersKustomization string
 }
 
 // TimeoutConfig contains timeout configurations for different components
@@ -29,10 +31,15 @@ type TimeoutConfig struct {
 }
 
 // NewWaiter creates a new infrastructure waiter
-func NewWaiter(client *k8s.Client, timeouts TimeoutConfig) *Waiter {
+func NewWaiter(client *k8s.Client, timeouts TimeoutConfig, platformName string, controllersName string) *Waiter {
+	if platformName == "" {
+		platformName = "platform-foundation"
+	}
 	return &Waiter{
-		client:   client,
-		timeouts: timeouts,
+		client:                   client,
+		timeouts:                 timeouts,
+		platformKustomization:    platformName,
+		controllersKustomization: controllersName,
 	}
 }
 
@@ -83,25 +90,27 @@ func (w *Waiter) WaitForInfrastructure(ctx context.Context) error {
 func (w *Waiter) waitForKustomizations(ctx context.Context) error {
 	log.Info("Waiting for kustomizations to be created")
 
+	target := w.platformKustomization
+
 	err := wait.PollUntilContextTimeout(ctx, 2*time.Second, w.timeouts.Kustomization, true, func(ctx context.Context) (bool, error) {
 		// Check if platform-foundation kustomization exists
-		exists, err := w.kustomizationExists(ctx, "platform-foundation")
+		exists, err := w.kustomizationExists(ctx, target)
 		if err != nil {
 			log.Debug("Error checking kustomization", "error", err)
 			return false, nil // Continue polling
 		}
 
 		if exists {
-			log.Info("platform-foundation kustomization found")
+			log.Info("Kustomization found", "name", target)
 			return true, nil
 		}
 
-		log.Debug("Waiting for platform-foundation kustomization")
+		log.Debug("Waiting for kustomization", "name", target)
 		return false, nil
 	})
 
 	if err != nil {
-		log.Error("platform-foundation kustomization not created", "timeout", w.timeouts.Kustomization)
+		log.Error("Kustomization not created", "name", target, "timeout", w.timeouts.Kustomization)
 		w.diagnoseFluxCD(ctx)
 		return err
 	}
@@ -111,22 +120,27 @@ func (w *Waiter) waitForKustomizations(ctx context.Context) error {
 
 // waitForControllers waits for controllers layer to be ready
 func (w *Waiter) waitForControllers(ctx context.Context) error {
+	if w.controllersKustomization == "" {
+		log.Info("Skipping controllers wait (no controllers kustomization configured)")
+		return nil
+	}
+
 	log.Info("Waiting for controllers layer")
 
 	// First check if controllers kustomization exists
-	exists, err := w.kustomizationExists(ctx, "controllers")
+	exists, err := w.kustomizationExists(ctx, w.controllersKustomization)
 	if err != nil {
 		return fmt.Errorf("failed to check controllers kustomization: %w", err)
 	}
 	if !exists {
-		log.Error("Controllers kustomization not found")
+		log.Error("Controllers kustomization not found", "name", w.controllersKustomization)
 		w.listKustomizations(ctx)
 		return fmt.Errorf("controllers kustomization not found")
 	}
 
 	// Wait for controllers to be ready
 	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, w.timeouts.Controllers, true, func(ctx context.Context) (bool, error) {
-		ready, err := w.isKustomizationReady(ctx, "controllers")
+		ready, err := w.isKustomizationReady(ctx, w.controllersKustomization)
 		if err != nil {
 			log.Debug("Error checking controllers status", "error", err)
 			return false, nil
@@ -135,21 +149,21 @@ func (w *Waiter) waitForControllers(ctx context.Context) error {
 	})
 
 	if err != nil {
-		log.Error("Controllers layer not ready", "timeout", w.timeouts.Controllers)
-		w.diagnoseKustomization(ctx, "controllers")
+		log.Error("Controllers layer not ready", "name", w.controllersKustomization, "timeout", w.timeouts.Controllers)
+		w.diagnoseKustomization(ctx, w.controllersKustomization)
 		return err
 	}
 
-	log.Info("Controllers layer is ready")
+	log.Info("Controllers layer is ready", "name", w.controllersKustomization)
 	return nil
 }
 
 // waitForPlatform waits for platform foundation to be ready
 func (w *Waiter) waitForPlatform(ctx context.Context) error {
-	log.Info("Waiting for platform foundation components")
+	log.Info("Waiting for platform foundation components", "name", w.platformKustomization)
 
 	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, w.timeouts.Platform, true, func(ctx context.Context) (bool, error) {
-		ready, err := w.isKustomizationReady(ctx, "platform-foundation")
+		ready, err := w.isKustomizationReady(ctx, w.platformKustomization)
 		if err != nil {
 			log.Debug("Error checking platform status", "error", err)
 			return false, nil
@@ -158,11 +172,11 @@ func (w *Waiter) waitForPlatform(ctx context.Context) error {
 	})
 
 	if err != nil {
-		log.Warn("Platform foundation not ready yet", "timeout", w.timeouts.Platform)
-		w.diagnoseKustomization(ctx, "platform-foundation")
+		log.Warn("Platform foundation not ready yet", "name", w.platformKustomization, "timeout", w.timeouts.Platform)
+		w.diagnoseKustomization(ctx, w.platformKustomization)
 		// Don't fail here - platform might still be deploying
 	} else {
-		log.Info("Platform foundation is ready")
+		log.Info("Platform foundation is ready", "name", w.platformKustomization)
 	}
 
 	return nil

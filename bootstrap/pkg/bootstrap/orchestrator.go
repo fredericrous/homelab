@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -51,7 +52,7 @@ func NewOrchestrator(cfg *config.Config, isNAS bool) (*Orchestrator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to find project root: %w", err)
 	}
-	
+
 	log.Debug("Project root detected", "path", projectRoot)
 
 	secretsManager := secrets.NewManager(k8sClient, projectRoot)
@@ -158,6 +159,12 @@ func (o *Orchestrator) getHomelabBootstrapSteps() []BootstrapStep {
 			Description: "Setup cluster secrets and configurations",
 			Required:    true,
 			Execute:     o.setupSecrets,
+		},
+		{
+			Name:        "sync-istio-ca",
+			Description: "Ensure Istio CA is synced with NAS cluster",
+			Required:    false,
+			Execute:     o.syncIstioCA,
 		},
 		{
 			Name:        "wait-infrastructure",
@@ -353,7 +360,7 @@ func (o *Orchestrator) setupSecrets(ctx context.Context) error {
 		return fmt.Errorf("failed to create cluster-vars secret: %w", err)
 	}
 
-	// Create vault-transit-token secret (only for homelab) 
+	// Create vault-transit-token secret (only for homelab)
 	if !o.isNAS {
 		log.Info("Creating vault-transit-token secret")
 		if err := o.secretsManager.CreateVaultTransitTokenSecret(ctx, ""); err != nil {
@@ -381,6 +388,36 @@ func (o *Orchestrator) setupSecrets(ctx context.Context) error {
 	return nil
 }
 
+func (o *Orchestrator) syncIstioCA(ctx context.Context) error {
+	if o.isNAS {
+		log.Debug("Skipping Istio CA sync for NAS bootstrap")
+		return nil
+	}
+
+	scriptPath := filepath.Join(o.projectRoot, "bootstrap", "scripts", "homelab", "ensure-istio-ca.sh")
+	if _, err := os.Stat(scriptPath); err != nil {
+		log.Warn("Istio CA automation script not found, skipping", "path", scriptPath)
+		return nil
+	}
+
+	log.Info("Running Istio CA automation script", "script", scriptPath)
+
+	cmd := exec.CommandContext(ctx, "bash", scriptPath)
+	cmd.Dir = o.projectRoot
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("KUBECONFIG=%s", o.config.Homelab.Cluster.KubeConfig),
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("istio CA automation failed: %w", err)
+	}
+
+	log.Info("Istio CA sync completed")
+	return nil
+}
+
 func (o *Orchestrator) waitForInfrastructure(ctx context.Context) error {
 	log.Info("Waiting for infrastructure components to be ready")
 
@@ -397,7 +434,14 @@ func (o *Orchestrator) waitForInfrastructure(ctx context.Context) error {
 		timeouts.Platform = o.parseDuration(o.config.Homelab.Cluster.Timeouts.Application, timeouts.Platform)
 	}
 
-	waiter := infra.NewWaiter(o.k8sClient, timeouts)
+	platformName := "platform-foundation"
+	controllersName := "controllers"
+	if o.isNAS {
+		platformName = "nas-platform-foundation"
+		controllersName = ""
+	}
+
+	waiter := infra.NewWaiter(o.k8sClient, timeouts, platformName, controllersName)
 	return waiter.WaitForInfrastructure(ctx)
 }
 
@@ -525,7 +569,7 @@ func findProjectRoot() (string, error) {
 	current := wd
 	for {
 		log.Debug("Checking directory for project root", "path", current)
-		
+
 		// Check for .git directory first (main project root)
 		gitPath := filepath.Join(current, ".git")
 		if _, err := os.Stat(gitPath); err == nil {

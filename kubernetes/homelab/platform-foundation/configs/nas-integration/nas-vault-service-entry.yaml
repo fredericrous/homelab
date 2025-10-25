@@ -15,11 +15,8 @@ spec:
     - number: 8200
       name: http-vault
       protocol: HTTP
-  resolution: STATIC
+  resolution: DNS
   endpoints:
-    - address: 192.168.1.68
+    - address: istio-eastwestgateway.istio-system.svc.nas.local
       ports:
-        http-vault: 61443
-    - address: 192.168.1.69
-      ports:
-        http-vault: 61443
+        http-vault: 15443
