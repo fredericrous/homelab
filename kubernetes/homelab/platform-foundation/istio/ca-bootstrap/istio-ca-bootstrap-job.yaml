@@ -41,16 +41,22 @@ spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 1
   template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       serviceAccountName: istio-ca-bootstrap
       restartPolicy: Never
       containers:
         - name: ca-bootstrap
-          image: bitnami/kubectl:1.29
-          command: ["/bin/bash", "-c"]
+          image: alpine/k8s:1.29.11
+          command: ["/bin/sh", "-c"]
           args:
             - |
               set -euo pipefail
+              
+              # Install openssl
+              apk add --no-cache openssl
 
               # Log helper
               log() {

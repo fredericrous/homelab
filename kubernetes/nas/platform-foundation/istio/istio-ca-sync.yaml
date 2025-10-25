@@ -38,13 +38,16 @@ spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 3
   template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       serviceAccountName: istio-ca-sync
       restartPolicy: Never
       containers:
         - name: ca-sync
-          image: bitnami/kubectl:1.29
-          command: ["/bin/bash", "-c"]
+          image: alpine/k8s:1.29.11
+          command: ["/bin/sh", "-c"]
           args:
             - |
               set -euo pipefail

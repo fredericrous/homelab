@@ -43,24 +43,27 @@ spec:
     spec:
       ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
       template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
         spec:
           serviceAccountName: istio-ca-vault-backup
           restartPolicy: Never
           containers:
             - name: vault-backup
-              image: bitnami/kubectl:1.29
+              image: alpine/k8s:1.29.11
               env:
                 - name: VAULT_ADDR
                   value: "http://vault-vault.vault.svc.cluster.local:8200"
                 - name: VAULT_ROLE
                   value: "istio-ca-bootstrap"
-              command: ["/bin/bash", "-c"]
+              command: ["/bin/sh", "-c"]
               args:
                 - |
                   set -euo pipefail
 
                   # Install required tools
-                  apt-get update && apt-get install -y curl jq
+                  apk add --no-cache curl jq
 
                   # Log helper
                   log() {
