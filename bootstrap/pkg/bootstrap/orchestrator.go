@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -161,16 +160,22 @@ func (o *Orchestrator) getHomelabBootstrapSteps() []BootstrapStep {
 			Execute:     o.setupSecrets,
 		},
 		{
-			Name:        "sync-istio-ca",
-			Description: "Ensure Istio CA is synced with NAS cluster",
-			Required:    false,
-			Execute:     o.syncIstioCA,
+			Name:        "ensure-istio-prereqs",
+			Description: "Ensure Istio certificates and remote secrets are in place",
+			Required:    true,
+			Execute:     o.ensureIstioPrereqs,
 		},
 		{
 			Name:        "wait-infrastructure",
 			Description: "Wait for infrastructure components to be ready",
 			Required:    false,
 			Execute:     o.waitForInfrastructure,
+		},
+		{
+			Name:        "finalize-istio-mesh",
+			Description: "Publish gateway endpoints and verify cross-cluster readiness",
+			Required:    true,
+			Execute:     o.finalizeIstioMesh,
 		},
 		{
 			Name:        "validate-deployment",
@@ -215,10 +220,22 @@ func (o *Orchestrator) getNASBootstrapSteps() []BootstrapStep {
 			Execute:     o.setupSecrets,
 		},
 		{
+			Name:        "ensure-istio-prereqs",
+			Description: "Ensure Istio certificates and remote secrets are in place",
+			Required:    true,
+			Execute:     o.ensureIstioPrereqs,
+		},
+		{
 			Name:        "wait-infrastructure",
 			Description: "Wait for NAS infrastructure to be ready",
 			Required:    false,
 			Execute:     o.waitForInfrastructure,
+		},
+		{
+			Name:        "finalize-istio-mesh",
+			Description: "Publish gateway endpoints and verify cross-cluster readiness",
+			Required:    true,
+			Execute:     o.finalizeIstioMesh,
 		},
 		{
 			Name:        "validate-deployment",
@@ -385,36 +402,6 @@ func (o *Orchestrator) setupSecrets(ctx context.Context) error {
 	}
 
 	log.Info("Secret setup completed")
-	return nil
-}
-
-func (o *Orchestrator) syncIstioCA(ctx context.Context) error {
-	if o.isNAS {
-		log.Debug("Skipping Istio CA sync for NAS bootstrap")
-		return nil
-	}
-
-	scriptPath := filepath.Join(o.projectRoot, "bootstrap", "scripts", "homelab", "ensure-istio-ca.sh")
-	if _, err := os.Stat(scriptPath); err != nil {
-		log.Warn("Istio CA automation script not found, skipping", "path", scriptPath)
-		return nil
-	}
-
-	log.Info("Running Istio CA automation script", "script", scriptPath)
-
-	cmd := exec.CommandContext(ctx, "bash", scriptPath)
-	cmd.Dir = o.projectRoot
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("KUBECONFIG=%s", o.config.Homelab.Cluster.KubeConfig),
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("istio CA automation failed: %w", err)
-	}
-
-	log.Info("Istio CA sync completed")
 	return nil
 }
 

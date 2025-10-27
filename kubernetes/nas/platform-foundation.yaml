@@ -17,3 +17,14 @@ spec:
   wait: true
   validation: client
   # No dependencies - infrastructure is foundational
+  postBuild:
+    substitute:
+      ISTIO_VERSION: "1.27.2"
+      ISTIO_REVISION: "default"
+      NETWORK_HOMELAB: "homelab-network"
+      NETWORK_NAS: "nas-network"
+      SERVICE_TYPE: "LoadBalancer"
+    substituteFrom:
+      - kind: Secret
+        name: cluster-vars
+        optional: true

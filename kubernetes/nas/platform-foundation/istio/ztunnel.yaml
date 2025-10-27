@@ -13,7 +13,7 @@ spec:
   chart:
     spec:
       chart: ztunnel
-      version: 1.27.2
+      version: $(ISTIO_VERSION)
       sourceRef:
         kind: HelmRepository
         name: istio
@@ -25,14 +25,12 @@ spec:
     remediation:
       retries: 3
   values:
-    # Configure for remote istiod in homelab cluster
     variant: distroless
     multiCluster:
       clusterName: nas
     env:
-      # Point to homelab istiod via NodePort
-      CA_ADDRESS: "192.168.1.68:30012"
-      XDS_ADDRESS: "192.168.1.68:30012"
+      CA_ADDRESS: "istiod.istio-system.svc:15012"
+      XDS_ADDRESS: "istiod.istio-system.svc:15012"
       CLUSTER_ID: "nas"
       PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION: "true"
     # Minimal resources for NAS ambient mode

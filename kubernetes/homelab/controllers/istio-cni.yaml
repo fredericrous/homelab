@@ -12,7 +12,7 @@ spec:
   chart:
     spec:
       chart: cni
-      version: "1.27.1"
+      version: $(ISTIO_VERSION)
       sourceRef:
         kind: HelmRepository
         name: istio

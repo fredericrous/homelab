@@ -15,7 +15,7 @@ spec:
   chart:
     spec:
       chart: gateway
-      version: "1.27.2"
+      version: $(ISTIO_VERSION)
       sourceRef:
         kind: HelmRepository
         name: istio
@@ -28,32 +28,7 @@ spec:
   upgrade:
     remediation:
       retries: 3
-  values:
-    # Labels for cross-cluster discovery
-    labels:
-      istio: eastwestgateway
-      app: istio-eastwestgateway
-    networkGateway: homelab-network
-    # Environment variables as object
-    env:
-      ISTIO_META_REQUESTED_NETWORK_VIEW: homelab-network
-    # Service configuration for east-west traffic
-    service:
-      type: NodePort
-      ports:
-      - name: status-port
-        port: 15021
-        targetPort: 15021
-        nodePort: 30021
-      - name: tls
-        port: 15443
-        targetPort: 15443
-        nodePort: 30443
-      - name: tls-istiod
-        port: 15012
-        targetPort: 15012
-        nodePort: 30012
-      - name: tls-webhook
-        port: 15017
-        targetPort: 15017
-        nodePort: 30017
+  valuesFrom:
+    - kind: ConfigMap
+      name: homelab-istio-eastwest-values
+      valuesKey: values.yaml

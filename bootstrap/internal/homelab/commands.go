@@ -195,35 +195,8 @@ func runCheck(ctx context.Context) error {
 }
 
 func runInstall(ctx context.Context) error {
-	log.Info("Installing homelab infrastructure")
-
-	// Load configuration
-	loader := config.NewLoader()
-	cfg, err := loader.LoadConfig("homelab")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	if cfg.Homelab == nil {
-		return fmt.Errorf("homelab configuration not found")
-	}
-
-	// Connect to cluster
-	log.Info("Connecting to cluster", "kubeconfig", cfg.Homelab.Cluster.KubeConfig)
-	client, err := k8s.NewClient(cfg.Homelab.Cluster.KubeConfig)
-	if err != nil {
-		return fmt.Errorf("failed to connect to cluster: %w", err)
-	}
-
-	// Install FluxCD
-	log.Info("Installing FluxCD", "namespace", "flux-system")
-	fluxClient := flux.NewClient(client, &cfg.Homelab.GitOps)
-	if err := fluxClient.Install(ctx, "flux-system"); err != nil {
-		return fmt.Errorf("failed to install flux: %w", err)
-	}
-
-	log.Info("Installation completed successfully")
-	return nil
+	log.Info("Installing homelab infrastructure (non-interactive bootstrap)")
+	return runBootstrap(ctx, true)
 }
 
 func runValidate(ctx context.Context) error {

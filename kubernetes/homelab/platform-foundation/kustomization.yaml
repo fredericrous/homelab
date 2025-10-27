@@ -6,5 +6,4 @@ resources:
   - configs
   - vault.yaml
   - buildkit
-  - istio/ca-bootstrap-kustomization.yaml
   - istio-kustomization.yaml

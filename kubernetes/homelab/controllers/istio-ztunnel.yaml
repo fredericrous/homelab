@@ -16,7 +16,7 @@ spec:
   chart:
     spec:
       chart: ztunnel
-      version: "1.27.2"
+      version: $(ISTIO_VERSION)
       sourceRef:
         kind: HelmRepository
         name: istio
@@ -35,3 +35,7 @@ spec:
       ISTIO_META_ENABLE_HBONE: "true"
       # Fix cluster authentication
       ISTIO_META_CLUSTER_ID: "homelab"
+      CA_ADDRESS: "istiod.istio-system.svc:15012"
+      XDS_ADDRESS: "istiod.istio-system.svc:15012"
+    multiCluster:
+      clusterName: homelab

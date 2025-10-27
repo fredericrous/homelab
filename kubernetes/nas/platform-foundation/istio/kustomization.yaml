@@ -8,7 +8,6 @@ resources:
   - istiod.yaml
   - ztunnel.yaml
   - istio-eastwest-gateway.yaml
-  - istio-ca-sync.yaml
   - expose-services.yaml
   - expose-istiod.yaml
 
@@ -17,3 +16,11 @@ patches:
   target:
     kind: Namespace
     name: istio-system
+
+configMapGenerator:
+  - name: istio-eastwest-values
+    files:
+      - values.yaml=istio-eastwest-values.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true

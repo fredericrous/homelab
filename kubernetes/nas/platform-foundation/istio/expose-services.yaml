@@ -4,11 +4,6 @@ kind: Gateway
 metadata:
   name: cross-network-gateway
   namespace: istio-system
-  labels:
-    sidecar.istio.io/inject: "false"
-  annotations:
-    # Skip webhook validation during bootstrap
-    istio.io/skip-validation: "true"
 spec:
   selector:
     istio: eastwestgateway
@@ -18,6 +13,6 @@ spec:
         name: tls
         protocol: TLS
       tls:
-        mode: AUTO_PASSTHROUGH
+        mode: PASSTHROUGH
       hosts:
         - "*.local"

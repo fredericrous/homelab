@@ -192,33 +192,8 @@ func runCheck(ctx context.Context) error {
 }
 
 func runInstall(ctx context.Context) error {
-	log.Info("Installing NAS infrastructure")
-
-	// Load configuration
-	loader := config.NewLoader()
-	cfg, err := loader.LoadConfig("nas")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	if cfg.NAS == nil {
-		return fmt.Errorf("NAS configuration not found")
-	}
-
-	// Connect to cluster
-	client, err := k8s.NewClient(cfg.NAS.Cluster.KubeConfig)
-	if err != nil {
-		return fmt.Errorf("failed to connect to cluster: %w", err)
-	}
-
-	// Install FluxCD
-	fluxClient := flux.NewClient(client, &cfg.NAS.GitOps)
-	if err := fluxClient.Install(ctx, "flux-system"); err != nil {
-		return fmt.Errorf("failed to install flux: %w", err)
-	}
-
-	log.Info("Installation completed successfully")
-	return nil
+	log.Info("Installing NAS infrastructure (non-interactive bootstrap)")
+	return runBootstrap(ctx, true)
 }
 
 func runValidate(ctx context.Context) error {

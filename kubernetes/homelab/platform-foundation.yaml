@@ -14,6 +14,12 @@ spec:
   dependsOn:
     - name: controllers
   postBuild:
+    substitute:
+      ISTIO_VERSION: "1.27.2"
+      ISTIO_REVISION: "default"
+      NETWORK_HOMELAB: "homelab-network"
+      NETWORK_NAS: "nas-network"
+      SERVICE_TYPE: "LoadBalancer"
     substituteFrom:
       - kind: Secret
         name: vault-transit-token

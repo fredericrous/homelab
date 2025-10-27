@@ -1,0 +1,52 @@
+_internal_defaults_do_not_set:
+  name: istio-eastwestgateway
+  revision: $(ISTIO_REVISION)
+
+service:
+  type: $(SERVICE_TYPE)
+  ports:
+    - name: status-port
+      port: 15021
+      targetPort: 15021
+      nodePort: 31021
+    - name: tls
+      port: 15443
+      targetPort: 15443
+      nodePort: 31443
+    - name: tls-istiod
+      port: 15012
+      targetPort: 15012
+      nodePort: 30012
+    - name: tls-webhook
+      port: 15017
+      targetPort: 15017
+      nodePort: 30017
+  labels:
+    istio: eastwestgateway
+    topology.istio.io/network: $(NETWORK_NAS)
+  annotations: {}
+
+podLabels:
+  istio: eastwestgateway
+  topology.istio.io/network: $(NETWORK_NAS)
+
+podAnnotations:
+  inject.istio.io/templates: gateway
+  sidecar.istio.io/inject: "true"
+  proxy.istio.io/config: |
+    {"holdApplicationUntilProxyStarts": true}
+
+env:
+  ISTIO_META_ROUTER_MODE: "sni-dnat"
+  ISTIO_META_REQUESTED_NETWORK_VIEW: $(NETWORK_NAS)
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
