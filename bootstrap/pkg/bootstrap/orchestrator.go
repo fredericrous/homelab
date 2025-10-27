@@ -576,31 +576,26 @@ func (o *Orchestrator) parseDuration(s string, defaultDuration time.Duration) ti
 }
 
 func (o *Orchestrator) storeDiscoveryInfo(ctx context.Context) error {
-	log.Info("Storing cluster discovery information")
-	
-	// Create discovery service
-	discoveryService := discovery.NewClusterDiscovery(o.projectRoot, o.k8sClient)
-	
-	// Store our discovery info
-	clusterName := o.getClusterType()
-	if err := discoveryService.StoreDiscoveryInfo(ctx, clusterName); err != nil {
-		log.Warn("Failed to store discovery info", "error", err)
-		// Not critical, continue
-		return nil
-	}
-	
-	// Also try to discover other clusters
+	log.Info("Discovering configured kube contexts")
+
+	discoveryService := discovery.NewClusterDiscovery(o.projectRoot)
+
 	clusters, err := discoveryService.DiscoverClusters(ctx)
 	if err != nil {
-		log.Warn("Failed to discover other clusters", "error", err)
+		log.Warn("Failed to discover clusters", "error", err)
 		return nil
 	}
-	
+
 	log.Info("Discovered clusters", "count", len(clusters))
 	for _, cluster := range clusters {
-		log.Info("Found cluster", "name", cluster.Name, "api", cluster.APIServer, "network", cluster.Network)
+		log.Info("Found cluster",
+			"name", cluster.Name,
+			"context", cluster.Context,
+			"kubeconfig", cluster.Kubeconfig,
+			"api", cluster.APIServer,
+			"network", cluster.Network)
 	}
-	
+
 	return nil
 }
 
