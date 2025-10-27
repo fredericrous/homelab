@@ -143,6 +143,31 @@ func (c *Client) Bootstrap(ctx context.Context, namespace string) error {
 	return nil
 }
 
+// BootstrapPlatformFoundation creates the platform-foundation Kustomization
+func (c *Client) BootstrapPlatformFoundation(ctx context.Context, namespace string, clusterType string) error {
+	log.Info("Creating platform-foundation Kustomization", "cluster", clusterType)
+	
+	manifest := fmt.Sprintf(`---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: %s-platform-foundation
+  namespace: %s
+spec:
+  interval: 10m0s
+  path: ./kubernetes/%s/platform-foundation
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  timeout: 5m0s
+  wait: true
+  validation: client
+`, clusterType, namespace, clusterType)
+
+	return c.applyManifests(ctx, []byte(manifest))
+}
+
 // createGitHubTokenSecret creates a secret for GitHub authentication
 func (c *Client) createGitHubTokenSecret(ctx context.Context, namespace string) error {
 	log.Info("Creating GitHub token secret for authentication")
@@ -274,6 +299,66 @@ func (c *Client) WaitForSync(ctx context.Context, namespace, name string, timeou
 		}
 		
 		return false, nil // Not ready yet
+	})
+}
+
+// WaitForKustomization waits for a Kustomization to be ready
+func (c *Client) WaitForKustomization(ctx context.Context, namespace, name string, timeout time.Duration) error {
+	log.Info("Waiting for Kustomization", "namespace", namespace, "name", name, "timeout", timeout)
+	
+	return wait.PollImmediate(10*time.Second, timeout, func() (bool, error) {
+		dynamicClient := c.k8sClient.GetDynamicClient()
+		gvr := schema.GroupVersionResource{
+			Group:    "kustomize.toolkit.fluxcd.io",
+			Version:  "v1",
+			Resource: "kustomizations",
+		}
+		
+		kustomization, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			log.Debug("Kustomization not found yet", "error", err)
+			return false, nil
+		}
+		
+		// Check status
+		status, found, _ := unstructured.NestedMap(kustomization.Object, "status")
+		if !found {
+			log.Debug("Kustomization status not available yet")
+			return false, nil
+		}
+		
+		// Check conditions
+		conditions, found, _ := unstructured.NestedSlice(status, "conditions")
+		if !found || len(conditions) == 0 {
+			log.Debug("Kustomization conditions not available yet")
+			return false, nil
+		}
+		
+		// Look for Ready condition
+		for _, conditionRaw := range conditions {
+			condition, ok := conditionRaw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			
+			if condType, _ := condition["type"].(string); condType == "Ready" {
+				condStatus, _ := condition["status"].(string)
+				reason, _ := condition["reason"].(string)
+				message, _ := condition["message"].(string)
+				
+				if condStatus == "True" {
+					log.Info("Kustomization is ready")
+					return true, nil
+				} else if reason == "ReconciliationFailed" || reason == "BuildFailed" {
+					// Fail fast on known error conditions
+					return false, fmt.Errorf("kustomization failed: %s - %s", reason, message)
+				}
+				
+				log.Debug("Kustomization not ready", "status", condStatus, "reason", reason, "message", message)
+			}
+		}
+		
+		return false, nil
 	})
 }
 

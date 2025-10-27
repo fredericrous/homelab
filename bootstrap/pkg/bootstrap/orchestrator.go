@@ -360,7 +360,24 @@ func (o *Orchestrator) bootstrapGitOps(ctx context.Context) error {
 	}
 
 	fluxClient := flux.NewClient(o.k8sClient, gitopsConfig)
-	return fluxClient.Bootstrap(ctx, "flux-system")
+	
+	// Bootstrap base Flux sync
+	if err := fluxClient.Bootstrap(ctx, "flux-system"); err != nil {
+		return fmt.Errorf("failed to bootstrap GitOps: %w", err)
+	}
+	
+	// Create platform-foundation Kustomization
+	clusterType := "homelab"
+	if o.isNAS {
+		clusterType = "nas"
+	}
+	
+	log.Info("Creating platform-foundation Kustomization")
+	if err := fluxClient.BootstrapPlatformFoundation(ctx, "flux-system", clusterType); err != nil {
+		return fmt.Errorf("failed to create platform-foundation: %w", err)
+	}
+	
+	return nil
 }
 
 func (o *Orchestrator) setupSecrets(ctx context.Context) error {
