@@ -105,11 +105,9 @@ func (tm *TransitManager) discoverNASVault(ctx context.Context) (string, error) 
 		return addr, nil
 	}
 	
-	// Try alternate env vars
-	for _, key := range []string{"NAS_VAULT_ADDR", "ARGO_NAS_VAULT_ADDR"} {
-		if addr := strings.TrimSpace(os.Getenv(key)); addr != "" {
-			return addr, nil
-		}
+	// Try NAS_VAULT_ADDR env var
+	if addr := strings.TrimSpace(os.Getenv("NAS_VAULT_ADDR")); addr != "" {
+		return addr, nil
 	}
 
 	// Try default based on NAS IP from config

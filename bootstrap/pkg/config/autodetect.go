@@ -71,10 +71,6 @@ func (ad *AutoDetector) detectNetwork() error {
 		log.Debug("Auto-detected control plane IP", "ip", os.Getenv("CONTROL_PLANE_IP"))
 	}
 	
-	if os.Getenv("ARGO_CONTROL_PLANE_IP") == "" {
-		os.Setenv("ARGO_CONTROL_PLANE_IP", os.Getenv("CONTROL_PLANE_IP"))
-	}
-	
 	if os.Getenv("NAS_IP") == "" {
 		os.Setenv("NAS_IP", fmt.Sprintf("%s.42", networkPrefix))
 		log.Debug("Auto-detected NAS IP", "ip", os.Getenv("NAS_IP"))
@@ -119,8 +115,8 @@ func (ad *AutoDetector) detectClusterIPs() error {
 		log.Debug("Set QNAP Vault address", "addr", os.Getenv("QNAP_VAULT_ADDR"))
 	}
 	
-	if os.Getenv("ARGO_NAS_VAULT_ADDR") == "" {
-		os.Setenv("ARGO_NAS_VAULT_ADDR", os.Getenv("QNAP_VAULT_ADDR"))
+	if os.Getenv("NAS_VAULT_ADDR") == "" {
+		os.Setenv("NAS_VAULT_ADDR", os.Getenv("QNAP_VAULT_ADDR"))
 	}
 	
 	return nil
@@ -138,9 +134,6 @@ func (ad *AutoDetector) detectDomain() error {
 			if os.Getenv("EXTERNAL_DOMAIN") == "" {
 				os.Setenv("EXTERNAL_DOMAIN", domain)
 				log.Debug("Auto-detected domain from hostname", "domain", domain)
-			}
-			if os.Getenv("ARGO_EXTERNAL_DOMAIN") == "" {
-				os.Setenv("ARGO_EXTERNAL_DOMAIN", domain)
 			}
 			return nil
 		}
@@ -199,8 +192,8 @@ func (ad *AutoDetector) setDefaults() {
 		"NETWORK_HOMELAB": "homelab-network", 
 		"NETWORK_NAS": "nas-network",
 		"SERVICE_TYPE": "LoadBalancer",
-		"ARGO_CLUSTER_NAME": "homelab",
-		"ARGO_CLUSTER_DOMAIN": "cluster.local",
+		"CLUSTER_NAME": "homelab",
+		"CLUSTER_DOMAIN": "cluster.local",
 		"FLUXCD_OWNER": "fredericrous",
 		"FLUXCD_REPOSITORY": "homelab",
 	}
@@ -213,24 +206,24 @@ func (ad *AutoDetector) setDefaults() {
 	}
 	
 	// Harbor defaults
-	if os.Getenv("ARGO_HARBOR_IP") == "" {
+	if os.Getenv("HARBOR_IP") == "" {
 		// Try to detect based on network
 		if cp := os.Getenv("CONTROL_PLANE_IP"); cp != "" {
 			parts := strings.Split(cp, ".")
 			if len(parts) == 4 {
 				harborIP := fmt.Sprintf("%s.%s.%s.90", parts[0], parts[1], parts[2])
-				os.Setenv("ARGO_HARBOR_IP", harborIP)
+				os.Setenv("HARBOR_IP", harborIP)
 				log.Debug("Auto-detected Harbor IP", "ip", harborIP)
 			}
 		}
 	}
 	
-	if os.Getenv("ARGO_HARBOR_REGISTRY") == "" && os.Getenv("EXTERNAL_DOMAIN") != "" {
-		os.Setenv("ARGO_HARBOR_REGISTRY", fmt.Sprintf("harbor.%s", os.Getenv("EXTERNAL_DOMAIN")))
+	if os.Getenv("HARBOR_REGISTRY") == "" && os.Getenv("EXTERNAL_DOMAIN") != "" {
+		os.Setenv("HARBOR_REGISTRY", fmt.Sprintf("harbor.%s", os.Getenv("EXTERNAL_DOMAIN")))
 	}
 	
-	if os.Getenv("ARGO_HARBOR_REGISTRY_TLS") == "" {
-		os.Setenv("ARGO_HARBOR_REGISTRY_TLS", "true")
+	if os.Getenv("HARBOR_REGISTRY_TLS") == "" {
+		os.Setenv("HARBOR_REGISTRY_TLS", "true")
 	}
 }
 
