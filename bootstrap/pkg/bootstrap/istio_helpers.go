@@ -106,13 +106,17 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 }
 
 func (o *Orchestrator) ensureCACerts(ctx context.Context) error {
+    // First check if cacerts already exists
     secret, err := o.k8sClient.GetSecret(ctx, istioNamespace, "cacerts")
     if err != nil {
-        if apierrors.IsNotFound(err) {
-            data, readErr := o.readCACertsFromDir()
-            if readErr != nil {
-                return readErr
-            }
+        if !apierrors.IsNotFound(err) {
+            return fmt.Errorf("failed to read cacerts secret: %w", err)
+        }
+        
+        // Secret doesn't exist, check if we can read from directory
+        data, readErr := o.readCACertsFromDir()
+        if readErr == nil {
+            // Create secret from directory files
             secret = &corev1.Secret{
                 ObjectMeta: metav1.ObjectMeta{
                     Name:      "cacerts",
@@ -124,15 +128,24 @@ func (o *Orchestrator) ensureCACerts(ctx context.Context) error {
             if err := o.k8sClient.CreateOrUpdateSecret(ctx, secret); err != nil {
                 return fmt.Errorf("failed to create cacerts secret: %w", err)
             }
-            log.Info("Created cacerts secret", "namespace", istioNamespace)
+            log.Info("Created cacerts secret from directory", "namespace", istioNamespace)
         } else {
-            return fmt.Errorf("failed to read cacerts secret: %w", err)
+            // No existing secret and no directory files, CA bootstrap will handle it
+            log.Info("No existing CA certificates found, CA bootstrap job will generate them")
+            return nil
         }
     }
 
-    fp := fingerprint(secret.Data["root-cert.pem"])
-    log.Info("Istio root CA ensured", "fingerprint", fp)
+    // Validate existing CA
+    if len(secret.Data["root-cert.pem"]) == 0 || len(secret.Data["key.pem"]) == 0 {
+        log.Warn("Existing cacerts secret is incomplete, CA bootstrap will regenerate")
+        return nil
+    }
 
+    fp := fingerprint(secret.Data["root-cert.pem"])
+    log.Info("Istio root CA found", "fingerprint", fp)
+
+    // Check peer cluster CA for consistency
     peerPath := o.peerKubeconfigPath()
     if peerPath == "" {
         return nil
@@ -152,6 +165,10 @@ func (o *Orchestrator) ensureCACerts(ctx context.Context) error {
     if err != nil {
         if apierrors.IsNotFound(err) {
             log.Warn("Peer cluster is missing cacerts secret", "peer", o.peerClusterName())
+            // Try to copy our CA to peer cluster
+            if err := o.syncCAToPeer(ctx, peerClient, secret); err != nil {
+                log.Warn("Failed to sync CA to peer cluster", "peer", o.peerClusterName(), "error", err)
+            }
             return nil
         }
         log.Warn("Failed to fetch peer cacerts", "peer", o.peerClusterName(), "error", err)
@@ -360,6 +377,32 @@ func (o *Orchestrator) readCACertsFromDir() (map[string][]byte, error) {
         data[name] = bytes
     }
     return data, nil
+}
+
+func (o *Orchestrator) syncCAToPeer(ctx context.Context, peerClient *k8s.Client, localSecret *corev1.Secret) error {
+    // Create istio-system namespace if it doesn't exist
+    if err := peerClient.CreateNamespace(ctx, istioNamespace); err != nil {
+        return fmt.Errorf("failed to create istio-system namespace on peer: %w", err)
+    }
+    
+    // Copy the CA secret to peer cluster
+    peerSecret := &corev1.Secret{
+        ObjectMeta: metav1.ObjectMeta{
+            Name:        localSecret.Name,
+            Namespace:   localSecret.Namespace,
+            Labels:      localSecret.Labels,
+            Annotations: localSecret.Annotations,
+        },
+        Type: localSecret.Type,
+        Data: localSecret.Data,
+    }
+    
+    if err := peerClient.CreateOrUpdateSecret(ctx, peerSecret); err != nil {
+        return fmt.Errorf("failed to sync CA secret to peer: %w", err)
+    }
+    
+    log.Info("Successfully synced CA to peer cluster", "peer", o.peerClusterName())
+    return nil
 }
 
 func fingerprint(b []byte) string {
