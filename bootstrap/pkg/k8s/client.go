@@ -266,6 +266,16 @@ func (c *Client) WaitForPods(ctx context.Context, namespace, labelSelector strin
 	})
 }
 
+// GetSecret gets a secret by name and namespace
+func (c *Client) GetSecret(ctx context.Context, namespace, name string) (*corev1.Secret, error) {
+	return c.clientset.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
+}
+
+// GetService gets a service by name and namespace
+func (c *Client) GetService(ctx context.Context, namespace, name string) (*corev1.Service, error) {
+	return c.clientset.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
+}
+
 // CreateOrUpdateSecret creates or updates a secret
 func (c *Client) CreateOrUpdateSecret(ctx context.Context, secret *corev1.Secret) error {
 	secretsClient := c.clientset.CoreV1().Secrets(secret.Namespace)

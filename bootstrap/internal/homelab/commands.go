@@ -530,13 +530,9 @@ func runSyncSecrets(ctx context.Context) error {
 
 	// Setup cross-cluster connectivity
 	log.Info("Setting up cross-cluster connectivity with NAS")
-	crossClusterManager, err := secrets.NewCrossClusterManager(client, projectRoot)
-	if err != nil {
-		return fmt.Errorf("failed to create cross-cluster manager: %w", err)
-	}
-	if err := crossClusterManager.CreateIstioRemoteSecret(ctx); err != nil {
-		return fmt.Errorf("failed to setup cross-cluster connectivity: %w", err)
-	}
+	// TODO: Implement cross-cluster secret creation in Go
+	log.Warn("Cross-cluster secret creation not yet implemented in Go")
+	log.Info("Please run: ./bootstrap/scripts/homelab/ensure-nas-remote-secret.sh")
 
 	log.Info("✅ Environment secrets synced successfully")
 	return nil

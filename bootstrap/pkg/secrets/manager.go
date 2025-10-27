@@ -229,3 +229,25 @@ func getSecretKeys(data map[string][]byte) []string {
 	}
 	return keys
 }
+
+// UpdateClusterVars updates specific key-value pairs in the cluster-vars secret
+func (m *Manager) UpdateClusterVars(ctx context.Context, namespace string, updates map[string]string) error {
+	log.Info("Updating cluster-vars secret", "namespace", namespace, "keys", len(updates))
+	
+	// Get existing secret
+	secret, err := m.client.GetClientset().CoreV1().Secrets(namespace).Get(ctx, "cluster-vars", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get cluster-vars secret: %w", err)
+	}
+	
+	// Update values
+	if secret.Data == nil {
+		secret.Data = make(map[string][]byte)
+	}
+	for key, value := range updates {
+		secret.Data[key] = []byte(value)
+	}
+	
+	// Update the secret
+	return m.client.CreateOrUpdateSecret(ctx, secret)
+}

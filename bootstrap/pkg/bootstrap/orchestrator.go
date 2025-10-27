@@ -390,15 +390,11 @@ func (o *Orchestrator) setupSecrets(ctx context.Context) error {
 	// Setup cross-cluster secrets (only for homelab)
 	if !o.isNAS {
 		log.Info("Setting up cross-cluster secrets")
-		ccManager, err := secrets.NewCrossClusterManager(o.k8sClient, o.projectRoot)
-		if err != nil {
-			log.Warn("Failed to create cross-cluster manager", "error", err)
-		} else {
-			if err := ccManager.CreateIstioRemoteSecret(ctx); err != nil {
-				log.Warn("Failed to create Istio remote secret", "error", err)
-				// Continue - this is not critical for initial bootstrap
-			}
-		}
+		// TODO: Implement cross-cluster secret creation
+		// For now, we'll rely on the existing shell scripts
+		log.Warn("Cross-cluster secret creation not yet implemented in Go")
+		log.Info("Please run: ./bootstrap/scripts/homelab/ensure-nas-remote-secret.sh")
+		// Continue without error as this is handled by scripts
 	}
 
 	log.Info("Secret setup completed")

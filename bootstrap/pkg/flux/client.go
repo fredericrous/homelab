@@ -1015,3 +1015,22 @@ func (c *Client) CleanupFlux(ctx context.Context, namespace string) error {
 	log.Info("Flux cleanup completed", "namespace", namespace)
 	return nil
 }
+
+// TriggerReconcile forces reconciliation of a Flux resource
+func (c *Client) TriggerReconcile(ctx context.Context, namespace, name string) error {
+	log.Info("Triggering reconciliation", "namespace", namespace, "name", name)
+	
+	// Add reconcile annotation to force immediate sync
+	now := time.Now().Format(time.RFC3339)
+	patch := fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, now)
+	
+	// For now, assume it's a Kustomization (most common case in our flow)
+	gvr := schema.GroupVersionResource{
+		Group:    "kustomize.toolkit.fluxcd.io",
+		Version:  "v1",
+		Resource: "kustomizations",
+	}
+	
+	_, err := c.k8sClient.GetDynamicClient().Resource(gvr).Namespace(namespace).Patch(ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
+	return err
+}
