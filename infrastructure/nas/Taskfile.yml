@@ -76,12 +76,18 @@ tasks:
           if docker exec k3s-server cat /etc/rancher/k3s/k3s.yaml > {{.KUBECONFIG}} 2>/dev/null; then
             # Update server IP to point to NAS host
             sed -i 's/127.0.0.1/192.168.1.20/g' {{.KUBECONFIG}}
+            kubectl config rename-context default nas >/dev/null 2>&1 || true
+            kubectl config rename-context "admin@default" nas >/dev/null 2>&1 || true
+            kubectl config use-context nas >/dev/null 2>&1 || true
             echo "✅ Kubeconfig extracted and configured"
             break
           fi
           echo "  Waiting for kubeconfig... ($i/30)"
           sleep 5
         done
+      - |
+        # Maintain merged kubeconfig placeholder
+        kubectl config view --flatten > {{.ROOT_DIR}}/infrastructure/kubeconfig
       - |-
         # Test connectivity
         if kubectl version --short &>/dev/null; then

@@ -7,6 +7,11 @@ metadata:
 spec:
   targetNamespace: istio-system
   interval: 10m
+  dependsOn:
+    - name: istio-base
+      namespace: flux-system
+    - name: istiod
+      namespace: flux-system
   chart:
     spec:
       chart: gateway

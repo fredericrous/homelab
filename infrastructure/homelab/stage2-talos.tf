@@ -191,8 +191,8 @@ resource "talos_cluster_kubeconfig" "this" {
 # Save configs
 resource "local_file" "kubeconfig" {
   count           = var.configure_talos ? 1 : 0
-  content         = talos_cluster_kubeconfig.this[0].kubeconfig_raw
-  filename        = "${path.module}/../../kubeconfig"
+  content         = replace(talos_cluster_kubeconfig.this[0].kubeconfig_raw, "admin@${var.cluster_name}", var.cluster_name)
+  filename        = "${path.module}/../../infrastructure/homelab/kubeconfig.yaml"
   file_permission = "0600"
 }
 

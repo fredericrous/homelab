@@ -52,7 +52,7 @@ output "next_steps" {
     Cluster deployed! Next steps:
 
     1. Set up kubectl:
-       export KUBECONFIG=${path.module}/../kubeconfig
+       export KUBECONFIG=${path.module}/kubeconfig.yaml
        kubectl get nodes
 
     2. Set up talosctl:
