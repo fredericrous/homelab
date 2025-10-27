@@ -31,8 +31,7 @@ podLabels:
   topology.istio.io/network: $(NETWORK_NAS)
 
 podAnnotations:
-  inject.istio.io/templates: gateway
-  sidecar.istio.io/inject: "true"
+  sidecar.istio.io/inject: "false"
   proxy.istio.io/config: |
     {"holdApplicationUntilProxyStarts": true}
 

@@ -13,7 +13,9 @@ spec:
         number: 15012
         protocol: TLS
       tls:
-        mode: PASSTHROUGH
+        mode: SIMPLE
+        credentialName: istio-eastwestgateway-certs
+        minProtocolVersion: TLSV1_2
       hosts:
         - "*"
     - port:
@@ -21,7 +23,9 @@ spec:
         number: 15017
         protocol: TLS
       tls:
-        mode: PASSTHROUGH
+        mode: SIMPLE
+        credentialName: istio-eastwestgateway-certs
+        minProtocolVersion: TLSV1_2
       hosts:
         - "*"
 ---

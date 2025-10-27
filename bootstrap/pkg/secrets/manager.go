@@ -324,6 +324,18 @@ func (m *Manager) GetGeneratedEnvValue(key string) (string, error) {
 	return vars[key], nil
 }
 
+// GetEnvValue returns the value for a key from the merged .env and .env.generated content.
+func (m *Manager) GetEnvValue(key string) (string, error) {
+	if strings.TrimSpace(key) == "" {
+		return "", nil
+	}
+	vars, err := m.loadMergedEnvVars()
+	if err != nil {
+		return "", err
+	}
+	return vars[key], nil
+}
+
 // StorePendingRemoteSecret persists a remote-secret payload (base64 encoded) for later reconciliation.
 func (m *Manager) StorePendingRemoteSecret(ctx context.Context, cluster string, payloadB64 string) error {
 	cluster = strings.TrimSpace(strings.ToLower(cluster))
