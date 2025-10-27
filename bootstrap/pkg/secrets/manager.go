@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/pkg/k8s"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -19,6 +21,14 @@ type Manager struct {
 	client      *k8s.Client
 	projectRoot string
 }
+
+const (
+	generatedEnvFilename    = ".env.generated"
+	baseEnvFilename         = ".env"
+	pendingRemoteSecretKey  = "payload"
+	pendingRemoteSecretName = "istio-remote-secret-%s-pending"
+	istioNamespace          = "istio-system"
+)
 
 // NewManager creates a new secrets manager
 func NewManager(client *k8s.Client, projectRoot string) *Manager {
@@ -30,21 +40,15 @@ func NewManager(client *k8s.Client, projectRoot string) *Manager {
 
 // CreateClusterVarsSecret creates cluster-vars secret from .env file
 func (m *Manager) CreateClusterVarsSecret(ctx context.Context, namespace string) error {
-	log.Info("Creating cluster-vars secret from .env variables", "namespace", namespace)
+	log.Info("Creating cluster-vars secret from environment variables", "namespace", namespace)
 
-	envFile := filepath.Join(m.projectRoot, ".env")
-	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		return fmt.Errorf(".env file not found at %s", envFile)
-	}
-
-	// Parse .env file
-	vars, err := m.parseEnvFile(envFile)
+	vars, err := m.loadMergedEnvVars()
 	if err != nil {
-		return fmt.Errorf("failed to parse .env file: %w", err)
+		return fmt.Errorf("failed to load environment variables: %w", err)
 	}
 
 	if len(vars) == 0 {
-		log.Warn("No variables found in .env file")
+		log.Warn("No environment variables found in .env or .env.generated")
 		return nil
 	}
 
@@ -77,6 +81,28 @@ func (m *Manager) CreateClusterVarsSecret(ctx context.Context, namespace string)
 
 	log.Info("Cluster-vars secret created successfully", "variables", getSecretKeys(data))
 	return nil
+}
+
+func (m *Manager) loadMergedEnvVars() (map[string]string, error) {
+	merged := make(map[string]string)
+
+	baseVars, err := m.parseEnvFile(filepath.Join(m.projectRoot, baseEnvFilename))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", baseEnvFilename, err)
+	}
+	for k, v := range baseVars {
+		merged[k] = v
+	}
+
+	generatedVars, err := m.parseEnvFile(filepath.Join(m.projectRoot, generatedEnvFilename))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", generatedEnvFilename, err)
+	}
+	for k, v := range generatedVars {
+		merged[k] = v
+	}
+
+	return merged, nil
 }
 
 // CreateVaultTransitTokenSecret creates vault-transit-token secret
@@ -151,34 +177,32 @@ func (m *Manager) getVaultTransitToken() (string, error) {
 		return token, nil
 	}
 
-	// Try to load from .env file
-	envFile := filepath.Join(m.projectRoot, ".env")
-	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		return "", fmt.Errorf("VAULT_TRANSIT_TOKEN not in environment and .env file not found")
-	}
-
-	vars, err := m.parseEnvFile(envFile)
+	vars, err := m.loadMergedEnvVars()
 	if err != nil {
-		return "", fmt.Errorf("failed to parse .env file: %w", err)
+		return "", err
 	}
 
 	if token, exists := vars["VAULT_TRANSIT_TOKEN"]; exists && token != "" {
-		log.Debug("Found vault transit token in .env file")
+		log.Debug("Found vault transit token in local env files")
 		return token, nil
 	}
 
-	return "", fmt.Errorf("VAULT_TRANSIT_TOKEN not found in environment or .env file")
+	return "", fmt.Errorf("VAULT_TRANSIT_TOKEN not found in environment or env files")
 }
 
 // parseEnvFile parses a .env file and returns key-value pairs
 func (m *Manager) parseEnvFile(filename string) (map[string]string, error) {
+	vars := make(map[string]string)
+
 	file, err := os.Open(filename)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return vars, nil
+		}
 		return nil, err
 	}
 	defer file.Close()
 
-	vars := make(map[string]string)
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
@@ -221,6 +245,156 @@ func (m *Manager) parseEnvFile(filename string) (map[string]string, error) {
 	return vars, nil
 }
 
+func writeEnvFile(path string, vars map[string]string) error {
+	if len(vars) == 0 {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+
+	keys := make([]string, 0, len(vars))
+	for key := range vars {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var builder strings.Builder
+	for _, key := range keys {
+		builder.WriteString(key)
+		builder.WriteString("=")
+		builder.WriteString(vars[key])
+		builder.WriteString("\n")
+	}
+
+	return os.WriteFile(path, []byte(builder.String()), 0600)
+}
+
+// UpdateGeneratedEnv merges the provided key/value pairs into .env.generated.
+func (m *Manager) UpdateGeneratedEnv(updates map[string]string) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	path := filepath.Join(m.projectRoot, generatedEnvFilename)
+	vars, err := m.parseEnvFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", generatedEnvFilename, err)
+	}
+
+	changed := false
+	for key, value := range updates {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if value == "" {
+			if _, ok := vars[key]; ok {
+				delete(vars, key)
+				changed = true
+			}
+			continue
+		}
+		if current, ok := vars[key]; !ok || current != value {
+			vars[key] = value
+			changed = true
+		}
+	}
+
+	if !changed {
+		return nil
+	}
+
+	if err := writeEnvFile(path, vars); err != nil {
+		return fmt.Errorf("failed to update %s: %w", generatedEnvFilename, err)
+	}
+
+	return nil
+}
+
+// GetGeneratedEnvValue returns a value from .env.generated if present.
+func (m *Manager) GetGeneratedEnvValue(key string) (string, error) {
+	if strings.TrimSpace(key) == "" {
+		return "", nil
+	}
+	vars, err := m.parseEnvFile(filepath.Join(m.projectRoot, generatedEnvFilename))
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", generatedEnvFilename, err)
+	}
+	return vars[key], nil
+}
+
+// StorePendingRemoteSecret persists a remote-secret payload (base64 encoded) for later reconciliation.
+func (m *Manager) StorePendingRemoteSecret(ctx context.Context, cluster string, payloadB64 string) error {
+	cluster = strings.TrimSpace(strings.ToLower(cluster))
+	if cluster == "" {
+		return fmt.Errorf("cluster name is required for pending remote secret")
+	}
+
+	name := fmt.Sprintf(pendingRemoteSecretName, cluster)
+
+	if payloadB64 == "" {
+		if err := m.client.GetClientset().CoreV1().Secrets(istioNamespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete pending remote secret: %w", err)
+		}
+		return nil
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: istioNamespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			pendingRemoteSecretKey: []byte(payloadB64),
+		},
+	}
+
+	if err := m.client.CreateOrUpdateSecret(ctx, secret); err != nil {
+		return fmt.Errorf("failed to upsert pending remote secret: %w", err)
+	}
+
+	return nil
+}
+
+// FetchPendingRemoteSecret retrieves a pending remote secret payload, if any.
+func (m *Manager) FetchPendingRemoteSecret(ctx context.Context, cluster string) (string, error) {
+	cluster = strings.TrimSpace(strings.ToLower(cluster))
+	if cluster == "" {
+		return "", nil
+	}
+
+	name := fmt.Sprintf(pendingRemoteSecretName, cluster)
+	secret, err := m.client.GetClientset().CoreV1().Secrets(istioNamespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to fetch pending remote secret: %w", err)
+	}
+
+	if secret.Data == nil {
+		return "", nil
+	}
+
+	return string(secret.Data[pendingRemoteSecretKey]), nil
+}
+
+// ClearPendingRemoteSecret removes the pending secret entry for a cluster.
+func (m *Manager) ClearPendingRemoteSecret(ctx context.Context, cluster string) error {
+	cluster = strings.TrimSpace(strings.ToLower(cluster))
+	if cluster == "" {
+		return nil
+	}
+
+	name := fmt.Sprintf(pendingRemoteSecretName, cluster)
+	if err := m.client.GetClientset().CoreV1().Secrets(istioNamespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete pending remote secret: %w", err)
+	}
+	return nil
+}
+
 // getSecretKeys returns the keys from secret data for logging
 func getSecretKeys(data map[string][]byte) []string {
 	keys := make([]string, 0, len(data))
@@ -233,13 +407,13 @@ func getSecretKeys(data map[string][]byte) []string {
 // UpdateClusterVars updates specific key-value pairs in the cluster-vars secret
 func (m *Manager) UpdateClusterVars(ctx context.Context, namespace string, updates map[string]string) error {
 	log.Info("Updating cluster-vars secret", "namespace", namespace, "keys", len(updates))
-	
+
 	// Get existing secret
 	secret, err := m.client.GetClientset().CoreV1().Secrets(namespace).Get(ctx, "cluster-vars", metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get cluster-vars secret: %w", err)
 	}
-	
+
 	// Update values
 	if secret.Data == nil {
 		secret.Data = make(map[string][]byte)
@@ -247,7 +421,7 @@ func (m *Manager) UpdateClusterVars(ctx context.Context, namespace string, updat
 	for key, value := range updates {
 		secret.Data[key] = []byte(value)
 	}
-	
+
 	// Update the secret
 	return m.client.CreateOrUpdateSecret(ctx, secret)
 }
