@@ -96,6 +96,16 @@ func NewDestroyCommand() *cobra.Command {
 }
 
 func runBootstrap(ctx context.Context, noTui bool) error {
+	// Auto-detect environment if no .env file
+	wd, _ := os.Getwd()
+	projectRoot := findProjectRoot(wd)
+	if projectRoot != "" {
+		detector := config.NewAutoDetector(projectRoot)
+		if err := detector.DetectAndSetDefaults(); err != nil {
+			log.Warn("Failed to auto-detect environment", "error", err)
+		}
+	}
+	
 	// Load configuration
 	loader := config.NewLoader()
 	cfg, err := loader.LoadConfig("homelab")

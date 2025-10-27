@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/pkg/backup"
 	"github.com/fredericrous/homelab/bootstrap/pkg/config"
+	"github.com/fredericrous/homelab/bootstrap/pkg/discovery"
 	"github.com/fredericrous/homelab/bootstrap/pkg/flux"
 	"github.com/fredericrous/homelab/bootstrap/pkg/health"
 	"github.com/fredericrous/homelab/bootstrap/pkg/infra"
@@ -18,6 +19,7 @@ import (
 	"github.com/fredericrous/homelab/bootstrap/pkg/resources"
 	"github.com/fredericrous/homelab/bootstrap/pkg/secrets"
 	"github.com/fredericrous/homelab/bootstrap/pkg/security"
+	"github.com/fredericrous/homelab/bootstrap/pkg/vault"
 )
 
 // Orchestrator manages the complete bootstrap process
@@ -158,6 +160,12 @@ func (o *Orchestrator) getHomelabBootstrapSteps() []BootstrapStep {
 			Description: "Setup cluster secrets and configurations",
 			Required:    true,
 			Execute:     o.setupSecrets,
+		},
+		{
+			Name:        "store-discovery-info",
+			Description: "Store cluster discovery information",
+			Required:    false,
+			Execute:     o.storeDiscoveryInfo,
 		},
 		{
 			Name:        "ensure-istio-prereqs",
@@ -396,23 +404,33 @@ func (o *Orchestrator) setupSecrets(ctx context.Context) error {
 
 	// Create vault-transit-token secret (only for homelab)
 	if !o.isNAS {
-		log.Info("Creating vault-transit-token secret")
+		log.Info("Setting up Vault transit token")
+		
+		// Try existing secret manager first
 		if err := o.secretsManager.CreateVaultTransitTokenSecret(ctx, ""); err != nil {
-			log.Warn("Failed to create vault-transit-token secret", "error", err)
-			log.Info("This is not critical for initial bootstrap - you can set up vault integration later")
-			// Continue - vault might not be available during initial bootstrap
+			log.Info("Attempting to auto-generate Vault transit token")
+			
+			// Create transit manager for auto-generation
+			transitMgr := vault.NewTransitManager(o.config, o.k8sClient, o.isNAS)
+			token, genErr := transitMgr.EnsureTransitToken(ctx)
+			
+			if genErr != nil {
+				log.Warn("Failed to auto-generate transit token", "error", genErr)
+				log.Info("You can manually set VAULT_TRANSIT_TOKEN in .env file later")
+				// Continue - vault integration can be set up later
+			} else {
+				// Store the generated token
+				if storeErr := o.secretsManager.CreateVaultTransitTokenSecret(ctx, token); storeErr != nil {
+					log.Warn("Failed to store generated transit token", "error", storeErr)
+				} else {
+					log.Info("Successfully generated and stored Vault transit token")
+				}
+			}
 		}
 	}
 
-	// Setup cross-cluster secrets (only for homelab)
-	if !o.isNAS {
-		log.Info("Setting up cross-cluster secrets")
-		// TODO: Implement cross-cluster secret creation
-		// For now, we'll rely on the existing shell scripts
-		log.Warn("Cross-cluster secret creation not yet implemented in Go")
-		log.Info("Please run: ./bootstrap/scripts/homelab/ensure-nas-remote-secret.sh")
-		// Continue without error as this is handled by scripts
-	}
+	// Setup cross-cluster secrets is now handled by ensureRemoteSecret in Istio helpers
+	// which creates proper service account-based secrets bidirectionally
 
 	log.Info("Secret setup completed")
 	return nil
@@ -555,6 +573,35 @@ func (o *Orchestrator) parseDuration(s string, defaultDuration time.Duration) ti
 	}
 
 	return d
+}
+
+func (o *Orchestrator) storeDiscoveryInfo(ctx context.Context) error {
+	log.Info("Storing cluster discovery information")
+	
+	// Create discovery service
+	discoveryService := discovery.NewClusterDiscovery(o.projectRoot, o.k8sClient)
+	
+	// Store our discovery info
+	clusterName := o.getClusterType()
+	if err := discoveryService.StoreDiscoveryInfo(ctx, clusterName); err != nil {
+		log.Warn("Failed to store discovery info", "error", err)
+		// Not critical, continue
+		return nil
+	}
+	
+	// Also try to discover other clusters
+	clusters, err := discoveryService.DiscoverClusters(ctx)
+	if err != nil {
+		log.Warn("Failed to discover other clusters", "error", err)
+		return nil
+	}
+	
+	log.Info("Discovered clusters", "count", len(clusters))
+	for _, cluster := range clusters {
+		log.Info("Found cluster", "name", cluster.Name, "api", cluster.APIServer, "network", cluster.Network)
+	}
+	
+	return nil
 }
 
 // findProjectRoot finds the project root directory by looking for common project files

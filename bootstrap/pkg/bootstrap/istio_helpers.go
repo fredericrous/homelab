@@ -14,6 +14,7 @@ import (
     "github.com/charmbracelet/log"
     "github.com/fredericrous/homelab/bootstrap/pkg/config"
     "github.com/fredericrous/homelab/bootstrap/pkg/flux"
+    "github.com/fredericrous/homelab/bootstrap/pkg/istio"
     "github.com/fredericrous/homelab/bootstrap/pkg/k8s"
     corev1 "k8s.io/api/core/v1"
     apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -184,79 +185,72 @@ func (o *Orchestrator) ensureCACerts(ctx context.Context) error {
 }
 
 func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
+    log.Info("Ensuring cross-cluster remote secrets")
+    
+    // Create multi-cluster manager
+    mcManager := istio.NewMultiClusterManager(o.k8sClient)
+    
+    // Create remote secret for local cluster (this will be installed in peer)
+    localSecret, err := mcManager.CreateRemoteSecret(ctx, o.localClusterName())
+    if err != nil {
+        return fmt.Errorf("failed to create local cluster remote secret: %w", err)
+    }
+    
+    // Try to connect to peer cluster if available
     peerPath := o.peerKubeconfigPath()
     if peerPath == "" {
-        log.Warn("Peer kubeconfig path not configured, skipping remote secret")
+        log.Info("Peer cluster not configured, will sync secrets later")
         return nil
     }
-
-    // Read peer kubeconfig
-    peerKubeconfig, err := os.ReadFile(peerPath)
-    if err != nil {
-        return fmt.Errorf("failed to read peer kubeconfig %s: %w", peerPath, err)
-    }
-
-    // Create remote secret for peer cluster in local cluster
-    peerSecret := &corev1.Secret{
-        ObjectMeta: metav1.ObjectMeta{
-            Name:      fmt.Sprintf("istio-remote-secret-%s", o.peerClusterName()),
-            Namespace: istioNamespace,
-            Labels: map[string]string{
-                "istio/multiCluster": "true",
-            },
-        },
-        Type: corev1.SecretTypeOpaque,
-        Data: map[string][]byte{
-            o.peerClusterName(): peerKubeconfig,
-        },
-    }
-
-    if err := o.k8sClient.CreateOrUpdateSecret(ctx, peerSecret); err != nil {
-        return fmt.Errorf("failed to create remote secret for peer: %w", err)
-    }
-
-    log.Info("Remote secret created in local cluster", "peer", o.peerClusterName())
-
-    // Now create the reverse: local cluster secret in peer cluster
-    localPath := o.localKubeconfigPath()
-    if localPath == "" {
-        log.Warn("Local kubeconfig path not configured, skipping bidirectional setup")
+    
+    // Check if peer kubeconfig exists
+    if _, err := os.Stat(peerPath); os.IsNotExist(err) {
+        log.Info("Peer kubeconfig not found yet, will sync when peer is ready", "path", peerPath)
+        // Store the secret locally for later sync
+        if err := o.storeRemoteSecretForLaterSync(ctx, localSecret); err != nil {
+            log.Warn("Failed to store remote secret for later sync", "error", err)
+        }
         return nil
     }
-
-    localKubeconfig, err := os.ReadFile(localPath)
-    if err != nil {
-        return fmt.Errorf("failed to read local kubeconfig %s: %w", localPath, err)
-    }
-
+    
     // Connect to peer cluster
     peerClient, err := k8s.NewClient(peerPath)
     if err != nil {
-        log.Warn("Failed to connect to peer cluster for bidirectional setup", "peer", o.peerClusterName(), "error", err)
-        return nil // Don't fail completely, at least we have one direction
+        log.Warn("Failed to connect to peer cluster", "peer", o.peerClusterName(), "error", err)
+        // Store the secret locally for later sync
+        if err := o.storeRemoteSecretForLaterSync(ctx, localSecret); err != nil {
+            log.Warn("Failed to store remote secret for later sync", "error", err)
+        }
+        return nil
     }
-
-    // Create remote secret for local cluster in peer cluster
-    localSecret := &corev1.Secret{
-        ObjectMeta: metav1.ObjectMeta{
-            Name:      fmt.Sprintf("istio-remote-secret-%s", o.localClusterName()),
-            Namespace: istioNamespace,
-            Labels: map[string]string{
-                "istio/multiCluster": "true",
-            },
-        },
-        Type: corev1.SecretTypeOpaque,
-        Data: map[string][]byte{
-            o.localClusterName(): localKubeconfig,
-        },
+    
+    // Create peer's multi-cluster manager
+    peerMCManager := istio.NewMultiClusterManager(peerClient)
+    
+    // Create remote secret for peer cluster (to be installed locally)
+    peerSecret, err := peerMCManager.CreateRemoteSecret(ctx, o.peerClusterName())
+    if err != nil {
+        log.Warn("Failed to create peer cluster remote secret", "peer", o.peerClusterName(), "error", err)
+    } else {
+        // Install peer's remote secret in local cluster
+        if err := o.k8sClient.CreateOrUpdateSecret(ctx, peerSecret); err != nil {
+            return fmt.Errorf("failed to install peer remote secret locally: %w", err)
+        }
+        log.Info("Installed peer remote secret in local cluster", "peer", o.peerClusterName())
     }
-
+    
+    // Install local remote secret in peer cluster
     if err := peerClient.CreateOrUpdateSecret(ctx, localSecret); err != nil {
-        log.Warn("Failed to create remote secret in peer cluster", "local", o.localClusterName(), "peer", o.peerClusterName(), "error", err)
-        return nil // Don't fail completely
+        log.Warn("Failed to install local remote secret in peer cluster", "error", err)
+        // Store for later sync
+        if err := o.storeRemoteSecretForLaterSync(ctx, localSecret); err != nil {
+            log.Warn("Failed to store remote secret for later sync", "error", err)
+        }
+    } else {
+        log.Info("Installed local remote secret in peer cluster", "local", o.localClusterName())
     }
-
-    log.Info("Bidirectional remote secrets ensured", "local", o.localClusterName(), "peer", o.peerClusterName())
+    
+    log.Info("Cross-cluster remote secrets configuration complete")
     return nil
 }
 
@@ -402,6 +396,24 @@ func (o *Orchestrator) syncCAToPeer(ctx context.Context, peerClient *k8s.Client,
     }
     
     log.Info("Successfully synced CA to peer cluster", "peer", o.peerClusterName())
+    return nil
+}
+
+func (o *Orchestrator) storeRemoteSecretForLaterSync(ctx context.Context, secret *corev1.Secret) error {
+    // Store the secret with a pending sync annotation
+    secret.ObjectMeta.Annotations = map[string]string{
+        "istio.io/sync-pending": "true",
+        "istio.io/target-cluster": o.peerClusterName(),
+    }
+    
+    // Change the name to indicate it's pending
+    secret.ObjectMeta.Name = fmt.Sprintf("%s-pending", secret.ObjectMeta.Name)
+    
+    if err := o.k8sClient.CreateOrUpdateSecret(ctx, secret); err != nil {
+        return fmt.Errorf("failed to store pending remote secret: %w", err)
+    }
+    
+    log.Info("Stored remote secret for later sync", "name", secret.ObjectMeta.Name)
     return nil
 }
 
