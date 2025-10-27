@@ -35,12 +35,14 @@ spec:
         $(NETWORK_NAS):
           endpoints:
             - fromRegistry: nas
+            - fromRegistry: homelab
           gateways:
             - address: $(NAS_EW_GATEWAY_ADDR)
               port: $(NAS_EW_GATEWAY_PORT)
         $(NETWORK_HOMELAB):
           endpoints:
             - fromRegistry: homelab
+            - fromRegistry: nas
           gateways:
             - address: $(HOMELAB_EW_GATEWAY_ADDR)
               port: $(HOMELAB_EW_GATEWAY_PORT)
