@@ -19,6 +19,7 @@ type Waiter struct {
 	timeouts                 TimeoutConfig
 	platformKustomization    string
 	controllersKustomization string
+	storageProvider          string
 }
 
 // TimeoutConfig contains timeout configurations for different components
@@ -31,15 +32,19 @@ type TimeoutConfig struct {
 }
 
 // NewWaiter creates a new infrastructure waiter
-func NewWaiter(client *k8s.Client, timeouts TimeoutConfig, platformName string, controllersName string) *Waiter {
+func NewWaiter(client *k8s.Client, timeouts TimeoutConfig, platformName string, controllersName string, storageProvider string) *Waiter {
 	if platformName == "" {
 		platformName = "platform-foundation"
+	}
+	if storageProvider == "" {
+		storageProvider = "ceph"
 	}
 	return &Waiter{
 		client:                   client,
 		timeouts:                 timeouts,
 		platformKustomization:    platformName,
 		controllersKustomization: controllersName,
+		storageProvider:          strings.ToLower(storageProvider),
 	}
 }
 
@@ -60,6 +65,7 @@ func (w *Waiter) WaitForInfrastructure(ctx context.Context) error {
 		"kustomization_timeout", w.timeouts.Kustomization,
 		"controllers_timeout", w.timeouts.Controllers,
 		"platform_timeout", w.timeouts.Platform,
+		"storage_provider", w.storageProvider,
 		"ceph_timeout", w.timeouts.Ceph)
 
 	// Step 1: Wait for FluxCD to create kustomizations
@@ -77,7 +83,7 @@ func (w *Waiter) WaitForInfrastructure(ctx context.Context) error {
 		return fmt.Errorf("platform not ready: %w", err)
 	}
 
-	// Step 4: Wait for storage (Ceph)
+	// Step 4: Wait for storage (provider specific)
 	if err := w.waitForStorage(ctx); err != nil {
 		return fmt.Errorf("storage not ready: %w", err)
 	}
@@ -184,46 +190,15 @@ func (w *Waiter) waitForPlatform(ctx context.Context) error {
 
 // waitForStorage waits for storage system to be ready
 func (w *Waiter) waitForStorage(ctx context.Context) error {
-	log.Info("Verifying Rook-Ceph cluster health")
-
-	// Check if storage classes already exist
-	if w.hasStorageClasses(ctx) {
-		log.Info("Ceph storage classes found - storage system is ready")
+	switch w.storageProvider {
+	case "none":
+		log.Info("Skipping storage readiness checks (provider=none)")
 		return nil
+	case "local-path":
+		return w.waitForLocalPathStorage(ctx)
+	default:
+		return w.waitForCephStorage(ctx)
 	}
-
-	log.Info("Storage classes not found, waiting for Rook-Ceph deployment")
-
-	// Wait for Rook operator to be ready
-	err := w.client.WaitForDeployment(ctx, "rook-ceph", "rook-ceph-operator", w.timeouts.Ceph)
-	if err != nil {
-		log.Warn("Rook operator not ready yet", "error", err)
-		w.diagnoseRookOperator(ctx)
-	} else {
-		log.Info("Rook operator is ready")
-	}
-
-	// Wait for CephCluster resource to be created
-	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, w.timeouts.Ceph, true, func(ctx context.Context) (bool, error) {
-		exists, err := w.cephClusterExists(ctx)
-		if err != nil {
-			log.Debug("Error checking CephCluster", "error", err)
-			return false, nil
-		}
-		if exists {
-			log.Info("CephCluster resource found")
-			return true, nil
-		}
-		log.Debug("Waiting for CephCluster")
-		return false, nil
-	})
-
-	if err != nil {
-		log.Warn("CephCluster not created", "timeout", w.timeouts.Ceph)
-		return err
-	}
-
-	return nil
 }
 
 // Helper methods
@@ -253,10 +228,92 @@ func (w *Waiter) isKustomizationReady(ctx context.Context, name string) (bool, e
 	return exists, nil
 }
 
-func (w *Waiter) hasStorageClasses(ctx context.Context) bool {
+func (w *Waiter) waitForCephStorage(ctx context.Context) error {
+	log.Info("Verifying Ceph storage health")
+
+	if w.hasCephStorageClass(ctx) {
+		log.Info("Ceph storage classes found - storage system is ready")
+		return nil
+	}
+
+	log.Info("Ceph storage classes not found, waiting for Rook deployment")
+
+	err := w.client.WaitForDeployment(ctx, "rook-ceph", "rook-ceph-operator", w.timeouts.Ceph)
+	if err != nil {
+		log.Warn("Rook operator not ready yet", "error", err)
+		w.diagnoseRookOperator(ctx)
+	} else {
+		log.Info("Rook operator is ready")
+	}
+
+	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, w.timeouts.Ceph, true, func(ctx context.Context) (bool, error) {
+		exists, err := w.cephClusterExists(ctx)
+		if err != nil {
+			log.Debug("Error checking CephCluster", "error", err)
+			return false, nil
+		}
+		if exists {
+			log.Info("CephCluster resource found")
+			return true, nil
+		}
+		log.Debug("Waiting for CephCluster")
+		return false, nil
+	})
+
+	if err != nil {
+		log.Warn("CephCluster not created", "timeout", w.timeouts.Ceph)
+		return err
+	}
+
+	return nil
+}
+
+func (w *Waiter) waitForLocalPathStorage(ctx context.Context) error {
+	log.Info("Verifying local-path storage")
+
+	if w.hasDefaultStorageClass(ctx) {
+		log.Info("Default StorageClass present - local storage ready")
+		return nil
+	}
+
+	log.Info("Default StorageClass not detected, waiting for local-path-provisioner deployment")
+
+	if err := w.client.WaitForDeployment(ctx, "kube-system", "local-path-provisioner", w.timeouts.Platform); err != nil {
+		log.Warn("local-path-provisioner not ready", "error", err)
+		return err
+	}
+
+	if w.hasDefaultStorageClass(ctx) {
+		log.Info("Default StorageClass detected after provisioning")
+		return nil
+	}
+
+	return fmt.Errorf("default StorageClass still missing after local-path provisioning")
+}
+
+func (w *Waiter) hasCephStorageClass(ctx context.Context) bool {
 	clientset := w.client.GetClientset()
 	_, err := clientset.StorageV1().StorageClasses().Get(ctx, "rook-ceph-block", metav1.GetOptions{})
 	return err == nil
+}
+
+func (w *Waiter) hasDefaultStorageClass(ctx context.Context) bool {
+	clientset := w.client.GetClientset()
+	scList, err := clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false
+	}
+
+	for _, sc := range scList.Items {
+		if sc.Annotations != nil {
+			if sc.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" ||
+				sc.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (w *Waiter) cephClusterExists(ctx context.Context) (bool, error) {

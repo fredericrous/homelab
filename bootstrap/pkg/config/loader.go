@@ -20,7 +20,7 @@ type Loader struct {
 func NewLoader() *Loader {
 	// Find project root and set up config search paths
 	configDirs := findConfigDirs()
-	
+
 	return &Loader{
 		configDirs: configDirs,
 		envPrefix:  "HOMELAB",
@@ -37,26 +37,26 @@ func findConfigDirs() []string {
 	}
 
 	var configDirs []string
-	
+
 	// Try to find project root
 	projectRoot := findProjectRoot(wd)
 	if projectRoot != "" {
 		// Add project-relative config paths
-		configDirs = append(configDirs, 
+		configDirs = append(configDirs,
 			filepath.Join(projectRoot, "bootstrap", "configs"),
 			filepath.Join(projectRoot, "configs"),
 		)
 	}
-	
+
 	// Add working directory relative paths
-	configDirs = append(configDirs, 
+	configDirs = append(configDirs,
 		".",
-		"./configs", 
+		"./configs",
 		"../configs",
-		os.Getenv("HOME") + "/.config/homelab",
+		os.Getenv("HOME")+"/.config/homelab",
 		"/etc/homelab",
 	)
-	
+
 	return configDirs
 }
 
@@ -71,7 +71,7 @@ func findProjectRoot(startDir string) string {
 				return current
 			}
 		}
-		
+
 		// Move up one directory
 		parent := filepath.Dir(current)
 		if parent == current {
@@ -80,7 +80,7 @@ func findProjectRoot(startDir string) string {
 		}
 		current = parent
 	}
-	
+
 	return "" // Project root not found
 }
 
@@ -129,11 +129,11 @@ func (l *Loader) LoadConfig(configType string) (*Config, error) {
 
 	// Debug: log the final GitOps configuration
 	if config.NAS != nil {
-		fmt.Printf("DEBUG: NAS GitOps config - Repository: %s, Branch: %s, Path: %s\n", 
+		fmt.Printf("DEBUG: NAS GitOps config - Repository: %s, Branch: %s, Path: %s\n",
 			config.NAS.GitOps.Repository, config.NAS.GitOps.Branch, config.NAS.GitOps.Path)
 	}
 	if config.Homelab != nil {
-		fmt.Printf("DEBUG: Homelab GitOps config - Repository: %s, Branch: %s, Path: %s\n", 
+		fmt.Printf("DEBUG: Homelab GitOps config - Repository: %s, Branch: %s, Path: %s\n",
 			config.Homelab.GitOps.Repository, config.Homelab.GitOps.Branch, config.Homelab.GitOps.Path)
 	}
 
@@ -159,7 +159,7 @@ func (l *Loader) setDefaults(v *viper.Viper, configType string) {
 		v.SetDefault("homelab.cluster.networking.pod_cidr", "10.244.0.0/16")
 		v.SetDefault("homelab.cluster.networking.service_cidr", "10.96.0.0/12")
 		v.SetDefault("homelab.cluster.networking.cluster_dns", "10.96.0.10")
-		v.SetDefault("homelab.storage.provider", "rook-ceph")
+		v.SetDefault("homelab.storage.provider", "ceph")
 		v.SetDefault("homelab.storage.replicas", 3)
 		v.SetDefault("homelab.networking.service_mesh.provider", "istio")
 		v.SetDefault("homelab.networking.ingress.provider", "nginx")
@@ -179,6 +179,7 @@ func (l *Loader) setDefaults(v *viper.Viper, configType string) {
 		v.SetDefault("nas.cluster.port", 2376)
 		v.SetDefault("nas.cluster.docker_host", "tcp://192.168.1.20:2376")
 		v.SetDefault("nas.cluster.cert_path", "../infrastructure/nas/cert")
+		v.SetDefault("nas.storage.provider", "local-path")
 		v.SetDefault("nas.storage.minio.enabled", true)
 		v.SetDefault("nas.storage.minio.root_user", "admin")
 		v.SetDefault("nas.security.vault.address", "http://192.168.1.42:61200")

@@ -68,7 +68,7 @@ type NASClusterConfig struct {
 
 // StorageConfig represents storage configuration
 type StorageConfig struct {
-	Provider string            `yaml:"provider" validate:"required,oneof=rook-ceph longhorn local-path"`
+	Provider string            `yaml:"provider" validate:"required,oneof=ceph local-path none"`
 	Replicas int               `yaml:"replicas" validate:"required,min=1"`
 	Size     string            `yaml:"size" validate:"required"`
 	Options  map[string]string `yaml:"options,omitempty"`
@@ -76,7 +76,8 @@ type StorageConfig struct {
 
 // NASStorageConfig represents NAS-specific storage
 type NASStorageConfig struct {
-	MinIO MinIOConfig `yaml:"minio"`
+	Provider string      `yaml:"provider" validate:"required,oneof=ceph local-path none"`
+	MinIO    MinIOConfig `yaml:"minio"`
 }
 
 // MinIOConfig represents MinIO configuration

@@ -20,7 +20,7 @@ homelab:
       validation: "5m"
 
   storage:
-    provider: "rook-ceph"
+    provider: "ceph"
     replicas: 3
     size: "100Gi"
 

@@ -368,23 +368,23 @@ func (o *Orchestrator) bootstrapGitOps(ctx context.Context) error {
 	}
 
 	fluxClient := flux.NewClient(o.k8sClient, gitopsConfig)
-	
+
 	// Bootstrap base Flux sync
 	if err := fluxClient.Bootstrap(ctx, "flux-system"); err != nil {
 		return fmt.Errorf("failed to bootstrap GitOps: %w", err)
 	}
-	
+
 	// Create platform-foundation Kustomization
 	clusterType := "homelab"
 	if o.isNAS {
 		clusterType = "nas"
 	}
-	
+
 	log.Info("Creating platform-foundation Kustomization")
 	if err := fluxClient.BootstrapPlatformFoundation(ctx, "flux-system", clusterType); err != nil {
 		return fmt.Errorf("failed to create platform-foundation: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -405,15 +405,15 @@ func (o *Orchestrator) setupSecrets(ctx context.Context) error {
 	// Create vault-transit-token secret (only for homelab)
 	if !o.isNAS {
 		log.Info("Setting up Vault transit token")
-		
+
 		// Try existing secret manager first
 		if err := o.secretsManager.CreateVaultTransitTokenSecret(ctx, ""); err != nil {
 			log.Info("Attempting to auto-generate Vault transit token")
-			
+
 			// Create transit manager for auto-generation
 			transitMgr := vault.NewTransitManager(o.config, o.k8sClient, o.isNAS)
 			token, genErr := transitMgr.EnsureTransitToken(ctx)
-			
+
 			if genErr != nil {
 				log.Warn("Failed to auto-generate transit token", "error", genErr)
 				log.Info("You can manually set VAULT_TRANSIT_TOKEN in .env file later")
@@ -454,12 +454,20 @@ func (o *Orchestrator) waitForInfrastructure(ctx context.Context) error {
 
 	platformName := "platform-foundation"
 	controllersName := "controllers"
+	storageProvider := "ceph"
 	if o.isNAS {
 		platformName = "nas-platform-foundation"
 		controllersName = ""
+		if o.config.NAS != nil && o.config.NAS.Storage.Provider != "" {
+			storageProvider = o.config.NAS.Storage.Provider
+		} else {
+			storageProvider = "local-path"
+		}
+	} else if o.config.Homelab != nil && o.config.Homelab.Storage.Provider != "" {
+		storageProvider = o.config.Homelab.Storage.Provider
 	}
 
-	waiter := infra.NewWaiter(o.k8sClient, timeouts, platformName, controllersName)
+	waiter := infra.NewWaiter(o.k8sClient, timeouts, platformName, controllersName, storageProvider)
 	return waiter.WaitForInfrastructure(ctx)
 }
 

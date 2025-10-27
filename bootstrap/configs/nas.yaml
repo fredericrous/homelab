@@ -13,6 +13,7 @@ nas:
       validation: "3m"
 
   storage:
+    provider: "local-path"
     minio:
       enabled: true
       root_user: "admin"
