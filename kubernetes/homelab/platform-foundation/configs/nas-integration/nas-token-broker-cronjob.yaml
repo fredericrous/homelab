@@ -23,10 +23,21 @@ spec:
         spec:
           serviceAccountName: nas-token-broker
           restartPolicy: Never
+          volumes:
+          - name: mesh-ca
+            secret:
+              secretName: istio-mesh-root
+              items:
+                - key: root-cert.pem
+                  path: root-cert.pem
           containers:
           - name: token-broker
             image: curlimages/curl:8.5.0
             command: ["/bin/sh", "-c"]
+            volumeMounts:
+            - name: mesh-ca
+              mountPath: /mesh/ca
+              readOnly: true
             args:
             - |
               set -euo pipefail
@@ -34,10 +45,11 @@ spec:
               echo "🔄 NAS Token Broker - $(date -u +%Y-%m-%dT%H:%M:%SZ)"
               
               # Configuration
-              NAS_VAULT_ADDR="http://vault-vault-nas.vault.svc.cluster.local:8200"
+              NAS_VAULT_ADDR="https://vault.vault.svc.cluster.local:8200"
               MAIN_VAULT_ADDR="http://vault-vault.vault.svc.cluster.local:8200"
               MAX_RETRIES=2
               TIMEOUT=5
+              CA_CERT="/mesh/ca/root-cert.pem"
               
               # Structured logging
               log() {
@@ -56,6 +68,7 @@ spec:
                       --connect-timeout 2 \
                       --max-time $TIMEOUT \
                       --retry 0 \
+                      --cacert "$CA_CERT" \
                       -H "X-Vault-Token: $CURRENT_NAS_TOKEN" \
                       "$NAS_VAULT_ADDR/v1/secret/data/tokens/root" 2>/dev/null); then
                     

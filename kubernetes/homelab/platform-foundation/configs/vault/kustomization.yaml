@@ -5,3 +5,4 @@ namespace: vault
 
 resources:
   - httproute.yaml
+  - istio-mesh-root.yaml

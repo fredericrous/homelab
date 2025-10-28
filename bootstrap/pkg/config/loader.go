@@ -182,7 +182,7 @@ func (l *Loader) setDefaults(v *viper.Viper, configType string) {
 		v.SetDefault("nas.storage.provider", "local-path")
 		v.SetDefault("nas.storage.minio.enabled", true)
 		v.SetDefault("nas.storage.minio.root_user", "admin")
-		v.SetDefault("nas.security.vault.address", "http://192.168.1.42:61200")
+		v.SetDefault("nas.security.vault.address", "https://vault.vault.svc.cluster.local:8200")
 		v.SetDefault("nas.security.vault.transit_path", "transit")
 
 		// Timeouts

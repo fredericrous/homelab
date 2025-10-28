@@ -8,6 +8,7 @@ resources:
   - vault-tokenreview-binding.yaml
   # Reflected secret for vault-admin-token
   - vault-admin-token-reflected.yaml
+  - istio-mesh-root.yaml
   # Setup job to create vault-admin policy and role
   - vault-admin-setup-job.yaml
   # Kubernetes auth mount and configuration

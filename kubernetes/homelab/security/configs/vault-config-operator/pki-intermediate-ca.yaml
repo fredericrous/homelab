@@ -10,6 +10,13 @@ spec:
     spec:
       serviceAccountName: controller-manager
       restartPolicy: Never
+      volumes:
+      - name: mesh-ca
+        secret:
+          secretName: istio-mesh-root
+          items:
+            - key: root-cert.pem
+              path: root-cert.pem
       containers:
       - name: setup-pki
         image: hashicorp/vault:1.17.2
@@ -18,7 +25,9 @@ spec:
         - name: VAULT_ADDR
           value: "http://vault-vault.vault.svc.cluster.local:8200"
         - name: NAS_VAULT_ADDR
-          value: "http://192.168.1.42:61200"
+          value: "https://vault.vault.svc.cluster.local:8200"
+        - name: VAULT_CACERT
+          value: "/mesh/ca/root-cert.pem"
         - name: VAULT_TOKEN
           valueFrom:
             secretKeyRef:
@@ -29,6 +38,10 @@ spec:
             secretKeyRef:
               name: cluster-vars
               key: QNAP_VAULT_TOKEN
+        volumeMounts:
+        - name: mesh-ca
+          mountPath: /mesh/ca
+          readOnly: true
         args:
         - |
           # Install jq for JSON parsing
@@ -62,6 +75,7 @@ spec:
           CSR=$(echo "$CSR_RESPONSE" | jq -r '.data.csr')
 
           # Sign CSR with NAS Vault root CA
+          export VAULT_CACERT="/mesh/ca/root-cert.pem"
           export VAULT_ADDR="$NAS_VAULT_ADDR"
           export VAULT_TOKEN="$NAS_VAULT_TOKEN"
 

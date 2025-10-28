@@ -49,12 +49,13 @@ spec:
             }
             
             seal "transit" {
-              address = "http://192.168.1.42:61200"
+              address = "https://vault.vault.svc.cluster.local:8200"
               disable_renewal = "false"
               key_name = "autounseal"
               mount_path = "transit"
-              tls_skip_verify = "true"
               token = "${vault_transit_token}"
+              tls_ca_cert_file = "/mesh/ca/root-cert.pem"
+              tls_server_name = "vault.vault.svc.cluster.local"
             }
             
             service_registration "kubernetes" {}
@@ -86,6 +87,19 @@ spec:
                   app.kubernetes.io/instance: vault
                   component: server
               topologyKey: kubernetes.io/hostname
+
+      extraVolumes:
+        - name: mesh-ca
+          secret:
+            secretName: istio-mesh-root
+            items:
+              - key: root-cert.pem
+                path: root-cert.pem
+
+      extraVolumeMounts:
+        - name: mesh-ca
+          mountPath: /mesh/ca
+          readOnly: true
       
       # Transit token is configured in the seal stanza, not as env var
     

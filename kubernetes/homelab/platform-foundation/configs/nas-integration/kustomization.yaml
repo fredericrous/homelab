@@ -9,4 +9,5 @@ resources:
   - vault-dns-anchor.yaml
   - nas-vault-service-entry.yaml
   - nas-vault-destinationrule.yaml
+  - istio-mesh-root.yaml
   # istio-remote-secret-nas is generated dynamically by bootstrap process
