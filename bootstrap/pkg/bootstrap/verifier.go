@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
+	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/pkg/discovery"
@@ -59,7 +62,7 @@ func verifyMeshWithRoot(ctx context.Context, projectRoot string) error {
 	if err := verifySecretExists(ctx, nasClient, "istio-remote-secret-homelab", "nas"); err != nil {
 		errs = append(errs, err)
 	}
-	if err := verifySecretExists(ctx, nasClient, eastWestGatewayTLSSecretName, "nas"); err != nil {
+	if err := verifyTLSSecret(ctx, nasClient, eastWestGatewayTLSSecretName, "nas"); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -75,7 +78,18 @@ func verifyMeshWithRoot(ctx context.Context, projectRoot string) error {
 	if err := verifySecretExists(ctx, homelabClient, "istio-remote-secret-nas", "homelab"); err != nil {
 		errs = append(errs, err)
 	}
-	if err := verifySecretExists(ctx, homelabClient, eastWestGatewayTLSSecretName, "homelab"); err != nil {
+	if err := verifyTLSSecret(ctx, homelabClient, eastWestGatewayTLSSecretName, "homelab"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := runIstioctlProxyStatus(ctx, nasInfo, "nas"); err != nil {
+		errs = append(errs, err)
+	}
+	if err := runIstioctlProxyStatus(ctx, homelabInfo, "homelab"); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := verifyGatewayCurl(ctx, homelabInfo); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -126,6 +140,63 @@ func verifySecretExists(ctx context.Context, client *k8s.Client, name, cluster s
 	}
 	if len(secret.Data) == 0 {
 		return fmt.Errorf("%s: secret %s/%s has no data", cluster, istioNamespace, name)
+	}
+	return nil
+}
+
+func verifyTLSSecret(ctx context.Context, client *k8s.Client, name, cluster string) error {
+	secret, err := client.GetClientset().CoreV1().Secrets(istioNamespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("%s: failed to read secret %s/%s: %w", cluster, istioNamespace, name, err)
+	}
+	if _, ok := secret.Data["tls.crt"]; !ok {
+		return fmt.Errorf("%s: secret %s/%s missing tls.crt", cluster, istioNamespace, name)
+	}
+	if _, ok := secret.Data["tls.key"]; !ok {
+		return fmt.Errorf("%s: secret %s/%s missing tls.key", cluster, istioNamespace, name)
+	}
+	return nil
+}
+
+func runIstioctlProxyStatus(ctx context.Context, info *discovery.ClusterInfo, cluster string) error {
+	args := []string{"--kubeconfig", info.Kubeconfig}
+	if strings.TrimSpace(info.Context) != "" {
+		args = append(args, "--context", info.Context)
+	}
+	args = append(args, "proxy-status")
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "istioctl", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: istioctl proxy-status failed: %w (output: %s)", cluster, err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func verifyGatewayCurl(ctx context.Context, info *discovery.ClusterInfo) error {
+	args := []string{"--kubeconfig", info.Kubeconfig}
+	if strings.TrimSpace(info.Context) != "" {
+		args = append(args, "--context", info.Context)
+	}
+	args = append(args,
+		"-n", "vault",
+		"exec", "deploy/vault-vault",
+		"--",
+		"curl", "-sf",
+		"--cacert", "/mesh/ca/root-cert.pem",
+		"https://vault.vault.svc.cluster.local:8200/v1/sys/health",
+	)
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("homelab: vault gateway curl failed: %w (output: %s)", err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }
