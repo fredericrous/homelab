@@ -23,7 +23,7 @@ spec:
         command: ["/bin/sh", "-c"]
         env:
         - name: VAULT_ADDR
-          value: "http://vault-vault.vault.svc.cluster.local:8200"
+          value: "https://vault-vault.vault.svc.cluster.local:8200"
         - name: NAS_VAULT_ADDR
           value: "https://vault.vault.svc.cluster.local:8200"
         - name: VAULT_CACERT
@@ -33,11 +33,6 @@ spec:
             secretKeyRef:
               name: vault-admin-token
               key: token
-        - name: NAS_VAULT_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: cluster-vars
-              key: QNAP_VAULT_TOKEN
         volumeMounts:
         - name: mesh-ca
           mountPath: /mesh/ca
@@ -74,6 +69,13 @@ spec:
 
           CSR=$(echo "$CSR_RESPONSE" | jq -r '.data.csr')
 
+          # Retrieve NAS signing token from local Vault storage
+          NAS_VAULT_TOKEN=$(vault kv get -field=token secret/nas/vault-token 2>/dev/null || true)
+          if [ -z "$NAS_VAULT_TOKEN" ]; then
+            echo "❌ Failed to load NAS Vault token from secret/nas/vault-token"
+            exit 1
+          fi
+
           # Sign CSR with NAS Vault root CA
           export VAULT_CACERT="/mesh/ca/root-cert.pem"
           export VAULT_ADDR="$NAS_VAULT_ADDR"
@@ -84,15 +86,15 @@ spec:
             ttl=8760h | jq -r '.data.certificate')
 
           # Set intermediate certificate in cluster vault
-          export VAULT_ADDR="http://vault-vault.vault.svc.cluster.local:8200"
+          export VAULT_ADDR="https://vault-vault.vault.svc.cluster.local:8200"
           export VAULT_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token | vault write -field=token auth/kubernetes/login role=controller-manager jwt=-)"
 
           vault write pki/intermediate/set-signed certificate="$SIGNED_CERT"
 
           # Configure URLs
           vault write pki/config/urls \
-            issuing_certificates="http://vault-vault.vault.svc.cluster.local:8200/v1/pki/ca" \
-            crl_distribution_points="http://vault-vault.vault.svc.cluster.local:8200/v1/pki/crl"
+            issuing_certificates="https://vault-vault.vault.svc.cluster.local:8200/v1/pki/ca" \
+            crl_distribution_points="https://vault-vault.vault.svc.cluster.local:8200/v1/pki/crl"
 
           # Store intermediate CA certificate in KV store for traffic filters (1 year TTL)
           echo "📋 Storing intermediate CA certificate in KV for traffic filters..."
