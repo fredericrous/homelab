@@ -282,6 +282,15 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 
 	// Try to connect to peer cluster if available
 	peerPath := o.peerKubeconfigPath()
+	peerContext := ""
+	if discoveryService := discovery.NewClusterDiscovery(o.projectRoot); discoveryService != nil {
+		if info, err := discoveryService.GetCluster(o.peerClusterName()); err == nil {
+			if peerPath == "" {
+				peerPath = info.Kubeconfig
+			}
+			peerContext = info.Context
+		}
+	}
 	if peerPath == "" {
 		log.Info("Peer cluster not configured, storing pending remote secret")
 		if localSecretB64 != "" {
@@ -310,7 +319,7 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 	}
 
 	// Connect to peer cluster
-	peerClient, err := k8s.NewClient(peerPath)
+	peerClient, err := k8s.NewClientWithContext(peerPath, peerContext)
 	if err != nil {
 		log.Warn("Failed to connect to peer cluster", "peer", o.peerClusterName(), "error", err)
 		if localSecretB64 != "" {
