@@ -11,6 +11,7 @@ spec:
   storageClassName: nfs
   nfs:
     path: /Media
+    # Underlay exception: NAS NFS export exposed on the physical network only.
     server: 192.168.1.42
 ---
 apiVersion: v1
