@@ -1,5 +1,7 @@
 # ArgoCD Environment Substitution Plugin
 
+> **Deprecated**: The platform now boots exclusively through the `./bootstrap` CLI and FluxCD. Keep this document only as historical context; new environments should follow the zero-touch flow described in `README.md`.
+
 This document describes how to use environment variable substitution in ArgoCD applications to avoid hardcoding sensitive values in your GitOps repository.
 
 ## Overview

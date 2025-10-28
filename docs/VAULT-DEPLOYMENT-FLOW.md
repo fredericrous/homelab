@@ -1,5 +1,7 @@
 # Vault Deployment Flow
 
+> **Deprecated**: Vault is now provisioned by Flux and the bootstrap CLI (see `README.md`). This document reflects the retired ArgoCD-based process and is kept for reference only.
+
 This document clarifies how Vault is deployed in the homelab cluster to ensure it's only deployed once at the right time.
 
 ## Overview
