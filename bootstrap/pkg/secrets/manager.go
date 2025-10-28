@@ -103,6 +103,19 @@ func (m *Manager) loadMergedEnvVars() (map[string]string, error) {
 		merged[k] = v
 	}
 
+	defaults := map[string]string{
+		"ISTIO_HELM_REPO": "https://istio-release.storage.googleapis.com/charts",
+		"ISTIO_VERSION":   "1.27.2",
+		"ISTIO_REVISION":  "default",
+		"NETWORK_NAS":     "nas-network",
+		"NETWORK_HOMELAB": "homelab-network",
+	}
+	for key, value := range defaults {
+		if existing, ok := merged[key]; !ok || strings.TrimSpace(existing) == "" {
+			merged[key] = value
+		}
+	}
+
 	return merged, nil
 }
 
