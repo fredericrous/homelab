@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/pkg/config"
+	"github.com/fredericrous/homelab/bootstrap/pkg/discovery"
 	"github.com/fredericrous/homelab/bootstrap/pkg/flux"
 	"github.com/fredericrous/homelab/bootstrap/pkg/istio"
 	"github.com/fredericrous/homelab/bootstrap/pkg/k8s"
@@ -185,6 +187,15 @@ func (o *Orchestrator) ensureCACerts(ctx context.Context) error {
 
 	// Check peer cluster CA for consistency
 	peerPath := o.peerKubeconfigPath()
+	peerContext := ""
+	if discoveryService := discovery.NewClusterDiscovery(o.projectRoot); discoveryService != nil {
+		if info, err := discoveryService.GetCluster(o.peerClusterName()); err == nil {
+			if peerPath == "" {
+				peerPath = info.Kubeconfig
+			}
+			peerContext = info.Context
+		}
+	}
 	if peerPath == "" {
 		return nil
 	}
@@ -193,7 +204,7 @@ func (o *Orchestrator) ensureCACerts(ctx context.Context) error {
 		return nil
 	}
 
-	peerClient, err := k8s.NewClient(peerPath)
+	peerClient, err := k8s.NewClientWithContext(peerPath, peerContext)
 	if err != nil {
 		log.Warn("Unable to connect to peer cluster for CA comparison", "peer", o.peerClusterName(), "error", err)
 		return nil
@@ -253,6 +264,12 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 		return fmt.Errorf("failed to create local cluster remote secret: %w", err)
 	}
 
+	if istioctlSecret, cmdErr := o.remoteSecretFromIstioctl(ctx, o.kubeconfigPath, o.kubeContext, o.localClusterName()); cmdErr != nil {
+		log.Debug("Failed to render remote secret via istioctl", "cluster", o.localClusterName(), "error", cmdErr)
+	} else {
+		localSecret = istioctlSecret
+	}
+
 	localSecretB64, err := secretToBase64(localSecret)
 	if err != nil {
 		log.Warn("Failed to encode local remote secret", "error", err)
@@ -273,6 +290,12 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 			}
 		}
 		return nil
+	}
+
+	if peerPath != "" && !filepath.IsAbs(peerPath) {
+		if absPeer, err := filepath.Abs(peerPath); err == nil {
+			peerPath = absPeer
+		}
 	}
 
 	// Check if peer kubeconfig exists
@@ -306,6 +329,11 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 	if err != nil {
 		log.Warn("Failed to create peer cluster remote secret", "peer", o.peerClusterName(), "error", err)
 	} else {
+		if istioctlSecret, cmdErr := o.remoteSecretFromIstioctl(ctx, peerPath, peerContext, o.peerClusterName()); cmdErr != nil {
+			log.Debug("Failed to render peer remote secret via istioctl", "peer", o.peerClusterName(), "error", cmdErr)
+		} else {
+			peerSecret = istioctlSecret
+		}
 		if peerSecretB64, encErr := secretToBase64(peerSecret); encErr == nil {
 			key := fmt.Sprintf("ISTIO_REMOTE_SECRET_%s_B64", strings.ToUpper(o.peerClusterName()))
 			if err := o.secretsManager.UpdateGeneratedEnv(map[string]string{key: peerSecretB64}); err != nil {
@@ -338,6 +366,35 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 
 	log.Info("Cross-cluster remote secrets configuration complete")
 	return nil
+}
+
+func (o *Orchestrator) remoteSecretFromIstioctl(ctx context.Context, kubeconfig, kubeContext, clusterName string) (*corev1.Secret, error) {
+	if strings.TrimSpace(kubeconfig) == "" {
+		return nil, fmt.Errorf("kubeconfig path not provided for %s", clusterName)
+	}
+
+	args := []string{"x", "create-remote-secret", "--kubeconfig", kubeconfig, "--name", clusterName}
+	if strings.TrimSpace(kubeContext) != "" {
+		args = append(args, "--context", kubeContext)
+	}
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "istioctl", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("istioctl x create-remote-secret: %w (output: %s)", err, strings.TrimSpace(string(output)))
+	}
+
+	var secret corev1.Secret
+	if err := yaml.Unmarshal(output, &secret); err != nil {
+		return nil, fmt.Errorf("failed to parse remote secret manifest: %w", err)
+	}
+	if secret.Namespace == "" {
+		secret.Namespace = istioNamespace
+	}
+	return &secret, nil
 }
 
 func (o *Orchestrator) waitForGatewayEndpoint(ctx context.Context, client *k8s.Client, fallbacks []string, allowFallback bool) (*gatewayEndpoint, error) {
