@@ -29,6 +29,7 @@ resources:
 
 configMapGenerator:
   - name: homelab-istio-eastwest-values
+    namespace: flux-system
     files:
       - values.yaml=istio-eastwest-values.yaml
 

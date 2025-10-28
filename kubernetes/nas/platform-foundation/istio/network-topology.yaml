@@ -5,7 +5,6 @@ kind: Namespace
 metadata:
   name: istio-system
   labels:
-    topology.istio.io/network: $(NETWORK_NAS)
-    istio.io/rev: $(ISTIO_REVISION)
+    topology.istio.io/network: nas-network
   annotations:
     topology.istio.io/controlPlaneClusters: homelab

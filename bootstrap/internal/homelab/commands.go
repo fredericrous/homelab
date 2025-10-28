@@ -105,7 +105,7 @@ func runBootstrap(ctx context.Context, noTui bool) error {
 			log.Warn("Failed to auto-detect environment", "error", err)
 		}
 	}
-	
+
 	// Load configuration
 	loader := config.NewLoader()
 	cfg, err := loader.LoadConfig("homelab")
@@ -126,7 +126,7 @@ func runBootstrap(ctx context.Context, noTui bool) error {
 			"distribution", cfg.Homelab.Cluster.Distribution)
 
 		// Create orchestrator and run bootstrap
-		orchestrator, err := bootstrap.NewOrchestrator(cfg, false)
+		orchestrator, err := bootstrap.NewOrchestrator(cfg, false, orchestratorOptions(false))
 		if err != nil {
 			return fmt.Errorf("failed to create orchestrator: %w", err)
 		}
@@ -375,7 +375,7 @@ func NewStatusCommand() *cobra.Command {
 
 func runUp(ctx context.Context) error {
 	log.Info("🚀 Creating homelab cluster infrastructure (VMs + Talos)")
-	
+
 	// Delegate to infrastructure Taskfile
 	return runInfrastructureTask(ctx, "homelab", "up")
 }
@@ -387,36 +387,36 @@ func runInfrastructureTask(ctx context.Context, infra, task string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
-	
+
 	projectRoot := findProjectRoot(wd)
 	if projectRoot == "" {
 		return fmt.Errorf("project root not found - ensure you're running from within the homelab project")
 	}
-	
+
 	// Determine the infrastructure directory relative to project root
 	infrastructureDir := filepath.Join(projectRoot, "infrastructure", infra)
-	
+
 	// Check if the Taskfile exists
 	taskfilePath := filepath.Join(infrastructureDir, "Taskfile.yml")
 	if _, err := os.Stat(taskfilePath); os.IsNotExist(err) {
 		return fmt.Errorf("infrastructure Taskfile not found: %s", taskfilePath)
 	}
-	
+
 	// Execute the task using the task command
 	cmd := exec.CommandContext(ctx, "task", "-d", infrastructureDir, task)
-	
+
 	// Use output manager to respect TUI mode
 	outputMgr := output.GetManager()
 	cmd.Stdout = outputMgr.GetStdout()
 	cmd.Stderr = outputMgr.GetStderr()
 	cmd.Stdin = os.Stdin
-	
+
 	log.Debug("Executing infrastructure task", "infra", infra, "task", task, "dir", infrastructureDir, "projectRoot", projectRoot)
-	
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("infrastructure task failed: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -431,7 +431,7 @@ func findProjectRoot(startDir string) string {
 				return current
 			}
 		}
-		
+
 		// Move up one directory
 		parent := filepath.Dir(current)
 		if parent == current {
@@ -440,8 +440,27 @@ func findProjectRoot(startDir string) string {
 		}
 		current = parent
 	}
-	
+
 	return "" // Project root not found
+}
+
+func orchestratorOptions(isNAS bool) *bootstrap.OrchestratorOptions {
+	if isNAS {
+		return &bootstrap.OrchestratorOptions{
+			KubeconfigPath:        kubeconfigFor("nas"),
+			HomelabKubeconfigPath: kubeconfigFor("homelab"),
+			NASKubeconfigPath:     kubeconfigFor("nas"),
+		}
+	}
+	return &bootstrap.OrchestratorOptions{
+		KubeconfigPath:        kubeconfigFor("homelab"),
+		HomelabKubeconfigPath: kubeconfigFor("homelab"),
+		NASKubeconfigPath:     kubeconfigFor("nas"),
+	}
+}
+
+func kubeconfigFor(cluster string) string {
+	return filepath.Join("infrastructure", cluster, "kubeconfig.yaml")
 }
 
 func runInstallCilium(ctx context.Context) error {
@@ -475,8 +494,8 @@ func runInstallCilium(ctx context.Context) error {
 	// Configure Cilium
 	ciliumConfig := infra.CiliumConfig{
 		ClusterPodCIDR: "10.244.0.0/16", // Default pod CIDR
-		Hubble:         true,             // Enable Hubble observability
-		LoadBalancer:   false,            // Use with MetalLB instead
+		Hubble:         true,            // Enable Hubble observability
+		LoadBalancer:   false,           // Use with MetalLB instead
 	}
 
 	// Override with config values if available
@@ -523,7 +542,7 @@ func runSyncSecrets(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
-	
+
 	projectRoot := findProjectRoot(wd)
 	if projectRoot == "" {
 		return fmt.Errorf("project root not found - ensure you're running from within the homelab project")
@@ -621,7 +640,7 @@ func runResume(ctx context.Context) error {
 
 func runUninstall(ctx context.Context) error {
 	log.Warn("🗑️ Uninstalling homelab cluster")
-	
+
 	// Delegate to infrastructure Taskfile
 	return runInfrastructureTask(ctx, "homelab", "uninstall")
 }

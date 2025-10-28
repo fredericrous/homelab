@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/log"
+	"k8s.io/client-go/rest"
 	clientcmd "k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
@@ -36,9 +37,9 @@ type ClusterDiscovery struct {
 // NewClusterDiscovery creates a discovery helper rooted at projectRoot.
 func NewClusterDiscovery(projectRoot string) *ClusterDiscovery {
 	return &ClusterDiscovery{
-		projectRoot:       projectRoot,
-		discovered:        make(map[string]*ClusterInfo),
-		contextOverrides:  make(map[string]string),
+		projectRoot:      projectRoot,
+		discovered:       make(map[string]*ClusterInfo),
+		contextOverrides: make(map[string]string),
 	}
 }
 
@@ -257,4 +258,45 @@ func (cd *ClusterDiscovery) prefer(candidate, current sourceType) bool {
 	}
 
 	return order[candidate] > order[current]
+}
+
+// LoadNAS loads a NAS kubeconfig from the provided path (or default location)
+// and returns a rest.Config ready for use with client-go.
+func LoadNAS(cfgPath string) (*rest.Config, error) {
+	return loadClusterConfig(cfgPath, "nas", "nas")
+}
+
+// LoadHomelab loads a homelab kubeconfig from the provided path (or default location).
+func LoadHomelab(cfgPath string) (*rest.Config, error) {
+	return loadClusterConfig(cfgPath, "homelab", "homelab")
+}
+
+func loadClusterConfig(path, cluster, context string) (*rest.Config, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		path = filepath.Join("infrastructure", cluster, "kubeconfig.yaml")
+	}
+	if !filepath.IsAbs(path) {
+		abs, err := filepath.Abs(path)
+		if err == nil {
+			path = abs
+		}
+	}
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("kubeconfig not available at %s: %w", path, err)
+	}
+
+	loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: path}
+	overrides := &clientcmd.ConfigOverrides{}
+	if context != "" {
+		overrides.CurrentContext = context
+	}
+
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
+	cfg, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build config from %s: %w", path, err)
+	}
+
+	return cfg, nil
 }

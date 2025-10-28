@@ -113,7 +113,7 @@ func runBootstrap(ctx context.Context, noTui bool) error {
 			"docker_host", cfg.NAS.Cluster.DockerHost)
 
 		// Create orchestrator and run bootstrap
-		orchestrator, err := bootstrap.NewOrchestrator(cfg, true)
+		orchestrator, err := bootstrap.NewOrchestrator(cfg, true, orchestratorOptions(true))
 		if err != nil {
 			return fmt.Errorf("failed to create orchestrator: %w", err)
 		}
@@ -320,7 +320,7 @@ func NewVaultSetupCommand() *cobra.Command {
 
 func runNASUp(ctx context.Context) error {
 	log.Info("🚀 Creating NAS cluster infrastructure (Docker Compose + K3s)")
-	
+
 	// Delegate to infrastructure Taskfile
 	return runInfrastructureTask(ctx, "nas", "up")
 }
@@ -332,36 +332,36 @@ func runInfrastructureTask(ctx context.Context, infra, task string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
-	
+
 	projectRoot := findProjectRoot(wd)
 	if projectRoot == "" {
 		return fmt.Errorf("project root not found - ensure you're running from within the homelab project")
 	}
-	
+
 	// Determine the infrastructure directory relative to project root
 	infrastructureDir := filepath.Join(projectRoot, "infrastructure", infra)
-	
+
 	// Check if the Taskfile exists
 	taskfilePath := filepath.Join(infrastructureDir, "Taskfile.yml")
 	if _, err := os.Stat(taskfilePath); os.IsNotExist(err) {
 		return fmt.Errorf("infrastructure Taskfile not found: %s", taskfilePath)
 	}
-	
+
 	// Execute the task using the task command
 	cmd := exec.CommandContext(ctx, "task", "-d", infrastructureDir, task)
-	
+
 	// Use output manager to respect TUI mode
 	outputMgr := output.GetManager()
 	cmd.Stdout = outputMgr.GetStdout()
 	cmd.Stderr = outputMgr.GetStderr()
 	cmd.Stdin = os.Stdin
-	
+
 	log.Debug("Executing infrastructure task", "infra", infra, "task", task, "dir", infrastructureDir, "projectRoot", projectRoot)
-	
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("infrastructure task failed: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -376,7 +376,7 @@ func findProjectRoot(startDir string) string {
 				return current
 			}
 		}
-		
+
 		// Move up one directory
 		parent := filepath.Dir(current)
 		if parent == current {
@@ -385,27 +385,46 @@ func findProjectRoot(startDir string) string {
 		}
 		current = parent
 	}
-	
+
 	return "" // Project root not found
+}
+
+func orchestratorOptions(isNAS bool) *bootstrap.OrchestratorOptions {
+	if isNAS {
+		return &bootstrap.OrchestratorOptions{
+			KubeconfigPath:        kubeconfigFor("nas"),
+			HomelabKubeconfigPath: kubeconfigFor("homelab"),
+			NASKubeconfigPath:     kubeconfigFor("nas"),
+		}
+	}
+	return &bootstrap.OrchestratorOptions{
+		KubeconfigPath:        kubeconfigFor("homelab"),
+		HomelabKubeconfigPath: kubeconfigFor("homelab"),
+		NASKubeconfigPath:     kubeconfigFor("nas"),
+	}
+}
+
+func kubeconfigFor(cluster string) string {
+	return filepath.Join("infrastructure", cluster, "kubeconfig.yaml")
 }
 
 func runNASStatus(ctx context.Context) error {
 	log.Info("🔍 Checking NAS status")
-	
+
 	// Delegate to infrastructure Taskfile
 	return runInfrastructureTask(ctx, "nas", "status")
 }
 
 func runNASUninstall(ctx context.Context) error {
 	log.Warn("🗑️ Uninstalling NAS cluster")
-	
+
 	// Delegate to infrastructure Taskfile
 	return runInfrastructureTask(ctx, "nas", "uninstall")
 }
 
 func runVaultSetup(ctx context.Context) error {
 	log.Info("🔐 Setting up Vault secrets and configuration")
-	
+
 	// Delegate to infrastructure Taskfile
 	return runInfrastructureTask(ctx, "nas", "vault-setup")
 }

@@ -29,34 +29,128 @@ type Orchestrator struct {
 	secretsManager *secrets.Manager
 	isNAS          bool
 	projectRoot    string
+	kubeconfigPath string
+	kubeContext    string
+	options        *OrchestratorOptions
+}
+
+// OrchestratorOptions allows callers to override kubeconfig discovery.
+type OrchestratorOptions struct {
+	KubeconfigPath        string
+	Context               string
+	HomelabKubeconfigPath string
+	NASKubeconfigPath     string
 }
 
 // NewOrchestrator creates a new bootstrap orchestrator
-func NewOrchestrator(cfg *config.Config, isNAS bool) (*Orchestrator, error) {
-	var kubeconfig string
-
-	if isNAS && cfg.NAS != nil {
-		kubeconfig = cfg.NAS.Cluster.KubeConfig
-	} else if !isNAS && cfg.Homelab != nil {
-		kubeconfig = cfg.Homelab.Cluster.KubeConfig
+func NewOrchestrator(cfg *config.Config, isNAS bool, opts ...*OrchestratorOptions) (*Orchestrator, error) {
+	var options *OrchestratorOptions
+	if len(opts) > 0 && opts[0] != nil {
+		options = opts[0]
 	} else {
-		return nil, fmt.Errorf("invalid configuration for orchestrator")
+		options = &OrchestratorOptions{}
 	}
 
-	k8sClient, err := k8s.NewClient(kubeconfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create k8s client: %w", err)
-	}
-
-	// Determine project root (look for bootstrap directory and go up)
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find project root: %w", err)
 	}
 
-	log.Debug("Project root detected", "path", projectRoot)
+	clusterName := "homelab"
+	var kubeconfig string
+	var kubeContext string
+
+	if options.KubeconfigPath != "" {
+		kubeconfig = options.KubeconfigPath
+	}
+	if options.Context != "" {
+		kubeContext = options.Context
+	}
+
+	if isNAS {
+		clusterName = "nas"
+		if kubeconfig == "" && cfg.NAS != nil {
+			kubeconfig = cfg.NAS.Cluster.KubeConfig
+		}
+	} else if cfg.Homelab != nil {
+		if kubeconfig == "" {
+			kubeconfig = cfg.Homelab.Cluster.KubeConfig
+		}
+	} else {
+		return nil, fmt.Errorf("invalid configuration for orchestrator")
+	}
+
+	if kubeconfig != "" && !filepath.IsAbs(kubeconfig) {
+		kubeconfig = filepath.Join(projectRoot, kubeconfig)
+	}
+
+	discoveryService := discovery.NewClusterDiscovery(projectRoot)
+	contexts, err := discoveryService.ListContexts(context.Background())
+	if err == nil {
+		if info, ok := contexts[clusterName]; ok {
+			if kubeconfig == "" {
+				kubeconfig = info.Kubeconfig
+			}
+			if kubeContext == "" {
+				kubeContext = info.Context
+			}
+		}
+	}
+
+	if kubeconfig == "" {
+		return nil, fmt.Errorf("kubeconfig path not configured for %s cluster", clusterName)
+	}
+
+	absKubeconfig, err := filepath.Abs(kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve kubeconfig path: %w", err)
+	}
+
+	k8sClient, err := k8s.NewClientWithContext(absKubeconfig, kubeContext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create k8s client: %w", err)
+	}
+
+	log.Info("Using cluster connection",
+		"cluster", clusterName,
+		"kubeconfig", absKubeconfig,
+		"context", kubeContext)
 
 	secretsManager := secrets.NewManager(k8sClient, projectRoot)
+
+	toRelative := func(path string) string {
+		if path == "" {
+			return ""
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(projectRoot, path)
+		}
+		rel, err := filepath.Rel(projectRoot, path)
+		if err != nil {
+			return path
+		}
+		return rel
+	}
+
+	updates := map[string]string{}
+	if options != nil {
+		if v := toRelative(options.HomelabKubeconfigPath); v != "" {
+			updates["HOMELAB_KUBECONFIG_PATH"] = v
+		}
+		if v := toRelative(options.NASKubeconfigPath); v != "" {
+			updates["NAS_KUBECONFIG_PATH"] = v
+		}
+	}
+
+	localRel := toRelative(absKubeconfig)
+	if isNAS {
+		updates["NAS_KUBECONFIG_PATH"] = localRel
+	} else {
+		updates["HOMELAB_KUBECONFIG_PATH"] = localRel
+	}
+	if err := secretsManager.UpdateGeneratedEnv(updates); err != nil {
+		log.Warn("Failed to update .env.generated", "error", err)
+	}
 
 	return &Orchestrator{
 		config:         cfg,
@@ -64,6 +158,9 @@ func NewOrchestrator(cfg *config.Config, isNAS bool) (*Orchestrator, error) {
 		secretsManager: secretsManager,
 		isNAS:          isNAS,
 		projectRoot:    projectRoot,
+		kubeconfigPath: absKubeconfig,
+		kubeContext:    kubeContext,
+		options:        options,
 	}, nil
 }
 

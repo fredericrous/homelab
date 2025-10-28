@@ -23,18 +23,22 @@ type Client struct {
 	dynamicClient dynamic.Interface
 	config        *rest.Config
 	kubeconfig    string
+    contextName  string
 }
 
 // NewClient creates a new Kubernetes client
 func NewClient(kubeconfig string) (*Client, error) {
+	return NewClientWithContext(kubeconfig, "")
+}
+
+// NewClientWithContext creates a Kubernetes client for a specific context.
+func NewClientWithContext(kubeconfig, context string) (*Client, error) {
 	var config *rest.Config
 	var err error
 
 	if kubeconfig == "" {
-		// Try in-cluster config first
 		config, err = rest.InClusterConfig()
 		if err != nil {
-			// Fall back to default kubeconfig location
 			if home := homedir.HomeDir(); home != "" {
 				kubeconfig = filepath.Join(home, ".kube", "config")
 			}
@@ -42,14 +46,19 @@ func NewClient(kubeconfig string) (*Client, error) {
 	}
 
 	if config == nil {
-		// Use kubeconfig file
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig}
+		overrides := &clientcmd.ConfigOverrides{}
+		if context != "" {
+			overrides.CurrentContext = context
+		}
+
+		clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
+		config, err = clientConfig.ClientConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
 		}
 	}
 
-	// Create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
@@ -66,6 +75,7 @@ func NewClient(kubeconfig string) (*Client, error) {
 		dynamicClient: dynamicClient,
 		config:        config,
 		kubeconfig:    kubeconfig,
+		contextName:   context,
 	}, nil
 }
 

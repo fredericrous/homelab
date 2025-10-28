@@ -3,10 +3,11 @@ package tui
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/pkg/bootstrap"
@@ -62,20 +63,48 @@ func (s StepStatus) String() string {
 	}
 }
 
+func kubeconfigFor(cluster string) string {
+	switch cluster {
+	case "nas":
+		return filepath.Join("infrastructure", "nas", "kubeconfig.yaml")
+	case "homelab":
+		return filepath.Join("infrastructure", "homelab", "kubeconfig.yaml")
+	default:
+		return ""
+	}
+}
+
+func defaultOrchestratorOptions(isNAS bool) *bootstrap.OrchestratorOptions {
+	homelabPath := kubeconfigFor("homelab")
+	nasPath := kubeconfigFor("nas")
+	if isNAS {
+		return &bootstrap.OrchestratorOptions{
+			KubeconfigPath:        nasPath,
+			HomelabKubeconfigPath: homelabPath,
+			NASKubeconfigPath:     nasPath,
+		}
+	}
+	return &bootstrap.OrchestratorOptions{
+		KubeconfigPath:        homelabPath,
+		HomelabKubeconfigPath: homelabPath,
+		NASKubeconfigPath:     nasPath,
+	}
+}
+
 // NewBootstrapModel creates a new bootstrap TUI model
 func NewBootstrapModel(ctx context.Context, cfg *config.Config, isNAS bool) *BootstrapModel {
 	// Set up comprehensive file logging for TUI mode
 	// Infrastructure tools should always provide detailed logs for troubleshooting
 	logFileName := "bootstrap.log"
-	
+
 	if f, err := tea.LogToFile(logFileName, "tui"); err == nil {
 		// Redirect application logs to the same file with debug level
 		logger.SetupTUILogger(f)
 		// Don't defer close here - the file needs to stay open for the entire TUI session
 	}
-	
+
 	// Create orchestrator for actual bootstrap operations
-	orchestrator, orchErr := bootstrap.NewOrchestrator(cfg, isNAS)
+	orchestrator, orchErr := bootstrap.NewOrchestrator(cfg, isNAS, defaultOrchestratorOptions(isNAS))
 	if orchErr != nil {
 		log.Error("Failed to create orchestrator for TUI", "error", orchErr)
 	}
@@ -436,7 +465,6 @@ func (m *BootstrapModel) validate() tea.Msg {
 	time.Sleep(1 * time.Second)
 	return StepCompleteMsg{}
 }
-
 
 func max(a, b int) int {
 	if a > b {

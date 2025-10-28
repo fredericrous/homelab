@@ -5,5 +5,4 @@ kind: Namespace
 metadata:
   name: istio-system
   labels:
-    topology.istio.io/network: $(NETWORK_HOMELAB)
-    istio.io/rev: $(ISTIO_REVISION)
+    topology.istio.io/network: homelab-network

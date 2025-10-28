@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/internal/homelab"
 	"github.com/fredericrous/homelab/bootstrap/internal/nas"
+	bootstrapPkg "github.com/fredericrous/homelab/bootstrap/pkg/bootstrap"
 	"github.com/fredericrous/homelab/bootstrap/pkg/config"
 	"github.com/fredericrous/homelab/bootstrap/pkg/destroy"
 	"github.com/fredericrous/homelab/bootstrap/pkg/logger"
@@ -61,6 +62,7 @@ homelab Kubernetes clusters (with Talos, Cilium, FluxCD) and NAS clusters
 		Short: "Homelab cluster operations",
 		Long:  "Bootstrap and manage homelab Kubernetes clusters with Talos, Cilium, and FluxCD",
 	}
+	addClusterFlags(homelabCmd)
 
 	// Add homelab subcommands
 	homelabCmd.AddCommand(homelab.NewBootstrapCommand())
@@ -82,6 +84,7 @@ homelab Kubernetes clusters (with Talos, Cilium, FluxCD) and NAS clusters
 		Short: "NAS cluster operations",
 		Long:  "Bootstrap and manage NAS clusters with K3s, MinIO, and FluxCD",
 	}
+	addClusterFlags(nasCmd)
 
 	// Add NAS subcommands
 	nasCmd.AddCommand(nas.NewBootstrapCommand())
@@ -102,6 +105,7 @@ homelab Kubernetes clusters (with Talos, Cilium, FluxCD) and NAS clusters
 	rootCmd.AddCommand(createQuickCommands())
 	rootCmd.AddCommand(createForceCleanupCommand())
 	rootCmd.AddCommand(createRecoveryCommand())
+	rootCmd.AddCommand(createVerifyCommand())
 
 	// Add version command
 	rootCmd.AddCommand(&cobra.Command{
@@ -179,6 +183,22 @@ func createQuickCommands() *cobra.Command {
 	})
 
 	return quickCmd
+}
+
+func createVerifyCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "verify",
+		Short: "Run multi-cluster verification checks",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			log.Info("Running mesh verification")
+			return bootstrapPkg.VerifyMesh(cmd.Context())
+		},
+	}
+}
+
+func addClusterFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().String("kubeconfig", "", "Override kubeconfig path")
+	cmd.PersistentFlags().String("context", "", "Override kubeconfig context")
 }
 
 // createForceCleanupCommand adds force cleanup command for stuck namespaces

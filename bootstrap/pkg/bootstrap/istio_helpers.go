@@ -2,10 +2,16 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,6 +28,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -96,6 +103,9 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 		if err := o.secretsManager.UpdateClusterVars(ctx, "flux-system", updates); err != nil {
 			return fmt.Errorf("failed to update gateway variables: %w", err)
 		}
+		if err := o.secretsManager.UpdateGeneratedEnv(updates); err != nil {
+			log.Warn("Failed to persist gateway variables to .env.generated", "error", err)
+		}
 	}
 
 	fluxClient, err := o.newFluxClient()
@@ -122,6 +132,14 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 	}
 
 	log.Info("Istio mesh finalized", "gateway", localEndpoint.Host, "port", localEndpoint.Port)
+
+	if !o.isNAS {
+		if err := verifyMeshWithRoot(ctx, o.projectRoot); err != nil {
+			log.Warn("Mesh verification reported issues", "error", err)
+		} else {
+			log.Info("Mesh verification succeeded")
+		}
+	}
 	return nil
 }
 
@@ -206,6 +224,26 @@ func (o *Orchestrator) ensureCACerts(ctx context.Context) error {
 func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 	log.Info("Ensuring cross-cluster remote secrets")
 
+	// Apply any cached remote secret payload for the peer cluster if present
+	if envKey := fmt.Sprintf("ISTIO_REMOTE_SECRET_%s_B64", strings.ToUpper(o.peerClusterName())); true {
+		if payload, err := o.secretsManager.GetGeneratedEnvValue(envKey); err == nil {
+			if strings.TrimSpace(payload) != "" {
+				if secret, decodeErr := secretFromBase64(payload); decodeErr != nil {
+					log.Warn("Failed to decode cached remote secret", "peer", o.peerClusterName(), "error", decodeErr)
+				} else {
+					if secret.Namespace == "" {
+						secret.Namespace = istioNamespace
+					}
+					if err := o.k8sClient.CreateOrUpdateSecret(ctx, secret); err != nil {
+						log.Warn("Failed to apply cached remote secret", "peer", o.peerClusterName(), "error", err)
+					} else {
+						log.Debug("Applied cached remote secret", "peer", o.peerClusterName())
+					}
+				}
+			}
+		}
+	}
+
 	// Create multi-cluster manager
 	mcManager := istio.NewMultiClusterManager(o.k8sClient)
 
@@ -215,19 +253,35 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 		return fmt.Errorf("failed to create local cluster remote secret: %w", err)
 	}
 
+	localSecretB64, err := secretToBase64(localSecret)
+	if err != nil {
+		log.Warn("Failed to encode local remote secret", "error", err)
+	} else {
+		key := fmt.Sprintf("ISTIO_REMOTE_SECRET_%s_B64", strings.ToUpper(o.localClusterName()))
+		if err := o.secretsManager.UpdateGeneratedEnv(map[string]string{key: localSecretB64}); err != nil {
+			log.Warn("Failed to record local remote secret", "error", err)
+		}
+	}
+
 	// Try to connect to peer cluster if available
 	peerPath := o.peerKubeconfigPath()
 	if peerPath == "" {
-		log.Info("Peer cluster not configured, will sync secrets later")
+		log.Info("Peer cluster not configured, storing pending remote secret")
+		if localSecretB64 != "" {
+			if err := o.secretsManager.StorePendingRemoteSecret(ctx, o.peerClusterName(), localSecretB64); err != nil {
+				log.Warn("Failed to store pending remote secret", "peer", o.peerClusterName(), "error", err)
+			}
+		}
 		return nil
 	}
 
 	// Check if peer kubeconfig exists
 	if _, err := os.Stat(peerPath); os.IsNotExist(err) {
-		log.Info("Peer kubeconfig not found yet, will sync when peer is ready", "path", peerPath)
-		// Store the secret locally for later sync
-		if err := o.storeRemoteSecretForLaterSync(ctx, localSecret); err != nil {
-			log.Warn("Failed to store remote secret for later sync", "error", err)
+		log.Info("Peer kubeconfig not found yet, deferring remote secret sync", "path", peerPath)
+		if localSecretB64 != "" {
+			if err := o.secretsManager.StorePendingRemoteSecret(ctx, o.peerClusterName(), localSecretB64); err != nil {
+				log.Warn("Failed to store pending remote secret", "peer", o.peerClusterName(), "error", err)
+			}
 		}
 		return nil
 	}
@@ -236,9 +290,10 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 	peerClient, err := k8s.NewClient(peerPath)
 	if err != nil {
 		log.Warn("Failed to connect to peer cluster", "peer", o.peerClusterName(), "error", err)
-		// Store the secret locally for later sync
-		if err := o.storeRemoteSecretForLaterSync(ctx, localSecret); err != nil {
-			log.Warn("Failed to store remote secret for later sync", "error", err)
+		if localSecretB64 != "" {
+			if err := o.secretsManager.StorePendingRemoteSecret(ctx, o.peerClusterName(), localSecretB64); err != nil {
+				log.Warn("Failed to store pending remote secret", "peer", o.peerClusterName(), "error", err)
+			}
 		}
 		return nil
 	}
@@ -251,6 +306,14 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 	if err != nil {
 		log.Warn("Failed to create peer cluster remote secret", "peer", o.peerClusterName(), "error", err)
 	} else {
+		if peerSecretB64, encErr := secretToBase64(peerSecret); encErr == nil {
+			key := fmt.Sprintf("ISTIO_REMOTE_SECRET_%s_B64", strings.ToUpper(o.peerClusterName()))
+			if err := o.secretsManager.UpdateGeneratedEnv(map[string]string{key: peerSecretB64}); err != nil {
+				log.Warn("Failed to record peer remote secret", "peer", o.peerClusterName(), "error", err)
+			}
+		} else {
+			log.Warn("Failed to encode peer remote secret", "peer", o.peerClusterName(), "error", encErr)
+		}
 		// Install peer's remote secret in local cluster
 		if err := o.k8sClient.CreateOrUpdateSecret(ctx, peerSecret); err != nil {
 			return fmt.Errorf("failed to install peer remote secret locally: %w", err)
@@ -261,12 +324,16 @@ func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 	// Install local remote secret in peer cluster
 	if err := peerClient.CreateOrUpdateSecret(ctx, localSecret); err != nil {
 		log.Warn("Failed to install local remote secret in peer cluster", "error", err)
-		// Store for later sync
-		if err := o.storeRemoteSecretForLaterSync(ctx, localSecret); err != nil {
-			log.Warn("Failed to store remote secret for later sync", "error", err)
+		if localSecretB64 != "" {
+			if err := o.secretsManager.StorePendingRemoteSecret(ctx, o.peerClusterName(), localSecretB64); err != nil {
+				log.Warn("Failed to store pending remote secret", "peer", o.peerClusterName(), "error", err)
+			}
 		}
 	} else {
 		log.Info("Installed local remote secret in peer cluster", "local", o.localClusterName())
+		if err := o.secretsManager.ClearPendingRemoteSecret(ctx, o.peerClusterName()); err != nil {
+			log.Warn("Failed to clear pending remote secret", "peer", o.peerClusterName(), "error", err)
+		}
 	}
 
 	log.Info("Cross-cluster remote secrets configuration complete")
@@ -429,8 +496,17 @@ func (o *Orchestrator) ensureGatewayTLSSecret(ctx context.Context, client *k8s.C
 	}
 
 	if strings.TrimSpace(certB64) == "" || strings.TrimSpace(keyB64) == "" {
-		log.Debug("East-west gateway TLS material not provided; skipping secret management")
-		return nil
+		if o.isNAS {
+			log.Info("Generating east-west gateway TLS certificate")
+			var genErr error
+			certB64, keyB64, genErr = o.generateGatewayTLSMaterial()
+			if genErr != nil {
+				return genErr
+			}
+		} else {
+			log.Debug("East-west gateway TLS material not provided; skipping secret management")
+			return nil
+		}
 	}
 
 	certBytes, err := base64.StdEncoding.DecodeString(certB64)
@@ -460,6 +536,63 @@ func (o *Orchestrator) ensureGatewayTLSSecret(ctx context.Context, client *k8s.C
 
 	log.Debug("Ensured east-west TLS secret", "cluster", cluster)
 	return nil
+}
+
+func (o *Orchestrator) generateGatewayTLSMaterial() (string, string, error) {
+	cn, err := o.secretsManager.GetEnvValue("EASTWEST_CERT_CN")
+	if err != nil {
+		return "", "", err
+	}
+	if strings.TrimSpace(cn) == "" {
+		cn = "istiod.istio-system.svc.cluster.local"
+	}
+
+	serial, err := rand.Int(rand.Reader, big.NewInt(1<<62))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate certificate serial: %w", err)
+	}
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	now := time.Now()
+	template := x509.Certificate{
+		SerialNumber: serial,
+		Subject:      pkix.Name{CommonName: cn},
+		NotBefore:    now.Add(-5 * time.Minute),
+		NotAfter:     now.Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames: []string{
+			cn,
+			"istiod.istio-system.svc",
+			"istiod.istio-system.svc.cluster.local",
+		},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+
+	certB64 := base64.StdEncoding.EncodeToString(certPEM)
+	keyB64 := base64.StdEncoding.EncodeToString(keyPEM)
+
+	updates := map[string]string{
+		"EASTWEST_CERT_CN":  cn,
+		"EASTWEST_CERT_B64": certB64,
+		"EASTWEST_KEY_B64":  keyB64,
+	}
+	if err := o.secretsManager.UpdateGeneratedEnv(updates); err != nil {
+		return "", "", fmt.Errorf("failed to update .env.generated with TLS material: %w", err)
+	}
+
+	return certB64, keyB64, nil
 }
 
 func (o *Orchestrator) ensureWebhookTargetsService(ctx context.Context, client *k8s.Client, cluster string) error {
@@ -508,22 +641,30 @@ func (o *Orchestrator) ensureWebhookTargetsService(ctx context.Context, client *
 	return nil
 }
 
-func (o *Orchestrator) storeRemoteSecretForLaterSync(ctx context.Context, secret *corev1.Secret) error {
-	// Store the secret with a pending sync annotation
-	secret.ObjectMeta.Annotations = map[string]string{
-		"istio.io/sync-pending":   "true",
-		"istio.io/target-cluster": o.peerClusterName(),
+func secretToBase64(secret *corev1.Secret) (string, error) {
+	if secret == nil {
+		return "", nil
 	}
-
-	// Change the name to indicate it's pending
-	secret.ObjectMeta.Name = fmt.Sprintf("%s-pending", secret.ObjectMeta.Name)
-
-	if err := o.k8sClient.CreateOrUpdateSecret(ctx, secret); err != nil {
-		return fmt.Errorf("failed to store pending remote secret: %w", err)
+	data, err := yaml.Marshal(secret)
+	if err != nil {
+		return "", err
 	}
+	return base64.StdEncoding.EncodeToString(data), nil
+}
 
-	log.Info("Stored remote secret for later sync", "name", secret.ObjectMeta.Name)
-	return nil
+func secretFromBase64(encoded string) (*corev1.Secret, error) {
+	if strings.TrimSpace(encoded) == "" {
+		return nil, fmt.Errorf("empty secret payload")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 secret: %w", err)
+	}
+	var secret corev1.Secret
+	if err := yaml.Unmarshal(decoded, &secret); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal secret payload: %w", err)
+	}
+	return &secret, nil
 }
 
 func fingerprint(b []byte) string {
@@ -557,20 +698,20 @@ func (o *Orchestrator) peerClusterName() string {
 
 func (o *Orchestrator) localKubeconfigPath() string {
 	if o.isNAS {
-		defaultPath := filepath.Join(o.projectRoot, "infrastructure", "nas", "kubeconfig.yaml")
-		return envOrDefault("NAS_KUBECONFIG_PATH", defaultPath)
+		return o.resolveKubeconfig(o.options.NASKubeconfigPath, "NAS_KUBECONFIG_PATH",
+			filepath.Join("infrastructure", "nas", "kubeconfig.yaml"))
 	}
-	defaultPath := filepath.Join(o.projectRoot, "kubeconfig")
-	return envOrDefault("HOMELAB_KUBECONFIG_PATH", defaultPath)
+	return o.resolveKubeconfig(o.options.HomelabKubeconfigPath, "HOMELAB_KUBECONFIG_PATH",
+		filepath.Join("infrastructure", "homelab", "kubeconfig.yaml"), "kubeconfig")
 }
 
 func (o *Orchestrator) peerKubeconfigPath() string {
 	if o.isNAS {
-		defaultPath := filepath.Join(o.projectRoot, "kubeconfig")
-		return envOrDefault("HOMELAB_KUBECONFIG_PATH", defaultPath)
+		return o.resolveKubeconfig(o.options.HomelabKubeconfigPath, "HOMELAB_KUBECONFIG_PATH",
+			filepath.Join("infrastructure", "homelab", "kubeconfig.yaml"), "kubeconfig")
 	}
-	defaultPath := filepath.Join(o.projectRoot, "infrastructure", "nas", "kubeconfig.yaml")
-	return envOrDefault("NAS_KUBECONFIG_PATH", defaultPath)
+	return o.resolveKubeconfig(o.options.NASKubeconfigPath, "NAS_KUBECONFIG_PATH",
+		filepath.Join("infrastructure", "nas", "kubeconfig.yaml"))
 }
 
 func (o *Orchestrator) localGatewayFallbacks() []string {
@@ -590,13 +731,13 @@ func (o *Orchestrator) localGatewayFallbacks() []string {
 
 func (o *Orchestrator) peerGatewayFallbacks() []string {
 	if o.isNAS {
-		host := envOrDefault("HOMELAB_EW_GATEWAY_ADDR", "")
+		host := o.lookupEnvValue("HOMELAB_EW_GATEWAY_ADDR")
 		if host != "" {
 			return []string{host}
 		}
 		return nil
 	}
-	host := envOrDefault("NAS_EW_GATEWAY_ADDR", "")
+	host := o.lookupEnvValue("NAS_EW_GATEWAY_ADDR")
 	if host != "" {
 		return []string{host}
 	}
@@ -615,6 +756,57 @@ func (o *Orchestrator) peerGatewayVarKeys() (string, string) {
 		return "HOMELAB_EW_GATEWAY_ADDR", "HOMELAB_EW_GATEWAY_PORT"
 	}
 	return "NAS_EW_GATEWAY_ADDR", "NAS_EW_GATEWAY_PORT"
+}
+
+func (o *Orchestrator) lookupEnvValue(key string) string {
+	if o.secretsManager != nil {
+		if val, err := o.secretsManager.GetEnvValue(key); err == nil {
+			if trimmed := strings.TrimSpace(val); trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+	return strings.TrimSpace(os.Getenv(key))
+}
+
+func (o *Orchestrator) resolveKubeconfig(optionPath, envKey string, fallbacks ...string) string {
+	candidates := make([]string, 0, 3+len(fallbacks))
+	if val := strings.TrimSpace(optionPath); val != "" {
+		candidates = append(candidates, val)
+	}
+	if o.secretsManager != nil {
+		if val, err := o.secretsManager.GetGeneratedEnvValue(envKey); err == nil {
+			if trimmed := strings.TrimSpace(val); trimmed != "" {
+				candidates = append(candidates, trimmed)
+			}
+		}
+	}
+	if val := strings.TrimSpace(os.Getenv(envKey)); val != "" {
+		candidates = append(candidates, val)
+	}
+	candidates = append(candidates, fallbacks...)
+
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		path := candidate
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(o.projectRoot, path)
+		}
+		return path
+	}
+
+	if len(fallbacks) > 0 {
+		last := fallbacks[len(fallbacks)-1]
+		if !filepath.IsAbs(last) {
+			return filepath.Join(o.projectRoot, last)
+		}
+		return last
+	}
+
+	return ""
 }
 
 func (o *Orchestrator) reconcileTargets() []string {

@@ -1,12 +1,10 @@
 package secrets
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/log"
@@ -86,7 +84,7 @@ func (m *Manager) CreateClusterVarsSecret(ctx context.Context, namespace string)
 func (m *Manager) loadMergedEnvVars() (map[string]string, error) {
 	merged := make(map[string]string)
 
-	baseVars, err := m.parseEnvFile(filepath.Join(m.projectRoot, baseEnvFilename))
+	baseVars, err := readEnvFile(filepath.Join(m.projectRoot, baseEnvFilename))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", baseEnvFilename, err)
 	}
@@ -94,7 +92,7 @@ func (m *Manager) loadMergedEnvVars() (map[string]string, error) {
 		merged[k] = v
 	}
 
-	generatedVars, err := m.parseEnvFile(filepath.Join(m.projectRoot, generatedEnvFilename))
+	generatedVars, err := readEnvFile(filepath.Join(m.projectRoot, generatedEnvFilename))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", generatedEnvFilename, err)
 	}
@@ -126,6 +124,10 @@ func (m *Manager) CreateVaultTransitTokenSecret(ctx context.Context, transitToke
 	// Also create in flux-system namespace for platform-foundation
 	if err := m.createVaultTransitSecret(ctx, "flux-system", transitToken); err != nil {
 		return fmt.Errorf("failed to create vault-transit-token in flux-system namespace: %w", err)
+	}
+
+	if err := m.UpdateGeneratedEnv(map[string]string{"VAULT_TRANSIT_TOKEN": transitToken}); err != nil {
+		log.Warn("Failed to record VAULT_TRANSIT_TOKEN in .env.generated", "error", err)
 	}
 
 	log.Info("Vault-transit-token secrets created successfully in both namespaces")
@@ -191,85 +193,6 @@ func (m *Manager) getVaultTransitToken() (string, error) {
 }
 
 // parseEnvFile parses a .env file and returns key-value pairs
-func (m *Manager) parseEnvFile(filename string) (map[string]string, error) {
-	vars := make(map[string]string)
-
-	file, err := os.Open(filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return vars, nil
-		}
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") || !strings.Contains(line, "=") {
-			continue
-		}
-
-		// Split on first = to handle values with = in them
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		// Remove quotes if present
-		if len(value) >= 2 {
-			if (value[0] == '"' && value[len(value)-1] == '"') ||
-				(value[0] == '\'' && value[len(value)-1] == '\'') {
-				value = value[1 : len(value)-1]
-			}
-		}
-
-		// Skip if key or value is empty
-		if key == "" || value == "" {
-			continue
-		}
-
-		vars[key] = value
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return vars, nil
-}
-
-func writeEnvFile(path string, vars map[string]string) error {
-	if len(vars) == 0 {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-
-	keys := make([]string, 0, len(vars))
-	for key := range vars {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	var builder strings.Builder
-	for _, key := range keys {
-		builder.WriteString(key)
-		builder.WriteString("=")
-		builder.WriteString(vars[key])
-		builder.WriteString("\n")
-	}
-
-	return os.WriteFile(path, []byte(builder.String()), 0600)
-}
-
 // UpdateGeneratedEnv merges the provided key/value pairs into .env.generated.
 func (m *Manager) UpdateGeneratedEnv(updates map[string]string) error {
 	if len(updates) == 0 {
@@ -277,39 +200,16 @@ func (m *Manager) UpdateGeneratedEnv(updates map[string]string) error {
 	}
 
 	path := filepath.Join(m.projectRoot, generatedEnvFilename)
-	vars, err := m.parseEnvFile(path)
+	env, err := NewEnvFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read %s: %w", generatedEnvFilename, err)
 	}
 
-	changed := false
 	for key, value := range updates {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		if value == "" {
-			if _, ok := vars[key]; ok {
-				delete(vars, key)
-				changed = true
-			}
-			continue
-		}
-		if current, ok := vars[key]; !ok || current != value {
-			vars[key] = value
-			changed = true
-		}
+		env.Set(key, value)
 	}
 
-	if !changed {
-		return nil
-	}
-
-	if err := writeEnvFile(path, vars); err != nil {
-		return fmt.Errorf("failed to update %s: %w", generatedEnvFilename, err)
-	}
-
-	return nil
+	return env.Write()
 }
 
 // GetGeneratedEnvValue returns a value from .env.generated if present.
@@ -317,11 +217,11 @@ func (m *Manager) GetGeneratedEnvValue(key string) (string, error) {
 	if strings.TrimSpace(key) == "" {
 		return "", nil
 	}
-	vars, err := m.parseEnvFile(filepath.Join(m.projectRoot, generatedEnvFilename))
+	env, err := NewEnvFile(filepath.Join(m.projectRoot, generatedEnvFilename))
 	if err != nil {
 		return "", fmt.Errorf("failed to read %s: %w", generatedEnvFilename, err)
 	}
-	return vars[key], nil
+	return env.Get(key), nil
 }
 
 // GetEnvValue returns the value for a key from the merged .env and .env.generated content.
@@ -436,4 +336,12 @@ func (m *Manager) UpdateClusterVars(ctx context.Context, namespace string, updat
 
 	// Update the secret
 	return m.client.CreateOrUpdateSecret(ctx, secret)
+}
+
+func readEnvFile(path string) (map[string]string, error) {
+	env, err := NewEnvFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return env.All(), nil
 }
