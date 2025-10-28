@@ -89,6 +89,9 @@ func (m *Manager) loadMergedEnvVars() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to parse %s: %w", baseEnvFilename, err)
 	}
 	for k, v := range baseVars {
+		if shouldSkipBaseEnvKey(k) {
+			continue
+		}
 		merged[k] = v
 	}
 
@@ -101,6 +104,18 @@ func (m *Manager) loadMergedEnvVars() (map[string]string, error) {
 	}
 
 	return merged, nil
+}
+
+func shouldSkipBaseEnvKey(key string) bool {
+	switch strings.ToUpper(strings.TrimSpace(key)) {
+	case "HOMELAB_EW_GATEWAY_ADDR",
+		"HOMELAB_EW_GATEWAY_PORT",
+		"NAS_EW_GATEWAY_ADDR",
+		"NAS_EW_GATEWAY_PORT":
+		return true
+	default:
+		return false
+	}
 }
 
 // CreateVaultTransitTokenSecret creates vault-transit-token secret
