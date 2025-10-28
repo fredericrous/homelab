@@ -1,25 +1,20 @@
 ---
-# ServiceEntry to expose NAS Vault as a service in this cluster
+# Route vault traffic through the NAS east-west gateway using mesh DNS
 apiVersion: networking.istio.io/v1beta1
 kind: ServiceEntry
 metadata:
   name: nas-vault
   namespace: vault
-  labels:
-    app: nas-integration
 spec:
   hosts:
-    - vault.vault.global
-  location: MESH_EXTERNAL
+    - vault.vault.svc.cluster.local
+  location: MESH_INTERNAL
+  resolution: DNS
   ports:
     - number: 8200
-      name: http
-      protocol: HTTP
-  resolution: DNS
+      name: https
+      protocol: TLS
   endpoints:
-    # This endpoint will be resolved through the multicluster service discovery
-    # The actual endpoint is vault.vault.svc.cluster.local in the NAS cluster
-    - address: vault.vault.svc.cluster.local
-      network: $(NETWORK_NAS)
-      priority: 0
-      weight: 100
+    - address: istio-eastwestgateway.istio-system.svc.cluster.local
+      ports:
+        https: 15443
