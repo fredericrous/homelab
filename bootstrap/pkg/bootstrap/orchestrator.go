@@ -508,7 +508,7 @@ func (o *Orchestrator) setupSecrets(ctx context.Context) error {
 			log.Info("Attempting to auto-generate Vault transit token")
 
 			// Create transit manager for auto-generation
-			transitMgr := vault.NewTransitManager(o.config, o.k8sClient, o.isNAS)
+			transitMgr := vault.NewTransitManager(o.k8sClient, o.projectRoot, o.isNAS)
 			token, genErr := transitMgr.EnsureTransitToken(ctx)
 
 			if genErr != nil {
