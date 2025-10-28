@@ -4,8 +4,8 @@ vars:
   ROOT_DIR: '..'
   KUBECONFIG: '{{.TASKFILE_DIR}}/kubeconfig.yaml'
   CERT_PATH: '{{.TASKFILE_DIR}}/cert'
-  VAULT_ADDR: 'http://192.168.1.42:61200'
-  DOCKER_HOST_NAS: 'tcp://192.168.1.20:2376'
+  VAULT_ADDR: '{{if .ENVS.NAS_VAULT_ADDR}}{{.ENVS.NAS_VAULT_ADDR}}{{else if .ENVS.VAULT_ADDR}}{{.ENVS.VAULT_ADDR}}{{else}}https://vault.vault.svc.cluster.local:8200{{end}}'
+  DOCKER_HOST_NAS: '{{if .ENVS.DOCKER_HOST_NAS}}{{.ENVS.DOCKER_HOST_NAS}}{{else if .ENVS.DOCKER_HOST}}{{.ENVS.DOCKER_HOST}}{{else}}{{""}}{{end}}'
 
 env:
   SHELL: /bin/bash
@@ -74,8 +74,14 @@ tasks:
         # Wait for kubeconfig to be available
         for i in {1..30}; do
           if docker exec k3s-server cat /etc/rancher/k3s/k3s.yaml > {{.KUBECONFIG}} 2>/dev/null; then
-            # Update server IP to point to NAS host
-            sed -i 's/127.0.0.1/192.168.1.20/g' {{.KUBECONFIG}}
+            # Update server endpoint to reachable container IP
+            SERVER_IP=$(docker inspect -f '{{"{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"}}' k3s-server 2>/dev/null || true)
+            if [ -n "$SERVER_IP" ]; then
+              kubectl config set-cluster default --server="https://${SERVER_IP}:6443" --kubeconfig {{.KUBECONFIG}} >/dev/null
+              echo "   ➜ Updated API server endpoint to https://${SERVER_IP}:6443"
+            else
+              echo "⚠️  Unable to discover k3s-server container IP; kubeconfig will retain default endpoint"
+            fi
             kubectl config rename-context default nas >/dev/null 2>&1 || true
             kubectl config rename-context "admin@default" nas >/dev/null 2>&1 || true
             kubectl config use-context nas >/dev/null 2>&1 || true
