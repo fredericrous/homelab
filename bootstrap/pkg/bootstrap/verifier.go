@@ -11,7 +11,14 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/pkg/discovery"
 	"github.com/fredericrous/homelab/bootstrap/pkg/k8s"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+var (
+	serviceEntryGVR    = schema.GroupVersionResource{Group: "networking.istio.io", Version: "v1beta1", Resource: "serviceentries"}
+	destinationRuleGVR = schema.GroupVersionResource{Group: "networking.istio.io", Version: "v1beta1", Resource: "destinationrules"}
 )
 
 // VerifyMesh runs acceptance checks across the homelab and NAS clusters.
@@ -79,6 +86,12 @@ func verifyMeshWithRoot(ctx context.Context, projectRoot string) error {
 		errs = append(errs, err)
 	}
 	if err := verifyTLSSecret(ctx, homelabClient, eastWestGatewayTLSSecretName, "homelab"); err != nil {
+		errs = append(errs, err)
+	}
+	if err := verifyServiceEntry(ctx, homelabClient, "vault", "nas-vault", "homelab"); err != nil {
+		errs = append(errs, err)
+	}
+	if err := verifyDestinationRule(ctx, homelabClient, "vault", "nas-vault", "homelab"); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -170,8 +183,9 @@ func runIstioctlProxyStatus(ctx context.Context, info *discovery.ClusterInfo, cl
 
 	cmd := exec.CommandContext(cmdCtx, "istioctl", args...)
 	output, err := cmd.CombinedOutput()
+	trimmed := strings.TrimSpace(string(output))
 	if err != nil {
-		return fmt.Errorf("%s: istioctl proxy-status failed: %w (output: %s)", cluster, err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("%s: istioctl proxy-status failed: %w\n%s", cluster, err, trimOutput(trimmed, 20))
 	}
 	return nil
 }
@@ -199,4 +213,37 @@ func verifyGatewayCurl(ctx context.Context, info *discovery.ClusterInfo) error {
 		return fmt.Errorf("homelab: vault gateway curl failed: %w (output: %s)", err, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func verifyServiceEntry(ctx context.Context, client *k8s.Client, namespace, name, cluster string) error {
+	_, err := client.GetDynamicClient().Resource(serviceEntryGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("%s: ServiceEntry %s/%s missing; apply kubernetes/homelab/platform-foundation/configs/nas-integration/nas-vault-service-entry.yaml", cluster, namespace, name)
+		}
+		return fmt.Errorf("%s: failed to read ServiceEntry %s/%s: %w", cluster, namespace, name, err)
+	}
+	return nil
+}
+
+func verifyDestinationRule(ctx context.Context, client *k8s.Client, namespace, name, cluster string) error {
+	_, err := client.GetDynamicClient().Resource(destinationRuleGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("%s: DestinationRule %s/%s missing; apply kubernetes/homelab/platform-foundation/configs/nas-integration/nas-vault-destinationrule.yaml", cluster, namespace, name)
+		}
+		return fmt.Errorf("%s: failed to read DestinationRule %s/%s: %w", cluster, namespace, name, err)
+	}
+	return nil
+}
+
+func trimOutput(output string, maxLines int) string {
+	if output == "" || maxLines <= 0 {
+		return output
+	}
+	lines := strings.Split(output, "\n")
+	if len(lines) <= maxLines {
+		return output
+	}
+	return strings.Join(lines[:maxLines], "\n") + "\n..."
 }
