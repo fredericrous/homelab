@@ -5,13 +5,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/pkg/k8s"
+	authv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	authv1 "k8s.io/api/authentication/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -89,7 +90,7 @@ func (m *MultiClusterManager) CreateRemoteSecret(ctx context.Context, clusterNam
 // createServiceAccount creates a service account for cross-cluster access
 func (m *MultiClusterManager) createServiceAccount(ctx context.Context, remoteCluster string) (*corev1.ServiceAccount, error) {
 	saName := fmt.Sprintf("%s-%s", istioReaderPrefix, remoteCluster)
-	
+
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      saName,
@@ -115,7 +116,7 @@ func (m *MultiClusterManager) createServiceAccount(ctx context.Context, remoteCl
 		}
 		return created, nil
 	}
-	
+
 	// Already exists
 	return existing, nil
 }
@@ -223,7 +224,6 @@ func (m *MultiClusterManager) waitForServiceAccountToken(ctx context.Context, sa
 		// In Kubernetes 1.24+, we need to create a token manually
 		tokenRequest := &authv1.TokenRequest{
 			Spec: authv1.TokenRequestSpec{
-				Audiences: []string{"https://kubernetes.default.svc.cluster.local"},
 				ExpirationSeconds: int64Ptr(365 * 24 * 60 * 60), // 1 year
 			},
 		}
@@ -235,12 +235,25 @@ func (m *MultiClusterManager) waitForServiceAccountToken(ctx context.Context, sa
 		}
 
 		token = tokenResponse.Status.Token
-		
+
 		// Get CA certificate from the cluster
 		caSecret, err := m.client.GetClientset().CoreV1().Secrets("kube-system").Get(ctx, "kube-root-ca.crt", metav1.GetOptions{})
 		if err == nil && caSecret.Data["ca.crt"] != nil {
 			ca = caSecret.Data["ca.crt"]
 			return true, nil
+		}
+
+		if cfg := m.client.GetConfig(); cfg != nil {
+			if len(cfg.CAData) > 0 {
+				ca = cfg.CAData
+				return true, nil
+			}
+			if cfg.CAFile != "" {
+				if data, readErr := os.ReadFile(cfg.CAFile); readErr == nil {
+					ca = data
+					return true, nil
+				}
+			}
 		}
 
 		// Fallback: try to get from service account secret (pre-1.24 clusters)
@@ -288,7 +301,7 @@ func (m *MultiClusterManager) createMinimalKubeconfig(clusterName, server string
 			{
 				"name": clusterName,
 				"cluster": map[string]interface{}{
-					"server":                   server,
+					"server":                     server,
 					"certificate-authority-data": base64.StdEncoding.EncodeToString(ca),
 				},
 			},
