@@ -10,17 +10,17 @@ import (
 	"github.com/fluxcd/flux2/v2/pkg/manifestgen/install"
 	"github.com/fredericrous/homelab/bootstrap/pkg/config"
 	"github.com/fredericrous/homelab/bootstrap/pkg/k8s"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/restmapper"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // Client handles FluxCD operations
@@ -64,13 +64,13 @@ func (c *Client) Install(ctx context.Context, namespace string) error {
 
 	// Use Flux Go library for installation
 	log.Info("Generating FluxCD install manifests")
-	
+
 	// Create install options with proper defaults
 	opts := install.MakeDefaultOptions()
 	opts.Namespace = namespace
 	opts.Components = []string{
 		"source-controller",
-		"kustomize-controller", 
+		"kustomize-controller",
 		"helm-controller",
 		"notification-controller",
 	}
@@ -92,7 +92,7 @@ func (c *Client) Install(ctx context.Context, namespace string) error {
 	}
 
 	log.Info("FluxCD manifests applied, waiting for controllers to be ready...")
-	
+
 	// Wait for controllers to be ready
 	if err := c.WaitForInstallation(ctx, namespace, 5*time.Minute); err != nil {
 		return fmt.Errorf("flux controllers not ready: %w", err)
@@ -101,7 +101,6 @@ func (c *Client) Install(ctx context.Context, namespace string) error {
 	log.Info("FluxCD installation completed successfully")
 	return nil
 }
-
 
 // Bootstrap configures FluxCD to sync with a Git repository using Flux Go library
 func (c *Client) Bootstrap(ctx context.Context, namespace string) error {
@@ -114,16 +113,16 @@ func (c *Client) Bootstrap(ctx context.Context, namespace string) error {
 
 	// Generate sync manifests manually with correct v1 API version
 	log.Info("Generating GitOps sync manifests")
-	
+
 	manifestContent := c.generateSyncManifests(namespace)
 	log.Debug("Generated sync manifests", "content", manifestContent)
-	
+
 	// Apply sync manifests
 	log.Info("Applying GitOps sync manifests")
 	if err := c.applyManifests(ctx, []byte(manifestContent)); err != nil {
 		return fmt.Errorf("failed to apply sync manifests: %w", err)
 	}
-	
+
 	log.Debug("Sync manifests applied successfully")
 
 	// Create GitHub token secret if provided
@@ -146,7 +145,7 @@ func (c *Client) Bootstrap(ctx context.Context, namespace string) error {
 // BootstrapPlatformFoundation creates the platform-foundation Kustomization
 func (c *Client) BootstrapPlatformFoundation(ctx context.Context, namespace string, clusterType string) error {
 	log.Info("Creating platform-foundation Kustomization", "cluster", clusterType)
-	
+
 	manifest := fmt.Sprintf(`---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -162,7 +161,6 @@ spec:
     name: flux-system
   timeout: 5m0s
   wait: true
-  validation: client
 `, clusterType, namespace, clusterType)
 
 	return c.applyManifests(ctx, []byte(manifest))
@@ -171,13 +169,13 @@ spec:
 // createGitHubTokenSecret creates a secret for GitHub authentication
 func (c *Client) createGitHubTokenSecret(ctx context.Context, namespace string) error {
 	log.Info("Creating GitHub token secret for authentication")
-	
+
 	// Create secret data
 	secretData := map[string][]byte{
 		"username": []byte("git"),
 		"password": []byte(c.config.Token),
 	}
-	
+
 	// Create the secret
 	secret := &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -191,7 +189,7 @@ func (c *Client) createGitHubTokenSecret(ctx context.Context, namespace string) 
 			"data": secretData,
 		},
 	}
-	
+
 	// Apply the secret
 	return c.applyObject(ctx, secret)
 }
@@ -219,10 +217,10 @@ func (c *Client) WaitForInstallation(ctx context.Context, namespace string, time
 // WaitForSync waits for GitRepository to be ready and synced
 func (c *Client) WaitForSync(ctx context.Context, namespace, name string, timeout time.Duration) error {
 	log.Info("Waiting for GitRepository sync", "namespace", namespace, "name", name, "timeout", timeout)
-	
+
 	return wait.PollImmediate(10*time.Second, timeout, func() (bool, error) {
 		log.Debug("Polling GitRepository status", "namespace", namespace, "name", name)
-		
+
 		// Get the GitRepository resource
 		dynamicClient := c.k8sClient.GetDynamicClient()
 		gvr := schema.GroupVersionResource{
@@ -230,74 +228,74 @@ func (c *Client) WaitForSync(ctx context.Context, namespace, name string, timeou
 			Version:  "v1",
 			Resource: "gitrepositories",
 		}
-		
+
 		log.Debug("Attempting to get GitRepository", "gvr", gvr)
 		gitRepo, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			log.Debug("GitRepository not found yet", "error", err, "namespace", namespace, "name", name)
 			return false, nil // Not ready yet, continue waiting
 		}
-		
+
 		log.Debug("GitRepository found, checking status", "name", name)
-		
+
 		// Check status conditions
 		status, found, err := unstructured.NestedMap(gitRepo.Object, "status")
 		if err != nil || !found {
 			log.Debug("GitRepository status not available yet", "found", found, "error", err)
 			return false, nil
 		}
-		
+
 		log.Debug("GitRepository status found", "status", status)
-		
+
 		conditions, found, err := unstructured.NestedSlice(status, "conditions")
 		if err != nil || !found {
 			log.Debug("GitRepository conditions not available yet", "found", found, "error", err)
 			return false, nil
 		}
-		
+
 		log.Debug("GitRepository conditions found", "count", len(conditions))
-		
+
 		// Check for Ready condition
 		for i, conditionRaw := range conditions {
 			log.Debug("Checking condition", "index", i, "condition", conditionRaw)
-			
+
 			condition, ok := conditionRaw.(map[string]interface{})
 			if !ok {
 				log.Debug("Condition is not a map", "index", i, "type", fmt.Sprintf("%T", conditionRaw))
 				continue
 			}
-			
+
 			condType, found, err := unstructured.NestedString(condition, "type")
 			if err != nil || !found {
 				log.Debug("Condition type not found", "index", i, "error", err, "found", found)
 				continue
 			}
-			
+
 			log.Debug("Found condition", "type", condType, "index", i)
-			
+
 			if condType != "Ready" {
 				continue
 			}
-			
+
 			condStatus, found, err := unstructured.NestedString(condition, "status")
 			if err != nil || !found {
 				log.Debug("Condition status not found", "error", err, "found", found)
 				continue
 			}
-			
+
 			log.Debug("Ready condition found", "status", condStatus)
-			
+
 			if condStatus == "True" {
 				log.Info("GitRepository is ready and synced")
 				return true, nil
 			}
-			
+
 			// Log the reason if not ready
 			reason, _, _ := unstructured.NestedString(condition, "reason")
 			message, _, _ := unstructured.NestedString(condition, "message")
 			log.Debug("GitRepository not ready yet", "reason", reason, "message", message, "status", condStatus)
 		}
-		
+
 		return false, nil // Not ready yet
 	})
 }
@@ -305,7 +303,7 @@ func (c *Client) WaitForSync(ctx context.Context, namespace, name string, timeou
 // WaitForKustomization waits for a Kustomization to be ready
 func (c *Client) WaitForKustomization(ctx context.Context, namespace, name string, timeout time.Duration) error {
 	log.Info("Waiting for Kustomization", "namespace", namespace, "name", name, "timeout", timeout)
-	
+
 	return wait.PollImmediate(10*time.Second, timeout, func() (bool, error) {
 		dynamicClient := c.k8sClient.GetDynamicClient()
 		gvr := schema.GroupVersionResource{
@@ -313,39 +311,39 @@ func (c *Client) WaitForKustomization(ctx context.Context, namespace, name strin
 			Version:  "v1",
 			Resource: "kustomizations",
 		}
-		
+
 		kustomization, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			log.Debug("Kustomization not found yet", "error", err)
 			return false, nil
 		}
-		
+
 		// Check status
 		status, found, _ := unstructured.NestedMap(kustomization.Object, "status")
 		if !found {
 			log.Debug("Kustomization status not available yet")
 			return false, nil
 		}
-		
+
 		// Check conditions
 		conditions, found, _ := unstructured.NestedSlice(status, "conditions")
 		if !found || len(conditions) == 0 {
 			log.Debug("Kustomization conditions not available yet")
 			return false, nil
 		}
-		
+
 		// Look for Ready condition
 		for _, conditionRaw := range conditions {
 			condition, ok := conditionRaw.(map[string]interface{})
 			if !ok {
 				continue
 			}
-			
+
 			if condType, _ := condition["type"].(string); condType == "Ready" {
 				condStatus, _ := condition["status"].(string)
 				reason, _ := condition["reason"].(string)
 				message, _ := condition["message"].(string)
-				
+
 				if condStatus == "True" {
 					log.Info("Kustomization is ready")
 					return true, nil
@@ -353,11 +351,11 @@ func (c *Client) WaitForKustomization(ctx context.Context, namespace, name strin
 					// Fail fast on known error conditions
 					return false, fmt.Errorf("kustomization failed: %s - %s", reason, message)
 				}
-				
+
 				log.Debug("Kustomization not ready", "status", condStatus, "reason", reason, "message", message)
 			}
 		}
-		
+
 		return false, nil
 	})
 }
@@ -442,7 +440,7 @@ func (c *Client) SuspendReconciliation(ctx context.Context, namespace string) er
 	}
 
 	clientset := c.k8sClient.GetClientset()
-	
+
 	// Suspend GitRepositories (gitrepositories)
 	if err := c.suspendResources(ctx, clientset, "source.toolkit.fluxcd.io/v1", "GitRepository", namespace); err != nil {
 		log.Warn("Failed to suspend GitRepositories", "error", err)
@@ -482,7 +480,7 @@ func (c *Client) ResumeReconciliation(ctx context.Context, namespace string) err
 	}
 
 	clientset := c.k8sClient.GetClientset()
-	
+
 	// Resume GitRepositories (gitrepositories)
 	if err := c.resumeResources(ctx, clientset, "source.toolkit.fluxcd.io/v1", "GitRepository", namespace); err != nil {
 		log.Warn("Failed to resume GitRepositories", "error", err)
@@ -512,14 +510,13 @@ func (c *Client) ResumeReconciliation(ctx context.Context, namespace string) err
 	return nil
 }
 
-
 // applyManifests applies YAML manifests to the cluster using server-side apply
 func (c *Client) applyManifests(ctx context.Context, manifestsContent []byte) error {
 	log.Debug("Applying manifests to cluster", "size", len(manifestsContent), "content", string(manifestsContent))
-	
+
 	// Parse the YAML manifests
 	decoder := yaml.NewYAMLOrJSONDecoder(strings.NewReader(string(manifestsContent)), 4096)
-	
+
 	objectCount := 0
 	for {
 		var obj unstructured.Unstructured
@@ -531,24 +528,24 @@ func (c *Client) applyManifests(ctx context.Context, manifestsContent []byte) er
 			log.Error("Failed to decode manifest", "error", err, "content", string(manifestsContent))
 			return fmt.Errorf("failed to decode manifest: %w", err)
 		}
-		
+
 		if obj.Object == nil {
 			log.Debug("Skipping empty object")
 			continue // Skip empty objects
 		}
-		
+
 		objectCount++
 		log.Debug("Applying object", "kind", obj.GetKind(), "name", obj.GetName(), "namespace", obj.GetNamespace(), "count", objectCount)
-		
+
 		// Apply the object using server-side apply
 		if err := c.applyObject(ctx, &obj); err != nil {
 			log.Error("Failed to apply object", "kind", obj.GetKind(), "name", obj.GetName(), "error", err)
 			return fmt.Errorf("failed to apply object %s/%s: %w", obj.GetKind(), obj.GetName(), err)
 		}
-		
+
 		log.Debug("Successfully applied object", "kind", obj.GetKind(), "name", obj.GetName(), "namespace", obj.GetNamespace())
 	}
-	
+
 	return nil
 }
 
@@ -556,16 +553,16 @@ func (c *Client) applyManifests(ctx context.Context, manifestsContent []byte) er
 func (c *Client) applyObject(ctx context.Context, obj *unstructured.Unstructured) error {
 	// Get dynamic client
 	dynamicClient := c.k8sClient.GetDynamicClient()
-	
+
 	// Determine the resource interface
 	gvk := obj.GroupVersionKind()
 	gvr, err := c.gvkToGVR(gvk)
 	if err != nil {
 		return fmt.Errorf("failed to get GVR for %s: %w", gvk, err)
 	}
-	
+
 	namespacedResource := dynamicClient.Resource(gvr)
-	
+
 	// Handle namespaced vs cluster-scoped resources
 	var resourceInterface dynamic.ResourceInterface
 	if obj.GetNamespace() != "" {
@@ -573,10 +570,10 @@ func (c *Client) applyObject(ctx context.Context, obj *unstructured.Unstructured
 	} else {
 		resourceInterface = namespacedResource
 	}
-	
+
 	// Set managed fields for server-side apply
 	obj.SetManagedFields(nil)
-	
+
 	// Apply with server-side apply
 	// Note: Force:true is used during bootstrap to take ownership of Flux resources
 	// before the Flux controllers start. Once Flux controllers are running, they
@@ -586,7 +583,7 @@ func (c *Client) applyObject(ctx context.Context, obj *unstructured.Unstructured
 		FieldManager: "homelab-bootstrap",
 		Force:        true,
 	}
-	
+
 	_, err = resourceInterface.Apply(ctx, obj.GetName(), obj, applyOptions)
 	return err
 }
@@ -595,14 +592,14 @@ func (c *Client) applyObject(ctx context.Context, obj *unstructured.Unstructured
 func (c *Client) gvkToGVR(gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
 	// Create discovery client
 	discoveryClient := c.k8sClient.GetClientset().Discovery()
-	
+
 	// Create REST mapper with memory cache
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discoveryClient))
-	
+
 	// Retry logic for CRD discovery - newly applied CRDs may not be immediately available
 	var mapping *meta.RESTMapping
 	var err error
-	
+
 	err = wait.PollImmediate(2*time.Second, 30*time.Second, func() (bool, error) {
 		// Convert GVK to GVR
 		mapping, err = mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
@@ -620,24 +617,24 @@ func (c *Client) gvkToGVR(gvk schema.GroupVersionKind) (schema.GroupVersionResou
 		// Success
 		return true, nil
 	})
-	
+
 	if err != nil {
 		return schema.GroupVersionResource{}, fmt.Errorf("failed to discover GVR for %s after retries: %w", gvk, err)
 	}
-	
+
 	return mapping.Resource, nil
 }
 
 // suspendResources suspends Flux resources in a specific namespace
 func (c *Client) suspendResources(ctx context.Context, clientset kubernetes.Interface, apiVersion, kind, namespace string) error {
 	log.Debug("Suspending resources", "kind", kind, "namespace", namespace)
-	
+
 	// Parse API version to get group and version
 	group, version, err := parseAPIVersion(apiVersion)
 	if err != nil {
 		return fmt.Errorf("invalid API version %s: %w", apiVersion, err)
 	}
-	
+
 	// Create GVR for the resource type
 	// Note: Flux follows Kubernetes convention: Kind -> plural lowercase resource name
 	// GitRepository -> gitrepositories, HelmRelease -> helmreleases, etc.
@@ -646,98 +643,98 @@ func (c *Client) suspendResources(ctx context.Context, clientset kubernetes.Inte
 		Version:  version,
 		Resource: fluxKindToResource(kind), // Use correct Flux resource names
 	}
-	
+
 	// Get dynamic client
 	dynamicClient := c.k8sClient.GetDynamicClient()
 	resourceInterface := dynamicClient.Resource(gvr).Namespace(namespace)
-	
+
 	// List all resources of this type in the namespace
 	list, err := resourceInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Debug("Failed to list resources", "kind", kind, "namespace", namespace, "error", err)
 		return nil // Continue if this resource type doesn't exist yet
 	}
-	
+
 	// Patch each resource to set spec.suspend: true
 	for _, item := range list.Items {
 		name := item.GetName()
 		log.Info("Suspending resource", "kind", kind, "name", name, "namespace", namespace)
-		
+
 		// Create patch to set spec.suspend: true
 		patch := []byte(`{"spec":{"suspend":true}}`)
-		
+
 		_, err := resourceInterface.Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
 		if err != nil {
 			log.Warn("Failed to suspend resource", "kind", kind, "name", name, "error", err)
 			continue
 		}
-		
+
 		log.Debug("Successfully suspended resource", "kind", kind, "name", name)
 	}
-	
+
 	return nil
 }
 
 // suspendResourcesAllNamespaces suspends Flux resources across all namespaces
 func (c *Client) suspendResourcesAllNamespaces(ctx context.Context, clientset kubernetes.Interface, apiVersion, kind string) error {
 	log.Debug("Suspending resources across all namespaces", "kind", kind)
-	
+
 	// Parse API version to get group and version
 	group, version, err := parseAPIVersion(apiVersion)
 	if err != nil {
 		return fmt.Errorf("invalid API version %s: %w", apiVersion, err)
 	}
-	
+
 	// Create GVR for the resource type
 	gvr := schema.GroupVersionResource{
 		Group:    group,
 		Version:  version,
 		Resource: strings.ToLower(kind) + "s", // HelmRelease -> helmreleases
 	}
-	
+
 	// Get dynamic client
 	dynamicClient := c.k8sClient.GetDynamicClient()
 	resourceInterface := dynamicClient.Resource(gvr)
-	
+
 	// List all resources of this type across all namespaces
 	list, err := resourceInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Debug("Failed to list resources across namespaces", "kind", kind, "error", err)
 		return nil // Continue if this resource type doesn't exist yet
 	}
-	
+
 	// Patch each resource to set spec.suspend: true
 	for _, item := range list.Items {
 		name := item.GetName()
 		namespace := item.GetNamespace()
 		log.Info("Suspending resource", "kind", kind, "name", name, "namespace", namespace)
-		
+
 		// Create patch to set spec.suspend: true
 		patch := []byte(`{"spec":{"suspend":true}}`)
-		
+
 		namespacedInterface := resourceInterface.Namespace(namespace)
 		_, err := namespacedInterface.Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
 		if err != nil {
 			log.Warn("Failed to suspend resource", "kind", kind, "name", name, "namespace", namespace, "error", err)
 			continue
 		}
-		
+
 		log.Debug("Successfully suspended resource", "kind", kind, "name", name, "namespace", namespace)
 	}
-	
+
 	return nil
 }
 
 // resumeResources resumes Flux resources in a specific namespace
 func (c *Client) resumeResources(ctx context.Context, clientset kubernetes.Interface, apiVersion, kind, namespace string) error {
 	log.Debug("Resuming resources", "kind", kind, "namespace", namespace)
-	
+
 	// Parse API version to get group and version
 	group, version, err := parseAPIVersion(apiVersion)
 	if err != nil {
 		return fmt.Errorf("invalid API version %s: %w", apiVersion, err)
 	}
-	
+
 	// Create GVR for the resource type
 	// Note: Flux follows Kubernetes convention: Kind -> plural lowercase resource name
 	// GitRepository -> gitrepositories, HelmRelease -> helmreleases, etc.
@@ -746,127 +743,127 @@ func (c *Client) resumeResources(ctx context.Context, clientset kubernetes.Inter
 		Version:  version,
 		Resource: fluxKindToResource(kind), // Use correct Flux resource names
 	}
-	
+
 	// Get dynamic client
 	dynamicClient := c.k8sClient.GetDynamicClient()
 	resourceInterface := dynamicClient.Resource(gvr).Namespace(namespace)
-	
+
 	// List all resources of this type in the namespace
 	list, err := resourceInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Debug("Failed to list resources", "kind", kind, "namespace", namespace, "error", err)
 		return nil // Continue if this resource type doesn't exist yet
 	}
-	
+
 	// Patch each resource to set spec.suspend: false
 	for _, item := range list.Items {
 		name := item.GetName()
 		log.Info("Resuming resource", "kind", kind, "name", name, "namespace", namespace)
-		
+
 		// Create patch to set spec.suspend: false
 		patch := []byte(`{"spec":{"suspend":false}}`)
-		
+
 		_, err := resourceInterface.Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
 		if err != nil {
 			log.Warn("Failed to resume resource", "kind", kind, "name", name, "error", err)
 			continue
 		}
-		
+
 		log.Debug("Successfully resumed resource", "kind", kind, "name", name)
 	}
-	
+
 	return nil
 }
 
 // resumeResourcesAllNamespaces resumes Flux resources across all namespaces
 func (c *Client) resumeResourcesAllNamespaces(ctx context.Context, clientset kubernetes.Interface, apiVersion, kind string) error {
 	log.Debug("Resuming resources across all namespaces", "kind", kind)
-	
+
 	// Parse API version to get group and version
 	group, version, err := parseAPIVersion(apiVersion)
 	if err != nil {
 		return fmt.Errorf("invalid API version %s: %w", apiVersion, err)
 	}
-	
+
 	// Create GVR for the resource type
 	gvr := schema.GroupVersionResource{
 		Group:    group,
 		Version:  version,
 		Resource: strings.ToLower(kind) + "s", // HelmRelease -> helmreleases
 	}
-	
+
 	// Get dynamic client
 	dynamicClient := c.k8sClient.GetDynamicClient()
 	resourceInterface := dynamicClient.Resource(gvr)
-	
+
 	// List all resources of this type across all namespaces
 	list, err := resourceInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Debug("Failed to list resources across namespaces", "kind", kind, "error", err)
 		return nil // Continue if this resource type doesn't exist yet
 	}
-	
+
 	// Patch each resource to set spec.suspend: false
 	for _, item := range list.Items {
 		name := item.GetName()
 		namespace := item.GetNamespace()
 		log.Info("Resuming resource", "kind", kind, "name", name, "namespace", namespace)
-		
+
 		// Create patch to set spec.suspend: false
 		patch := []byte(`{"spec":{"suspend":false}}`)
-		
+
 		namespacedInterface := resourceInterface.Namespace(namespace)
 		_, err := namespacedInterface.Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
 		if err != nil {
 			log.Warn("Failed to resume resource", "kind", kind, "name", name, "namespace", namespace, "error", err)
 			continue
 		}
-		
+
 		log.Debug("Successfully resumed resource", "kind", kind, "name", name, "namespace", namespace)
 	}
-	
+
 	return nil
 }
 
 // triggerReconciliation triggers immediate reconciliation by adding reconcile annotation
 func (c *Client) triggerReconciliation(ctx context.Context, clientset kubernetes.Interface, namespace string) error {
 	log.Debug("Triggering immediate reconciliation", "namespace", namespace)
-	
+
 	now := time.Now().Format(time.RFC3339)
-	
+
 	// Create patch to add reconcile annotation
 	patch := fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, now)
-	
+
 	// Trigger reconciliation on GitRepositories in flux-system namespace
 	gvr := schema.GroupVersionResource{
 		Group:    "source.toolkit.fluxcd.io",
 		Version:  "v1",
 		Resource: "gitrepositories",
 	}
-	
+
 	dynamicClient := c.k8sClient.GetDynamicClient()
 	resourceInterface := dynamicClient.Resource(gvr).Namespace(namespace)
-	
+
 	// List GitRepositories and add reconcile annotation
 	list, err := resourceInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Debug("Failed to list GitRepositories for reconciliation trigger", "error", err)
 		return nil // Continue if GitRepositories don't exist yet
 	}
-	
+
 	for _, item := range list.Items {
 		name := item.GetName()
 		log.Info("Triggering reconciliation", "name", name, "namespace", namespace, "timestamp", now)
-		
+
 		_, err := resourceInterface.Patch(ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 		if err != nil {
 			log.Warn("Failed to trigger reconciliation", "name", name, "error", err)
 			continue
 		}
-		
+
 		log.Debug("Successfully triggered reconciliation", "name", name)
 	}
-	
+
 	return nil
 }
 
@@ -883,7 +880,7 @@ func parseAPIVersion(apiVersion string) (group, version string, err error) {
 func (c *Client) generateSyncManifests(namespace string) string {
 	// Debug: log the config being used
 	log.Debug("Generating sync manifests", "repository", c.config.Repository, "branch", c.config.Branch, "path", c.config.Path, "namespace", namespace)
-	
+
 	// Use v1 API version to avoid deprecation warnings
 	var gitRepo string
 	if c.config.Token != "" {
@@ -946,28 +943,28 @@ func fluxKindToResource(kind string) string {
 		"HelmChart":      "helmcharts",
 		"Bucket":         "buckets",
 		"OCIRepository":  "ocirepositories",
-		
+
 		// Kustomize Controller resources
 		"Kustomization": "kustomizations",
-		
+
 		// Helm Controller resources
 		"HelmRelease": "helmreleases",
-		
+
 		// Notification Controller resources
 		"Provider": "providers",
 		"Alert":    "alerts",
 		"Receiver": "receivers",
-		
+
 		// Image Controller resources
-		"ImageRepository":    "imagerepositories",
-		"ImagePolicy":        "imagepolicies",
+		"ImageRepository":       "imagerepositories",
+		"ImagePolicy":           "imagepolicies",
 		"ImageUpdateAutomation": "imageupdateautomations",
 	}
-	
+
 	if resource, exists := kindMap[kind]; exists {
 		return resource
 	}
-	
+
 	// Fallback to lowercase + s for unknown kinds, with warning
 	log.Warn("Unknown Flux kind, using fallback pluralization", "kind", kind)
 	return strings.ToLower(kind) + "s"
@@ -982,7 +979,7 @@ func (c *Client) CleanupFlux(ctx context.Context, namespace string) error {
 	if err != nil {
 		return fmt.Errorf("failed to check namespace: %w", err)
 	}
-	
+
 	if !exists {
 		log.Debug("Flux namespace does not exist, nothing to clean up")
 		return nil
@@ -1024,7 +1021,7 @@ func (c *Client) CleanupFlux(ctx context.Context, namespace string) error {
 
 		// Try both namespaced and cluster-scoped resources
 		resourceInterface := dynamicClient.Resource(gvr)
-		
+
 		// First try namespaced resources
 		list, err := resourceInterface.Namespace(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
@@ -1040,19 +1037,19 @@ func (c *Client) CleanupFlux(ctx context.Context, namespace string) error {
 		for _, item := range list.Items {
 			name := item.GetName()
 			itemNamespace := item.GetNamespace()
-			
+
 			log.Info("Removing finalizers from Flux resource", "kind", res.kind, "name", name, "namespace", itemNamespace)
-			
+
 			// Create patch to remove all finalizers
 			patch := []byte(`{"metadata":{"finalizers":null}}`)
-			
+
 			var patchInterface dynamic.ResourceInterface
 			if itemNamespace != "" {
 				patchInterface = resourceInterface.Namespace(itemNamespace)
 			} else {
 				patchInterface = resourceInterface
 			}
-			
+
 			_, err := patchInterface.Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
 			if err != nil {
 				log.Warn("Failed to remove finalizers", "kind", res.kind, "name", name, "error", err)
@@ -1078,7 +1075,7 @@ func (c *Client) CleanupFlux(ctx context.Context, namespace string) error {
 
 	if ns.Status.Phase == "Terminating" {
 		log.Info("Namespace is stuck in Terminating state, forcing cleanup", "namespace", namespace)
-		
+
 		// Remove finalizers from the namespace itself
 		patch := []byte(`{"metadata":{"finalizers":null}}`)
 		_, err = c.k8sClient.GetClientset().CoreV1().Namespaces().Patch(ctx, namespace, types.MergePatchType, patch, metav1.PatchOptions{})
@@ -1104,18 +1101,18 @@ func (c *Client) CleanupFlux(ctx context.Context, namespace string) error {
 // TriggerReconcile forces reconciliation of a Flux resource
 func (c *Client) TriggerReconcile(ctx context.Context, namespace, name string) error {
 	log.Info("Triggering reconciliation", "namespace", namespace, "name", name)
-	
+
 	// Add reconcile annotation to force immediate sync
 	now := time.Now().Format(time.RFC3339)
 	patch := fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, now)
-	
+
 	// For now, assume it's a Kustomization (most common case in our flow)
 	gvr := schema.GroupVersionResource{
 		Group:    "kustomize.toolkit.fluxcd.io",
 		Version:  "v1",
 		Resource: "kustomizations",
 	}
-	
+
 	_, err := c.k8sClient.GetDynamicClient().Resource(gvr).Namespace(namespace).Patch(ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	return err
 }
