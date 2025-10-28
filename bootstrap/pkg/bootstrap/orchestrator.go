@@ -170,6 +170,13 @@ type BootstrapStep struct {
 	Description string
 	Required    bool
 	Execute     func(ctx context.Context) error
+	Rollback    func(ctx context.Context) error
+}
+
+type stepMetric struct {
+	name     string
+	duration time.Duration
+	success  bool
 }
 
 // Bootstrap executes the complete bootstrap process
@@ -177,6 +184,8 @@ func (o *Orchestrator) Bootstrap(ctx context.Context) error {
 	log.Info("Starting bootstrap process", "type", o.getClusterType())
 
 	steps := o.getBootstrapSteps()
+	rollbacks := make([]func(context.Context) error, 0, len(steps))
+	metrics := make([]stepMetric, 0, len(steps))
 
 	for i, step := range steps {
 		log.Info("Executing bootstrap step",
@@ -188,25 +197,35 @@ func (o *Orchestrator) Bootstrap(ctx context.Context) error {
 		startTime := time.Now()
 		err := step.Execute(ctx)
 		duration := time.Since(startTime)
+		metrics = append(metrics, stepMetric{name: step.Name, duration: duration, success: err == nil})
 
 		if err != nil {
 			log.Error("Bootstrap step failed",
 				"step", step.Name,
 				"error", err,
 				"duration", duration)
+			o.emitStepMetric(step.Name, duration, false)
 
 			if step.Required {
+				o.runRollbacks(ctx, rollbacks)
 				return fmt.Errorf("required step '%s' failed: %w", step.Name, err)
-			} else {
-				log.Warn("Optional step failed, continuing", "step", step.Name)
 			}
-		} else {
-			log.Info("Bootstrap step completed",
-				"step", step.Name,
-				"duration", duration)
+
+			log.Warn("Optional step failed, continuing", "step", step.Name)
+			continue
+		}
+
+		log.Info("Bootstrap step completed",
+			"step", step.Name,
+			"completed_in", duration)
+		o.emitStepMetric(step.Name, duration, true)
+
+		if step.Rollback != nil {
+			rollbacks = append([]func(context.Context) error{step.Rollback}, rollbacks...)
 		}
 	}
 
+	o.logBootstrapSummary(metrics)
 	log.Info("Bootstrap process completed successfully")
 	return nil
 }
@@ -269,6 +288,7 @@ func (o *Orchestrator) getHomelabBootstrapSteps() []BootstrapStep {
 			Description: "Ensure Istio certificates and remote secrets are in place",
 			Required:    true,
 			Execute:     o.ensureIstioPrereqs,
+			Rollback:    o.rollbackIstioPrereqs,
 		},
 		{
 			Name:        "wait-infrastructure",
@@ -329,6 +349,7 @@ func (o *Orchestrator) getNASBootstrapSteps() []BootstrapStep {
 			Description: "Ensure Istio certificates and remote secrets are in place",
 			Required:    true,
 			Execute:     o.ensureIstioPrereqs,
+			Rollback:    o.rollbackIstioPrereqs,
 		},
 		{
 			Name:        "wait-infrastructure",
@@ -658,6 +679,64 @@ func (o *Orchestrator) comprehensiveHealthCheck(ctx context.Context) error {
 }
 
 // Helper methods
+
+func (o *Orchestrator) emitStepMetric(step string, duration time.Duration, success bool) {
+	log.Debug("Bootstrap step metric",
+		"step", step,
+		"duration", duration,
+		"success", success)
+}
+
+func (o *Orchestrator) logBootstrapSummary(metrics []stepMetric) {
+	if len(metrics) == 0 {
+		return
+	}
+	var total time.Duration
+	for _, metric := range metrics {
+		total += metric.duration
+	}
+	log.Info("Bootstrap timing summary",
+		"steps", len(metrics),
+		"total_duration", total)
+	for _, metric := range metrics {
+		log.Debug("Bootstrap step summary",
+			"step", metric.name,
+			"duration", metric.duration,
+			"success", metric.success)
+	}
+}
+
+func (o *Orchestrator) runRollbacks(ctx context.Context, rollbacks []func(context.Context) error) {
+	if len(rollbacks) == 0 {
+		return
+	}
+	log.Warn("Executing rollback plan", "steps", len(rollbacks))
+	for idx, rollback := range rollbacks {
+		if rollback == nil {
+			continue
+		}
+		start := time.Now()
+		if err := rollback(ctx); err != nil {
+			log.Warn("Rollback step failed",
+				"index", idx+1,
+				"error", err)
+			continue
+		}
+		log.Info("Rollback step completed",
+			"index", idx+1,
+			"duration", time.Since(start))
+	}
+}
+
+func (o *Orchestrator) rollbackIstioPrereqs(ctx context.Context) error {
+	if o.secretsManager == nil {
+		return nil
+	}
+	if err := o.secretsManager.ClearPendingRemoteSecret(ctx, o.peerClusterName()); err != nil {
+		return err
+	}
+	return nil
+}
 
 func (o *Orchestrator) getClusterType() string {
 	if o.isNAS {
