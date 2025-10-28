@@ -38,7 +38,7 @@ data:
                 "refId": "B"
               },
               {
-                "expr": "1 - bool(envoy_cluster_outlier_detection_ejections_active{cluster_name=\"outbound|61200||192.168.1.42\"} > 0)",
+                "expr": "1 - bool(envoy_cluster_outlier_detection_ejections_active{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\"} > 0)",
                 "legendFormat": "Circuit Breaker Closed",
                 "refId": "C"
               },
@@ -135,12 +135,12 @@ data:
             "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
             "targets": [
               {
-                "expr": "envoy_cluster_outlier_detection_ejections_active{cluster_name=\"outbound|61200||192.168.1.42\"}",
+                "expr": "envoy_cluster_outlier_detection_ejections_active{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\"}",
                 "legendFormat": "Circuit Breaker Open (1=Open, 0=Closed)",
                 "refId": "A"
               },
               {
-                "expr": "rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|61200||192.168.1.42\"}[5m])",
+                "expr": "rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\"}[5m])",
                 "legendFormat": "Request Rate (req/sec)",
                 "refId": "B"
               }
@@ -159,12 +159,12 @@ data:
             "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
             "targets": [
               {
-                "expr": "rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|61200||192.168.1.42\",envoy_response_code_class=\"2\"}[5m]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|61200||192.168.1.42\"}[5m]) * 100",
+                "expr": "rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\",envoy_response_code_class=\"2\"}[5m]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\"}[5m]) * 100",
                 "legendFormat": "Success Rate %",
                 "refId": "A"
               },
               {
-                "expr": "rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|61200||192.168.1.42\",envoy_response_code_class=\"5\"}[5m]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|61200||192.168.1.42\"}[5m]) * 100",
+                "expr": "rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\",envoy_response_code_class=\"5\"}[5m]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\"}[5m]) * 100",
                 "legendFormat": "Error Rate %",
                 "refId": "B"
               }
@@ -232,7 +232,7 @@ data:
             "gridPos": {"h": 4, "w": 6, "x": 0, "y": 32},
             "targets": [
               {
-                "expr": "(1 - (rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|61200||192.168.1.42\",envoy_response_code_class=\"5\"}[24h]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|61200||192.168.1.42\"}[24h]))) * 100",
+                "expr": "(1 - (rate(envoy_cluster_upstream_rq_xx{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\",envoy_response_code_class=\"5\"}[24h]) / rate(envoy_cluster_upstream_rq_total{cluster_name=\"outbound|8200||vault.vault.svc.cluster.local\"}[24h]))) * 100",
                 "refId": "A"
               }
             ],
