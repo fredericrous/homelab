@@ -5,4 +5,4 @@ metadata:
   namespace: flux-system
 spec:
   interval: 24h
-  url: $(ISTIO_HELM_REPO)
+  url: https://istio-release.storage.googleapis.com/charts

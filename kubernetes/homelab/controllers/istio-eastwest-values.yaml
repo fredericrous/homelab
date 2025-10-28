@@ -1,9 +1,9 @@
 _internal_defaults_do_not_set:
   name: istio-eastwestgateway
-  revision: $(ISTIO_REVISION)
+  revision: default
 
 service:
-  type: $(SERVICE_TYPE)
+  type: NodePort
   ports:
     - name: status-port
       port: 15021
@@ -23,12 +23,12 @@ service:
       nodePort: 30017
   labels:
     istio: eastwestgateway
-    topology.istio.io/network: $(NETWORK_HOMELAB)
+    topology.istio.io/network: homelab-network
   annotations: {}
 
 podLabels:
   istio: eastwestgateway
-  topology.istio.io/network: $(NETWORK_HOMELAB)
+  topology.istio.io/network: homelab-network
 
 podAnnotations:
   sidecar.istio.io/inject: "false"
@@ -37,7 +37,7 @@ podAnnotations:
 
 env:
   ISTIO_META_ROUTER_MODE: "sni-dnat"
-  ISTIO_META_REQUESTED_NETWORK_VIEW: $(NETWORK_HOMELAB)
+  ISTIO_META_REQUESTED_NETWORK_VIEW: homelab-network
 
 resources:
   requests:
