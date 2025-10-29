@@ -33,11 +33,6 @@ data:
         topology.istio.io/network: nas-network
       annotations: {}
 
-    podAnnotations:
-      sidecar.istio.io/inject: "false"
-      proxy.istio.io/config: |
-        {"holdApplicationUntilProxyStarts": true}
-
     env:
       ISTIO_META_ROUTER_MODE: "sni-dnat"
       ISTIO_META_REQUESTED_NETWORK_VIEW: nas-network
@@ -47,7 +42,7 @@ data:
         cpu: "200m"
         memory: "256Mi"
       limits:
-        cpu: "1"
+        cpu: "1000m"
         memory: "512Mi"
 
     autoscaling:
