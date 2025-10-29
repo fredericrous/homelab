@@ -26,10 +26,6 @@ service:
     topology.istio.io/network: homelab-network
   annotations: {}
 
-podLabels:
-  istio: eastwestgateway
-  topology.istio.io/network: homelab-network
-
 podAnnotations:
   sidecar.istio.io/inject: "false"
   proxy.istio.io/config: |
@@ -41,11 +37,11 @@ env:
 
 resources:
   requests:
-    cpu: 200m
-    memory: 256Mi
+    cpu: "200m"
+    memory: "256Mi"
   limits:
-    cpu: 1
-    memory: 512Mi
+    cpu: "1"
+    memory: "512Mi"
 
 autoscaling:
   enabled: false
