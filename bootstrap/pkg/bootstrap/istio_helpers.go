@@ -72,7 +72,7 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 
 	if o.isNAS {
 		// For NAS: Just ensure local gateway is ready and store endpoint
-		log.Info("Preparing Istio mesh on NAS, waiting for remote clusters to join")
+		log.Info("Setting up Istio mesh components on NAS cluster")
 		return o.ensureLocalGatewayReady(ctx)
 	}
 
@@ -82,7 +82,7 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 		return verifyMeshWithRoot(ctx, o.projectRoot)
 	}
 
-	log.Info("Completing Istio mesh setup with NAS cluster")
+	log.Info("Establishing cross-cluster mesh connectivity between homelab and NAS")
 	return o.establishBidirectionalMesh(ctx)
 }
 
@@ -156,7 +156,7 @@ func (o *Orchestrator) ensureLocalGatewayReady(ctx context.Context) error {
 	}
 
 	log.Info("Local Istio mesh components ready", "cluster", o.localClusterName(), "gateway", localEndpoint.Host, "port", localEndpoint.Port)
-	log.Info("Mesh prepared, waiting for remote clusters to join")
+	log.Info("NAS cluster is now mesh-ready for future cross-cluster connections")
 	
 	return nil
 }
