@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/fredericrous/homelab/bootstrap/pkg/k8s"
@@ -348,9 +349,18 @@ func getSecretKeys(data map[string][]byte) []string {
 func (m *Manager) UpdateClusterVars(ctx context.Context, namespace string, updates map[string]string) error {
 	log.Info("Updating cluster-vars secret", "namespace", namespace, "keys", len(updates))
 
+	// Create a timeout context for this operation
+	updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	// Get existing secret
-	secret, err := m.client.GetClientset().CoreV1().Secrets(namespace).Get(ctx, "cluster-vars", metav1.GetOptions{})
+	secret, err := m.client.GetClientset().CoreV1().Secrets(namespace).Get(updateCtx, "cluster-vars", metav1.GetOptions{})
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// If secret doesn't exist, create it
+			log.Info("cluster-vars secret not found, creating new one")
+			return m.CreateClusterVarsSecret(ctx, namespace)
+		}
 		return fmt.Errorf("failed to get cluster-vars secret: %w", err)
 	}
 
@@ -358,12 +368,22 @@ func (m *Manager) UpdateClusterVars(ctx context.Context, namespace string, updat
 	if secret.Data == nil {
 		secret.Data = make(map[string][]byte)
 	}
+	
+	// Log what we're updating
+	var updateKeys []string
 	for key, value := range updates {
 		secret.Data[key] = []byte(value)
+		updateKeys = append(updateKeys, fmt.Sprintf("%s=%s", key, value))
 	}
+	log.Info("Updating cluster-vars values", "updates", strings.Join(updateKeys, ", "))
 
 	// Update the secret
-	return m.client.CreateOrUpdateSecret(ctx, secret)
+	if err := m.client.CreateOrUpdateSecret(updateCtx, secret); err != nil {
+		return fmt.Errorf("failed to update cluster-vars secret: %w", err)
+	}
+
+	log.Info("Successfully updated cluster-vars secret")
+	return nil
 }
 
 func readEnvFile(path string) (map[string]string, error) {
