@@ -27,7 +27,7 @@ spec:
     remediation:
       retries: 3
   values:
-    revision: $(ISTIO_REVISION)
+    revision: ""
     pilot:
       env:
         PILOT_ENABLE_AMBIENT: "true"
