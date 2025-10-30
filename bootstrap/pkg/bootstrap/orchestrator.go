@@ -22,6 +22,18 @@ import (
 	"github.com/fredericrous/homelab/bootstrap/pkg/vault"
 )
 
+// MeshStatus represents the state of the Istio service mesh
+type MeshStatus int
+
+const (
+	// MeshNotReady indicates mesh components are not deployed
+	MeshNotReady MeshStatus = iota
+	// MeshPartial indicates local mesh components are ready but cross-cluster is not established
+	MeshPartial
+	// MeshReady indicates full mesh connectivity is established
+	MeshReady
+)
+
 // Orchestrator manages the complete bootstrap process
 type Orchestrator struct {
 	config         *config.Config

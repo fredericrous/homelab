@@ -64,6 +64,106 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 		return nil
 	}
 
+	// Check current mesh status
+	status, err := o.checkMeshStatus(ctx)
+	if err != nil {
+		log.Warn("Unable to determine mesh status", "error", err)
+	}
+
+	if o.isNAS {
+		// For NAS: Just ensure local gateway is ready and store endpoint
+		log.Info("Preparing Istio mesh on NAS, waiting for remote clusters to join")
+		return o.ensureLocalGatewayReady(ctx)
+	}
+
+	// For Homelab: Full mesh establishment
+	if status == MeshReady {
+		log.Info("Mesh already established, verifying health")
+		return verifyMeshWithRoot(ctx, o.projectRoot)
+	}
+
+	log.Info("Completing Istio mesh setup with NAS cluster")
+	return o.establishBidirectionalMesh(ctx)
+}
+
+// checkMeshStatus determines the current state of the service mesh
+func (o *Orchestrator) checkMeshStatus(ctx context.Context) (MeshStatus, error) {
+	// Check if Istio is installed
+	if _, err := o.k8sClient.GetClientset().AppsV1().Deployments(istioNamespace).Get(ctx, "istiod", metav1.GetOptions{}); err != nil {
+		return MeshNotReady, nil
+	}
+
+	// Check if local gateway is ready
+	if _, err := o.k8sClient.GetClientset().AppsV1().Deployments(istioNamespace).Get(ctx, eastWestServiceName, metav1.GetOptions{}); err != nil {
+		return MeshNotReady, nil
+	}
+
+	// Check if remote secret exists
+	remoteSecretName := fmt.Sprintf("istio-remote-secret-%s", o.peerClusterName())
+	if _, err := o.k8sClient.GetSecret(ctx, istioNamespace, remoteSecretName); err != nil {
+		return MeshPartial, nil
+	}
+
+	// Check if we can reach peer cluster
+	if peerClient, err := o.buildPeerClient(); err == nil {
+		if err := peerClient.IsReady(ctx); err == nil {
+			return MeshReady, nil
+		}
+	}
+
+	return MeshPartial, nil
+}
+
+// ensureLocalGatewayReady waits for local gateway and stores its endpoint
+func (o *Orchestrator) ensureLocalGatewayReady(ctx context.Context) error {
+	// Ensure gateway TLS secret
+	if err := o.ensureGatewayTLSSecret(ctx, o.k8sClient, o.localClusterName()); err != nil {
+		log.Warn("Failed to ensure east-west TLS secret", "error", err)
+	}
+
+	// Ensure webhook service
+	if err := o.ensureWebhookTargetsService(ctx, o.k8sClient, o.localClusterName()); err != nil {
+		log.Warn("Failed to reconcile mutating webhook", "error", err)
+	}
+
+	// Wait for gateway endpoint
+	localEndpoint, err := o.waitForGatewayEndpoint(ctx, o.k8sClient, o.localGatewayFallbacks(), true)
+	if err != nil {
+		return fmt.Errorf("failed to detect local east-west gateway address: %w", err)
+	}
+
+	// Store gateway endpoint in cluster-vars and .env.generated
+	updates := map[string]string{}
+	localAddrKey, localPortKey := o.localGatewayVarKeys()
+	updates[localAddrKey] = localEndpoint.Host
+	updates[localPortKey] = strconv.Itoa(int(localEndpoint.Port))
+
+	if err := o.secretsManager.UpdateClusterVars(ctx, "flux-system", updates); err != nil {
+		return fmt.Errorf("failed to update gateway variables: %w", err)
+	}
+
+	if err := o.secretsManager.UpdateGeneratedEnv(updates); err != nil {
+		log.Warn("Failed to persist gateway variables to .env.generated", "error", err)
+	}
+
+	// Wait for local Istio components
+	if err := o.k8sClient.WaitForDeployment(ctx, istioNamespace, "istiod", 5*time.Minute); err != nil {
+		return fmt.Errorf("istiod not ready: %w", err)
+	}
+
+	if err := o.k8sClient.WaitForDeployment(ctx, istioNamespace, eastWestServiceName, 5*time.Minute); err != nil {
+		return fmt.Errorf("east-west gateway not ready: %w", err)
+	}
+
+	log.Info("Local Istio mesh components ready", "cluster", o.localClusterName(), "gateway", localEndpoint.Host, "port", localEndpoint.Port)
+	log.Info("Mesh prepared, waiting for remote clusters to join")
+	
+	return nil
+}
+
+// establishBidirectionalMesh creates cross-cluster connectivity
+func (o *Orchestrator) establishBidirectionalMesh(ctx context.Context) error {
+	// Ensure local gateway components first
 	if err := o.ensureGatewayTLSSecret(ctx, o.k8sClient, o.localClusterName()); err != nil {
 		log.Warn("Failed to ensure east-west TLS secret", "error", err)
 	}
@@ -74,6 +174,7 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 
 	updates := map[string]string{}
 
+	// Get local gateway endpoint
 	localEndpoint, err := o.waitForGatewayEndpoint(ctx, o.k8sClient, o.localGatewayFallbacks(), true)
 	if err != nil {
 		return fmt.Errorf("failed to detect local east-west gateway address: %w", err)
@@ -83,33 +184,52 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 	updates[localAddrKey] = localEndpoint.Host
 	updates[localPortKey] = strconv.Itoa(int(localEndpoint.Port))
 
-	if peerClient, err := o.buildPeerClient(); err == nil {
-		if err := o.ensureGatewayTLSSecret(ctx, peerClient, o.peerClusterName()); err != nil {
-			log.Warn("Failed to ensure peer TLS secret", "peer", o.peerClusterName(), "error", err)
-		}
-		if err := o.ensureWebhookTargetsService(ctx, peerClient, o.peerClusterName()); err != nil {
-			log.Warn("Failed to reconcile peer webhook", "peer", o.peerClusterName(), "error", err)
-		}
-		if peerEndpoint, err := o.waitForGatewayEndpoint(ctx, peerClient, o.peerGatewayFallbacks(), false); err == nil {
-			peerAddrKey, peerPortKey := o.peerGatewayVarKeys()
-			updates[peerAddrKey] = peerEndpoint.Host
-			updates[peerPortKey] = strconv.Itoa(int(peerEndpoint.Port))
-		} else {
-			log.Warn("Unable to discover peer gateway", "peer", o.peerClusterName(), "error", err)
-		}
-	} else {
-		log.Warn("Peer kubeconfig unavailable", "peer", o.peerClusterName(), "error", err)
+	// Connect to peer cluster and setup bidirectional connectivity
+	peerClient, err := o.buildPeerClient()
+	if err != nil {
+		return fmt.Errorf("failed to build peer client: %w", err)
 	}
 
-	if len(updates) > 0 {
-		if err := o.secretsManager.UpdateClusterVars(ctx, "flux-system", updates); err != nil {
-			return fmt.Errorf("failed to update gateway variables: %w", err)
-		}
-		if err := o.secretsManager.UpdateGeneratedEnv(updates); err != nil {
-			log.Warn("Failed to persist gateway variables to .env.generated", "error", err)
-		}
+	// Ensure peer gateway TLS
+	if err := o.ensureGatewayTLSSecret(ctx, peerClient, o.peerClusterName()); err != nil {
+		log.Warn("Failed to ensure peer TLS secret", "peer", o.peerClusterName(), "error", err)
 	}
 
+	// Ensure peer webhook
+	if err := o.ensureWebhookTargetsService(ctx, peerClient, o.peerClusterName()); err != nil {
+		log.Warn("Failed to reconcile peer webhook", "peer", o.peerClusterName(), "error", err)
+	}
+
+	// Get peer gateway endpoint
+	peerEndpoint, err := o.waitForGatewayEndpoint(ctx, peerClient, o.peerGatewayFallbacks(), false)
+	if err != nil {
+		return fmt.Errorf("failed to detect peer east-west gateway: %w", err)
+	}
+
+	peerAddrKey, peerPortKey := o.peerGatewayVarKeys()
+	updates[peerAddrKey] = peerEndpoint.Host
+	updates[peerPortKey] = strconv.Itoa(int(peerEndpoint.Port))
+
+	// Update cluster vars with both endpoints
+	if err := o.secretsManager.UpdateClusterVars(ctx, "flux-system", updates); err != nil {
+		return fmt.Errorf("failed to update gateway variables: %w", err)
+	}
+
+	if err := o.secretsManager.UpdateGeneratedEnv(updates); err != nil {
+		log.Warn("Failed to persist gateway variables to .env.generated", "error", err)
+	}
+
+	// Ensure CA certificates are consistent
+	if err := o.ensureCACerts(ctx); err != nil {
+		return fmt.Errorf("failed to ensure CA certificates: %w", err)
+	}
+
+	// Create bidirectional remote secrets
+	if err := o.ensureRemoteSecret(ctx); err != nil {
+		return fmt.Errorf("failed to create remote secrets: %w", err)
+	}
+
+	// Trigger Flux reconciliation on both clusters
 	fluxClient, err := o.newFluxClient()
 	if err != nil {
 		return err
@@ -117,10 +237,11 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 
 	for _, name := range o.reconcileTargets() {
 		if err := fluxClient.TriggerReconcile(ctx, "flux-system", name); err != nil {
-			return fmt.Errorf("failed to reconcile %s: %w", name, err)
+			log.Warn("Failed to reconcile", "kustomization", name, "error", err)
 		}
 	}
 
+	// Wait for all components to be ready
 	if err := o.k8sClient.WaitForDeployment(ctx, istioNamespace, "istiod", 5*time.Minute); err != nil {
 		return fmt.Errorf("istiod not ready: %w", err)
 	}
@@ -133,15 +254,16 @@ func (o *Orchestrator) finalizeIstioMesh(ctx context.Context) error {
 		log.Warn("ztunnel not ready", "error", err)
 	}
 
-	log.Info("Istio mesh finalized", "gateway", localEndpoint.Host, "port", localEndpoint.Port)
+	log.Info("Istio mesh established", 
+		"local", fmt.Sprintf("%s:%d", localEndpoint.Host, localEndpoint.Port),
+		"peer", fmt.Sprintf("%s:%d", peerEndpoint.Host, peerEndpoint.Port))
 
-	if !o.isNAS {
-		if err := verifyMeshWithRoot(ctx, o.projectRoot); err != nil {
-			log.Warn("Mesh verification reported issues", "error", err)
-		} else {
-			log.Info("Mesh verification succeeded")
-		}
+	// Verify mesh connectivity
+	if err := verifyMeshWithRoot(ctx, o.projectRoot); err != nil {
+		return fmt.Errorf("mesh verification failed: %w", err)
 	}
+
+	log.Info("Cross-cluster mesh verification succeeded")
 	return nil
 }
 
@@ -234,6 +356,15 @@ func (o *Orchestrator) ensureCACerts(ctx context.Context) error {
 
 func (o *Orchestrator) ensureRemoteSecret(ctx context.Context) error {
 	log.Info("Ensuring cross-cluster remote secrets")
+
+	// Check if remote secrets already exist (idempotency)
+	peerSecretName := fmt.Sprintf("istio-remote-secret-%s", o.peerClusterName())
+
+	// Check if peer's remote secret already exists in local cluster
+	if _, err := o.k8sClient.GetSecret(ctx, istioNamespace, peerSecretName); err == nil {
+		log.Info("Remote secret for peer cluster already exists", "secret", peerSecretName)
+		// Still need to ensure local secret is in peer cluster
+	}
 
 	// Apply any cached remote secret payload for the peer cluster if present
 	if envKey := fmt.Sprintf("ISTIO_REMOTE_SECRET_%s_B64", strings.ToUpper(o.peerClusterName())); true {
