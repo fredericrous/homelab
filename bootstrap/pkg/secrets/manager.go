@@ -107,7 +107,6 @@ func (m *Manager) loadMergedEnvVars() (map[string]string, error) {
 	defaults := map[string]string{
 		"ISTIO_HELM_REPO": "https://istio-release.storage.googleapis.com/charts",
 		"ISTIO_VERSION":   "1.27.2",
-		"ISTIO_REVISION":  "default",
 		"NETWORK_NAS":     "nas-network",
 		"NETWORK_HOMELAB": "homelab-network",
 	}

@@ -25,7 +25,6 @@ spec:
     remediation:
       retries: 3
   values:
-    revision: ""
     global:
       meshID: mesh1
       multiCluster:

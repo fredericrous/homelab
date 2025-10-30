@@ -27,7 +27,6 @@ spec:
     remediation:
       retries: 3
   values:
-    revision: ""
     pilot:
       env:
         PILOT_ENABLE_AMBIENT: "true"

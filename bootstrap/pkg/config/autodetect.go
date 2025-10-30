@@ -188,7 +188,6 @@ func (ad *AutoDetector) setDefaults() {
 	defaults := map[string]string{
 		"ISTIO_VERSION": "1.24.0",
 		"ISTIO_HELM_REPO": "https://istio-release.storage.googleapis.com/charts",
-		"ISTIO_REVISION": "default",
 		"NETWORK_HOMELAB": "homelab-network", 
 		"NETWORK_NAS": "nas-network",
 		"SERVICE_TYPE": "LoadBalancer",

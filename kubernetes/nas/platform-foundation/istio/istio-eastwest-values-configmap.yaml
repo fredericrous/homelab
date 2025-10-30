@@ -15,19 +15,19 @@ data:
         - name: status-port
           port: 15021
           targetPort: 15021
-          nodePort: 31021
+          nodePort: 61121
         - name: tls
           port: 15443
           targetPort: 15443
-          nodePort: 31443
+          nodePort: 61443
         - name: tls-istiod
           port: 15012
           targetPort: 15012
-          nodePort: 30012
+          nodePort: 61512
         - name: tls-webhook
           port: 15017
           targetPort: 15017
-          nodePort: 30017
+          nodePort: 61517
       labels:
         istio: eastwestgateway
         topology.istio.io/network: nas-network
