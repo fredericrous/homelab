@@ -6,7 +6,6 @@ resources:
   - istio-helm-repo.yaml
   - istio-base.yaml
   - istiod.yaml
-  - ztunnel.yaml
   - istio-eastwest-values-configmap.yaml
   - istio-eastwest-gateway.yaml
   - expose-services.yaml
