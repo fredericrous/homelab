@@ -21,3 +21,5 @@ CLAUDE.local.md
 # OS
 .DS_Store
 Thumbs.db
+# Generated homelab artifacts
+infrastructure/homelab/kubeconfig.yaml
