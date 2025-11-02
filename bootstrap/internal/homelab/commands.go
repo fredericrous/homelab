@@ -452,12 +452,16 @@ func runInfrastructureTask(ctx context.Context, infra, task string) error {
 // findProjectRoot finds the project root directory by looking for common project files
 func findProjectRoot(startDir string) string {
 	current := startDir
+	var lastMatch string
 	for {
 		// Check for project indicators
 		indicators := []string{".git", "go.mod", "bootstrap", "Taskfile.yml"}
 		for _, indicator := range indicators {
 			if _, err := os.Stat(filepath.Join(current, indicator)); err == nil {
-				return current
+				if indicator == ".git" {
+					return current
+				}
+				lastMatch = current
 			}
 		}
 
@@ -470,7 +474,7 @@ func findProjectRoot(startDir string) string {
 		current = parent
 	}
 
-	return "" // Project root not found
+	return lastMatch
 }
 
 func orchestratorOptions(isNAS bool) *bootstrap.OrchestratorOptions {
