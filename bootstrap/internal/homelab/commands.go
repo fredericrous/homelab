@@ -3,6 +3,7 @@ package homelab
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"github.com/fredericrous/homelab/bootstrap/pkg/secrets"
 	"github.com/fredericrous/homelab/bootstrap/pkg/tui"
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NewBootstrapCommand creates the bootstrap command for homelab
@@ -206,6 +208,25 @@ func runCheck(ctx context.Context) error {
 
 func runInstall(ctx context.Context) error {
 	log.Info("Installing homelab infrastructure (non-interactive bootstrap)")
+
+	loader := config.NewLoader()
+	cfg, err := loader.LoadConfig("homelab")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if cfg.Homelab == nil {
+		return fmt.Errorf("homelab configuration not found")
+	}
+
+	if err := ensureHomelabKubeconfig(ctx, cfg); err != nil {
+		return err
+	}
+
+	if err := ensureHomelabCilium(ctx, cfg); err != nil {
+		return err
+	}
+
 	return runBootstrap(ctx, true)
 }
 
@@ -377,7 +398,15 @@ func runUp(ctx context.Context) error {
 	log.Info("🚀 Creating homelab cluster infrastructure (VMs + Talos)")
 
 	// Delegate to infrastructure Taskfile
-	return runInfrastructureTask(ctx, "homelab", "up")
+	if err := runInfrastructureTask(ctx, "homelab", "up"); err != nil {
+		return err
+	}
+
+	if err := syncHomelabKubeconfigFile(); err != nil {
+		return fmt.Errorf("failed to sync homelab kubeconfig: %w", err)
+	}
+
+	return nil
 }
 
 // runInfrastructureTask executes a task in the specified infrastructure Taskfile
@@ -457,6 +486,122 @@ func orchestratorOptions(isNAS bool) *bootstrap.OrchestratorOptions {
 		HomelabKubeconfigPath: kubeconfigFor("homelab"),
 		NASKubeconfigPath:     kubeconfigFor("nas"),
 	}
+}
+
+func ensureHomelabKubeconfig(ctx context.Context, cfg *config.Config) error {
+	dest := cfg.Homelab.Cluster.KubeConfig
+	if dest == "" {
+		return fmt.Errorf("homelab kubeconfig path not configured")
+	}
+
+	if _, err := os.Stat(dest); err == nil {
+		return nil
+	}
+
+	if err := syncHomelabKubeconfigFile(); err == nil {
+		if _, err := os.Stat(dest); err == nil {
+			log.Info("✨ Synced existing kubeconfig", "path", dest)
+			return nil
+		}
+	}
+
+	log.Info("Homelab kubeconfig missing, provisioning infrastructure with 'task homelab:up'")
+	if err := runUp(ctx); err != nil {
+		return fmt.Errorf("failed to provision infrastructure: %w", err)
+	}
+
+	if _, err := os.Stat(dest); err != nil {
+		if err := syncHomelabKubeconfigFile(); err != nil {
+			return fmt.Errorf("failed to sync kubeconfig after provisioning: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func ensureHomelabCilium(ctx context.Context, cfg *config.Config) error {
+	client, err := k8s.NewClient(cfg.Homelab.Cluster.KubeConfig)
+	if err != nil {
+		return fmt.Errorf("failed to connect to cluster: %w", err)
+	}
+
+	if err := client.IsReady(ctx); err != nil {
+		return fmt.Errorf("cluster not ready: %w", err)
+	}
+
+	ds, err := client.GetClientset().AppsV1().DaemonSets("kube-system").Get(ctx, "cilium", metav1.GetOptions{})
+	if err == nil && ds != nil && ds.Status.NumberReady > 0 {
+		log.Info("✅ Cilium already installed", "ready", ds.Status.NumberReady)
+		return nil
+	}
+
+	log.Info("🌐 Cilium not detected, installing CNI")
+	if err := runInstallCilium(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func syncHomelabKubeconfigFile() error {
+	loader := config.NewLoader()
+	cfg, err := loader.LoadConfig("homelab")
+	if err != nil {
+		return fmt.Errorf("failed to load homelab config: %w", err)
+	}
+
+	if cfg.Homelab == nil {
+		return fmt.Errorf("homelab configuration not found")
+	}
+
+	dest := cfg.Homelab.Cluster.KubeConfig
+	if dest == "" {
+		return fmt.Errorf("homelab kubeconfig path not configured")
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	projectRoot := findProjectRoot(wd)
+	if projectRoot == "" {
+		return fmt.Errorf("project root not found - ensure you're running from within the homelab project")
+	}
+
+	sourceCandidates := []string{
+		filepath.Join(projectRoot, "kubeconfig"),
+		filepath.Join(projectRoot, "infrastructure", "homelab", "kubeconfig"),
+	}
+
+	for _, src := range sourceCandidates {
+		if _, err := os.Stat(src); err == nil {
+			if err := copyKubeconfig(src, dest); err != nil {
+				return err
+			}
+			log.Info("🔄 Synced kubeconfig", "from", src, "to", dest)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("generated kubeconfig not found; looked for %s", sourceCandidates)
+}
+
+func copyKubeconfig(src, dest string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("failed to read kubeconfig %s: %w", src, err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dest), fs.FileMode(0o755)); err != nil {
+		return fmt.Errorf("failed to create kubeconfig directory: %w", err)
+	}
+
+	if err := os.WriteFile(dest, data, fs.FileMode(0o600)); err != nil {
+		return fmt.Errorf("failed to write kubeconfig to %s: %w", dest, err)
+	}
+
+	return nil
 }
 
 func kubeconfigFor(cluster string) string {
